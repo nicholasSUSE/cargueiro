@@ -66,3 +66,31 @@ func reachable(t *testing.T, addr string) string {
 	require.NoError(t, conn.Close())
 	return addr
 }
+
+// HelmPull fetches a chart from a registry with the helm CLI, as the e2e
+// registry user, and returns the path of the pulled archive. When the pull
+// fails it returns "" and the result.
+func HelmPull(t *testing.T, address, path, chart, version string, flags []string) (string, Result) {
+	t.Helper()
+
+	dest, cfg := t.TempDir(), t.TempDir()
+	args := []string{
+		"pull", "oci://" + address + "/" + path + "/" + chart,
+		"--version", version, "--destination", dest,
+		"--username", RegistryUser, "--password", RegistryPassword,
+	}
+	args = append(args, flags...)
+
+	res := HelmWith(t, Options{
+		Dir: t.TempDir(),
+		Env: []string{
+			"HELM_REGISTRY_CONFIG=" + filepath.Join(cfg, "registry.json"),
+			"HELM_REPOSITORY_CONFIG=" + filepath.Join(cfg, "repositories.yaml"),
+			"HELM_REPOSITORY_CACHE=" + filepath.Join(cfg, "cache"),
+		},
+	}, args...)
+	if res.ExitCode != 0 {
+		return "", res
+	}
+	return filepath.Join(dest, chart+"-"+version+".tgz"), res
+}

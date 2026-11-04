@@ -159,6 +159,15 @@ func scrubbedEnv() []string {
 	return env
 }
 
+func hasEnv(env []string, key string) bool {
+	for _, kv := range env {
+		if strings.HasPrefix(kv, key+"=") {
+			return true
+		}
+	}
+	return false
+}
+
 func run(t *testing.T, opts Options, name string, args ...string) Result {
 	t.Helper()
 
@@ -168,7 +177,12 @@ func run(t *testing.T, opts Options, name string, args ...string) Result {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = opts.Dir
-	cmd.Env = append(scrubbedEnv(), opts.Env...)
+	env := append(scrubbedEnv(), opts.Env...)
+	if !hasEnv(opts.Env, "CARGUEIRO_CONFIG_DIR") {
+		// Never read or write the developer's real saved credentials.
+		env = append(env, "CARGUEIRO_CONFIG_DIR="+t.TempDir())
+	}
+	cmd.Env = env
 	cmd.Stdin = strings.NewReader(opts.Stdin)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

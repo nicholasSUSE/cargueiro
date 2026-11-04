@@ -1,0 +1,20 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - revive
+    - errorlint
+    - unused
+    - ineffassign
+    - gocritic
+    - nakedret
+    - predeclared
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

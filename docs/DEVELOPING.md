@@ -98,9 +98,22 @@ Flags stay defined in Go and show up in `--help` automatically. Mention each loc
 
 After changing a doc, run `make docs` to refresh the README table. `make test` fails if the table is stale, if a command has no doc, or if a doc has no command.
 
+## Editor (VSCode)
+
+`.vscode/` is gitignored. Create `.vscode/settings.json` locally so the editor sees the e2e tests and uses the repo's linter:
+
+```json
+{
+  "go.buildTags": "e2e",
+  "go.lintTool": "golangci-lint-v2"
+}
+```
+
+Without `go.buildTags`, running an e2e test from the editor fails with `build constraints exclude all Go files`, because the e2e files carry the `e2e` build tag. E2E tests also need the pinned `helm` on `PATH`, so start VSCode from a shell where mise is activated (for example `code .`).
+
 ## Debugging (VSCode)
 
-`.vscode/` is gitignored. Create `.vscode/launch.json` locally from this template (requires [Delve](https://github.com/go-delve/delve)):
+Create `.vscode/launch.json` locally from this template (requires [Delve](https://github.com/go-delve/delve)):
 
 ```json
 {
@@ -136,6 +149,20 @@ After changing a doc, run `make docs` to refresh the README table. `make test` f
 ```
 
 Open `cargueiro/` as the workspace root. Change `args` to debug other commands. Debug runs skip the Makefile `-ldflags`, so the version output shows `dev (commit none)`.
+
+## Testing
+
+| Target | What it runs |
+|--------|--------------|
+| `make test-unit` | Unit tests (`go test -race ./...`), no external tools |
+| `make test-e2e` | E2E tests under `tests/` (`-tags e2e`), against the real binary |
+| `make test` | Both |
+
+E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`) and run it as a black box.
+
+`tests/packaging` packages the real SUSE fleet charts in `tests/data/charts/fleet` and compares three archives per chart by content (mode, owner, size, sha256 per file; gzip headers and mtimes ignored): the one built by cargueiro, the one built by the `helm` CLI, and the one published in `rancher/charts`. It needs the `helm` CLI from `mise.toml` on `PATH`, at the same version as `helm.sh/helm/v4` in `go.mod`; a test fails with a clear message if it is not.
+
+Test data is committed by hand, never fetched by a script. See `tests/data/charts/fleet/PROVENANCE.md` for where it came from. Nothing under `tests/` is embedded in the binary.
 
 ## Before pushing
 

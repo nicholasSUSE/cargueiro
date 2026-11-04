@@ -7,19 +7,24 @@ LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSI
 PKG     ?= ./...
 
 .DEFAULT_GOAL := help
-.PHONY: help build test vet lint fmt docs clean
+.PHONY: help build test test-unit test-e2e vet lint fmt docs clean
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build bin/cargueiro
 	go build -ldflags "$(LDFLAGS)" -o $(BIN) .
 
-test: ## Run tests with the race detector
+test: test-unit test-e2e ## Run all tests
+
+test-unit: ## Run unit tests with the race detector
 	go test -race ./...
 
+test-e2e: build ## Run e2e tests (needs helm; see docs/DEVELOPING.md)
+	go test -tags e2e -count=1 ./tests/...
+
 vet: ## Run go vet
-	go vet ./...
+	go vet -tags e2e ./...
 
 lint: ## Run golangci-lint (PKG=./path to scope)
 	golangci-lint run $(PKG)

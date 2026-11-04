@@ -22,4 +22,4 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 
 ## Development
 
-See [docs/DEVELOPING.md](docs/DEVELOPING.md). Contributions made with LLM agents follow [AGENTS.md](AGENTS.md).
+See [docs/DEVELOPING.md](docs/DEVELOPING.md). Contributions made with LLM agents follow [docs/AGENTS.md](docs/AGENTS.md).

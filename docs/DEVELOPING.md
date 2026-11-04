@@ -52,6 +52,45 @@ The script is committed. The hook registration lives in `.claude/settings.json`,
 
 The hook is fast local feedback only. CI is the enforcing check.
 
+## Debugging (VSCode)
+
+`.vscode/` is gitignored. Create `.vscode/launch.json` locally from this template (requires [Delve](https://github.com/go-delve/delve)):
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "cargueiro version",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "args": ["version"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "cargueiro version (--debug)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "args": ["--debug", "version"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Test current package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}"
+    }
+  ]
+}
+```
+
+Open `cargueiro/` as the workspace root. Change `args` to debug other commands. Debug runs skip the Makefile `-ldflags`, so the version output shows `dev (commit none)`.
+
 ## Before pushing
 
 ```

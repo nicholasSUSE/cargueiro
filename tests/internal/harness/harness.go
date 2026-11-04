@@ -102,27 +102,64 @@ func findRepoRoot() (string, error) {
 	}
 }
 
+// Options tune how a command is run.
+type Options struct {
+	// Dir is the working directory.
+	Dir string
+	// Env adds KEY=value entries to a scrubbed copy of the process environment.
+	Env []string
+	// Stdin is fed to the command's standard input.
+	Stdin string
+}
+
 // Cargueiro runs the binary under test in dir.
 func Cargueiro(t *testing.T, dir string, args ...string) Result {
+	t.Helper()
+
+	return CargueiroWith(t, Options{Dir: dir}, args...)
+}
+
+// CargueiroWith runs the binary under test with opts.
+func CargueiroWith(t *testing.T, opts Options, args ...string) Result {
 	t.Helper()
 
 	bin := os.Getenv(binEnv)
 	require.NotEmpty(t, bin, "%s is unset: run the tests through a TestMain calling harness.Main", binEnv)
 
-	return run(t, dir, bin, args...)
+	return run(t, opts, bin, args...)
 }
 
 // Helm runs the helm CLI found on PATH in dir.
 func Helm(t *testing.T, dir string, args ...string) Result {
 	t.Helper()
 
+	return HelmWith(t, Options{Dir: dir}, args...)
+}
+
+// HelmWith runs the helm CLI found on PATH with opts.
+func HelmWith(t *testing.T, opts Options, args ...string) Result {
+	t.Helper()
+
 	_, err := exec.LookPath("helm")
 	require.NoError(t, err, "helm not found on PATH: run `mise install` and activate mise (see docs/DEVELOPING.md)")
 
-	return run(t, dir, "helm", args...)
+	return run(t, opts, "helm", args...)
 }
 
-func run(t *testing.T, dir, name string, args ...string) Result {
+// scrubbedEnv returns the process environment without variables that would
+// leak credentials into a command under test.
+func scrubbedEnv() []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "CARGUEIRO_USERNAME=") || strings.HasPrefix(kv, "CARGUEIRO_PASSWORD=") {
+			continue
+		}
+		env = append(env, kv)
+	}
+	return env
+}
+
+func run(t *testing.T, opts Options, name string, args ...string) Result {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
@@ -130,7 +167,9 @@ func run(t *testing.T, dir, name string, args ...string) Result {
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = dir
+	cmd.Dir = opts.Dir
+	cmd.Env = append(scrubbedEnv(), opts.Env...)
+	cmd.Stdin = strings.NewReader(opts.Stdin)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

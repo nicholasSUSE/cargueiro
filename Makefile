@@ -6,11 +6,19 @@ LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSI
 
 PKG     ?= ./...
 
+# Local OCI registries for e2e tests, bound to localhost only. Both require
+# the htpasswd credentials in tests/data/registry; one serves plain HTTP, the
+# other TLS with a generated self-signed CA.
+REGISTRY_IMAGE    ?= registry:2.8.3
+REGISTRY_PORT     ?= 5050
+REGISTRY_TLS_PORT ?= 5051
+CERTS_DIR         := $(CURDIR)/.tmp/registry/certs
+
 .DEFAULT_GOAL := help
-.PHONY: help build test test-unit test-e2e vet lint fmt docs clean
+.PHONY: help build test test-unit test-e2e registry-up registry-down vet lint fmt docs clean
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build bin/cargueiro
 	go build -ldflags "$(LDFLAGS)" -o $(BIN) .
@@ -20,8 +28,28 @@ test: test-unit test-e2e ## Run all tests
 test-unit: ## Run unit tests with the race detector
 	go test -race ./...
 
-test-e2e: build ## Run e2e tests (needs helm; see docs/DEVELOPING.md)
-	go test -tags e2e -count=1 ./tests/...
+test-e2e: build ## Run e2e tests; starts and stops the local registries (needs Docker and helm)
+	@$(MAKE) -s registry-up
+	@go test -tags e2e -count=1 ./tests/...; rc=$$?; $(MAKE) -s registry-down; exit $$rc
+
+registry-up: registry-down ## Start local registries: HTTP+auth on 5050, TLS+auth on 5051
+	@go run ./tests/gencerts $(CERTS_DIR)
+	@docker run -d --name cargueiro-registry -p 127.0.0.1:$(REGISTRY_PORT):5000 \
+		-v $(CURDIR)/tests/data/registry:/auth:ro,z \
+		-e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=cargueiro \
+		-e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd $(REGISTRY_IMAGE) >/dev/null
+	@docker run -d --name cargueiro-registry-tls -p 127.0.0.1:$(REGISTRY_TLS_PORT):5000 \
+		-v $(CURDIR)/tests/data/registry:/auth:ro,z -v $(CERTS_DIR):/certs:ro,z \
+		-e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=cargueiro \
+		-e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
+		-e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/server.crt -e REGISTRY_HTTP_TLS_KEY=/certs/server.key \
+		$(REGISTRY_IMAGE) >/dev/null
+	@for i in $$(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:$(REGISTRY_PORT)/v2/ && break; sleep 1; done
+	@for i in $$(seq 1 30); do curl -s -o /dev/null --cacert $(CERTS_DIR)/ca.crt https://127.0.0.1:$(REGISTRY_TLS_PORT)/v2/ && break; sleep 1; done
+	@echo "registries up (admin/cargueiro-test): http://127.0.0.1:$(REGISTRY_PORT), https://127.0.0.1:$(REGISTRY_TLS_PORT) (CA: $(CERTS_DIR)/ca.crt)"
+
+registry-down: ## Stop and remove the local registries
+	@docker rm -f cargueiro-registry cargueiro-registry-tls cargueiro-registry-auth >/dev/null 2>&1 || true
 
 vet: ## Run go vet
 	go vet -tags e2e ./...

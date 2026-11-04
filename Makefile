@@ -4,9 +4,7 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSION) \
            -X github.com/nicholasSUSE/cargueiro/internal/version.commit=$(COMMIT)
 
-GOLANGCI_VERSION ?= v2.15.0
-GOLANGCI         := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
-PKG              ?= ./...
+PKG     ?= ./...
 
 .DEFAULT_GOAL := help
 .PHONY: help build test vet lint fmt docs clean
@@ -24,10 +22,10 @@ vet: ## Run go vet
 	go vet ./...
 
 lint: ## Run golangci-lint (PKG=./path to scope)
-	$(GOLANGCI) run $(PKG)
+	golangci-lint run $(PKG)
 
 fmt: ## Format code with golangci-lint (PKG=./path to scope)
-	$(GOLANGCI) fmt $(PKG)
+	golangci-lint fmt $(PKG)
 
 docs: ## Refresh the README commands table from cmd/docs
 	go run ./tools/docgen

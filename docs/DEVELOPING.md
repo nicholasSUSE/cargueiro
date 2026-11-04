@@ -1,25 +1,47 @@
 # Developing
 
+## Setup
+
+Tool versions are pinned in `mise.toml`: Go, golangci-lint, dlv, helm, oras, crane and the Docker CLI.
+
+1. Install [mise](https://mise.jdx.dev/).
+2. Activate it in your shell (zsh shown; add after your `PATH` setup):
+   ```
+   eval "$(mise activate zsh)"
+   ```
+3. From the repo root, run `mise trust` and `mise install`.
+4. Have a Docker daemon running. mise pins the Docker CLI only; the daemon comes from the host.
+
+Check that the pinned tools win over anything else on your `PATH`:
+
+```
+mise doctor | grep activated   # activated: yes
+mise which helm golangci-lint  # paths under ~/.local/share/mise/installs
+```
+
+If a pinned tool is shadowed, `mise which <tool>` shows the right one and `command -v <tool>` the one actually used. Two common causes:
+
+- mise is not activated, so system or Homebrew binaries come first. Activate it as above.
+- An editor installed a stale copy into `GOBIN`. `mise.toml` lists `go` last so pinned tools take precedence; remove the stale binary if it still wins.
+
+The pinned `helm` must match `helm.sh/helm/v4` in `go.mod`.
+
 ## Linting
 
-`.golangci.yml` is the single source of truth. Every runner (editor, agent hook, CI) uses the same config and the same pinned golangci-lint version.
+`.golangci.yml` is the single source of truth. Every runner (editor, agent hook, CI) uses the same config and the same pinned golangci-lint version from `mise.toml`.
 
 | Runner | How |
 |--------|-----|
 | Local | `make lint` / `make fmt` |
 | Editor (VSCode) | `go.lintTool: golangci-lint-v2`, picks up `.golangci.yml` |
 | Agent hook | `scripts/lint-hook.sh`, runs after every `.go` edit |
-| CI (GHA) | `golangci/golangci-lint-action`, same version |
+| CI (GHA) | `jdx/mise-action`, reads the same `mise.toml` |
 
 ### Version pinning
 
-The version is set once in the `Makefile`:
+The version lives once, in `mise.toml` (`golangci-lint = "2.15.0"`). `make lint` and `make fmt` call `golangci-lint` from `PATH`, so they use whatever mise provides. To upgrade, change that line and run `mise install`.
 
-```make
-GOLANGCI_VERSION ?= v2.15.0
-```
-
-`make lint` and `make fmt` run `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)`. It compiles with the local Go toolchain, is cached after the first run and adds nothing to `go.mod`. CI reads the same version. To upgrade, change that one variable.
+The pinned binary is a prebuilt release built with a specific Go version. If `go.mod` moves to a newer Go minor before golangci-lint publishes a matching build, `make lint` fails with "the Go language version used to build golangci-lint is lower than the targeted Go version". Bump golangci-lint, or install it from source with mise's `go:` backend (`"go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint"`).
 
 ### Linters
 
@@ -32,7 +54,7 @@ Suppress a finding only with a reason: `//nolint:gochecknoglobals // set via ldf
 A `PostToolUse` hook on `Edit|Write|MultiEdit` runs `scripts/lint-hook.sh`:
 
 1. Reads the edited path from the hook's stdin JSON and skips non-`.go` files.
-2. Runs `make fmt`, then lints only the edited package (`./<dir>/...`).
+2. Runs `make fmt`, then lints only the edited package (`./<dir>`).
 3. On findings, prints them to stderr and exits `2`, so the agent sees them and fixes them.
 
 The script is committed. The hook registration lives in `.claude/settings.json`, which is gitignored, so each developer registers it locally:

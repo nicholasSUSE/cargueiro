@@ -12,7 +12,13 @@ Every archive is attempted. If any fails, the others are still pushed, every err
 
 Pushing to `registry.suse.com/rancher/catalog` or `stgregistry.suse.com/rancher/catalog`, or anywhere under them, is refused: charts published there must never be overwritten. The check looks only at the address (host names are compared case-insensitively, and the port is ignored), runs before any password is read or any connection is made, and has no flag to turn it off. Any other registry, local ones included, may be overwritten: pushing a chart that already exists replaces it.
 
-Authentication uses basic auth. Give the user with `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD` or, with `--password-stdin`, on standard input. There is no password flag, so the secret stays out of shell history and the process list. Without credentials the push is anonymous. Only the credentials given here are used; Docker's and Helm's stored credentials are never read.
+Authentication uses basic auth. The credentials come from the first of these that applies:
+
+1. `--username` (or `CARGUEIRO_USERNAME`) with the password from `CARGUEIRO_PASSWORD` or, with `--password-stdin`, from standard input. There is no password flag, so the secret stays out of shell history and the process list.
+2. The credentials saved by `cargueiro registry login` for exactly this host and port. They are only used when no username or password is given, and never for another host.
+3. None: the push is anonymous.
+
+If the saved credentials are rejected, a hint says to log in again. Only cargueiro's own saved credentials are read: Docker's and Helm's are never touched.
 
 Connections use HTTPS and the system trust store. For a registry behind a private or self-signed CA, trust its certificate with `--ca-file`. `--plain-http` talks plain HTTP instead, for local testing; it cannot be combined with `--ca-file`.
 

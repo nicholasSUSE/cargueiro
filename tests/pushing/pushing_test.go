@@ -355,3 +355,56 @@ func TestPushBadInput(t *testing.T) {
 		})
 	}
 }
+
+// deadProxy makes any outbound HTTP(S) request fail locally. The protected
+// registries are real SUSE hosts, so a regression in the guard must never be
+// able to reach them.
+func deadProxy() []string {
+	const proxy = "http://127.0.0.1:1"
+	return []string{
+		"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "ALL_PROXY=" + proxy,
+		"http_proxy=" + proxy, "https_proxy=" + proxy, "all_proxy=" + proxy,
+		"NO_PROXY=", "no_proxy=",
+	}
+}
+
+func TestPushRefusesProtectedRegistries(t *testing.T) {
+	archive := published(t, "fleet-crd")
+
+	for _, registry := range []string{
+		"registry.suse.com/rancher/catalog",
+		"stgregistry.suse.com/rancher/catalog",
+		"REGISTRY.suse.com:443/Rancher/Catalog/",
+		"oci://stgregistry.suse.com/rancher/catalog/fleet",
+	} {
+		t.Run(registry, func(t *testing.T) {
+			res := harness.CargueiroWith(t, harness.Options{
+				Dir: t.TempDir(),
+				Env: append(deadProxy(), "CARGUEIRO_PASSWORD="+harness.RegistryPassword),
+			}, "push", archive, "--registry", registry, "--username", harness.RegistryUser)
+
+			requireNoPassword(t, res)
+			require.NotZero(t, res.ExitCode)
+			require.Empty(t, res.Stdout)
+			require.Contains(t, res.Stderr, "pushing to this registry is not allowed")
+			require.Contains(t, res.Stderr, "must never be overwritten")
+			require.NotContains(t, res.Stderr, "127.0.0.1:1", "the guard must act before any network attempt")
+		})
+	}
+}
+
+func TestPushMayOverwriteOnLocalRegistries(t *testing.T) {
+	for _, tr := range transports() {
+		t.Run(tr.name, func(t *testing.T) {
+			address, path := tr.address(t), repoPath()+"/rancher/catalog"
+			archive := published(t, "fleet-crd")
+
+			first := push(t, address+"/"+path, tr.flags(t), archive)
+			second := push(t, address+"/"+path, tr.flags(t), archive)
+
+			require.Zero(t, first.ExitCode, first.Stderr)
+			require.Zero(t, second.ExitCode, "a local registry may be overwritten: "+second.Stderr)
+			require.Equal(t, first.Stdout, second.Stdout)
+		})
+	}
+}

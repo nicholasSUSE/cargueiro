@@ -5,8 +5,6 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,8 +21,8 @@ func TestNewClientOptions(t *testing.T) {
 		{name: "plain HTTP", opts: ClientOptions{PlainHTTP: true}},
 		{name: "username without password", opts: ClientOptions{Username: "u"}, wantErr: "together"},
 		{name: "password without username", opts: ClientOptions{Password: "p"}, wantErr: "together"},
-		{name: "plain HTTP with CA file", opts: ClientOptions{PlainHTTP: true, CAFile: "ca.pem"}, wantErr: "plain HTTP"},
-		{name: "missing CA file", opts: ClientOptions{CAFile: filepath.Join(t.TempDir(), "absent.pem")}, wantErr: "read CA file"},
+		{name: "plain HTTP with a CA certificate", opts: ClientOptions{PlainHTTP: true, CAPEM: []byte("x")}, wantErr: "plain HTTP"},
+		{name: "CA that is not PEM", opts: ClientOptions{CAPEM: []byte("not a certificate")}, wantErr: "no PEM certificate"},
 	}
 
 	for _, tt := range tests {
@@ -46,7 +44,7 @@ func TestNewClientRejectsConflictsAsInvalidOptions(t *testing.T) {
 	_, err := NewClient(ClientOptions{Username: "u"})
 	require.ErrorIs(t, err, ErrInvalidOptions)
 
-	_, err = NewClient(ClientOptions{PlainHTTP: true, CAFile: "x"})
+	_, err = NewClient(ClientOptions{PlainHTTP: true, CAPEM: []byte("x")})
 	require.ErrorIs(t, err, ErrInvalidOptions)
 }
 
@@ -57,9 +55,7 @@ func TestTLSConfigWithCA(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// The test server's certificate is self-signed, so it acts as its own CA.
-	caFile := filepath.Join(t.TempDir(), "ca.pem")
 	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw})
-	require.NoError(t, os.WriteFile(caFile, caPEM, 0o600))
 
 	get := func(t *testing.T, cfg *tls.Config) error {
 		t.Helper()
@@ -71,32 +67,29 @@ func TestTLSConfigWithCA(t *testing.T) {
 		return err
 	}
 
-	t.Run("trusted with the CA file", func(t *testing.T) {
-		cfg, err := tlsConfigWithCA(caFile)
+	t.Run("trusted with the CA certificate", func(t *testing.T) {
+		cfg, err := tlsConfigWithCA(caPEM)
 		require.NoError(t, err)
 
 		require.NoError(t, get(t, cfg))
 	})
 
 	t.Run("untrusted without it", func(t *testing.T) {
-		cfg, err := tlsConfigWithCA("")
+		cfg, err := tlsConfigWithCA(nil)
 		require.NoError(t, err)
 
 		require.ErrorContains(t, get(t, cfg), "certificate")
 	})
 
 	t.Run("minimum TLS version is 1.2", func(t *testing.T) {
-		cfg, err := tlsConfigWithCA(caFile)
+		cfg, err := tlsConfigWithCA(caPEM)
 		require.NoError(t, err)
 
 		require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	})
 
-	t.Run("file without a certificate", func(t *testing.T) {
-		junk := filepath.Join(t.TempDir(), "junk.pem")
-		require.NoError(t, os.WriteFile(junk, []byte("nope"), 0o600))
-
-		_, err := tlsConfigWithCA(junk)
+	t.Run("text without a certificate", func(t *testing.T) {
+		_, err := tlsConfigWithCA([]byte("nope"))
 
 		require.ErrorIs(t, err, ErrInvalidOptions)
 	})

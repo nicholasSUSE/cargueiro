@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	helmregistry "helm.sh/helm/v4/pkg/registry"
@@ -29,9 +28,9 @@ type ClientOptions struct {
 	Password string
 	// PlainHTTP talks HTTP instead of HTTPS.
 	PlainHTTP bool
-	// CAFile is a PEM file with extra CA certificates to trust, for
-	// registries behind a private or self-signed CA.
-	CAFile string
+	// CAPEM holds extra CA certificates to trust, in PEM, for registries
+	// behind a private or self-signed CA.
+	CAPEM []byte
 }
 
 // NewClient returns a Client for a registry. Only the credentials in opts are
@@ -41,7 +40,7 @@ func NewClient(opts ClientOptions) (Client, error) {
 		return nil, err
 	}
 
-	httpClient, err := newHTTPClient(opts.CAFile)
+	httpClient, err := newHTTPClient(opts.CAPEM)
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +66,8 @@ func (o ClientOptions) validate() error {
 	if (o.Username == "") != (o.Password == "") {
 		return fmt.Errorf("%w: username and password must be given together", ErrInvalidOptions)
 	}
-	if o.PlainHTTP && o.CAFile != "" {
-		return fmt.Errorf("%w: a CA file cannot be used with plain HTTP", ErrInvalidOptions)
+	if o.PlainHTTP && len(o.CAPEM) > 0 {
+		return fmt.Errorf("%w: a CA certificate cannot be used with plain HTTP", ErrInvalidOptions)
 	}
 	return nil
 }
@@ -83,9 +82,9 @@ func (o ClientOptions) credential() auth.Credential {
 }
 
 // newHTTPClient returns an HTTP client that trusts the system roots plus
-// caFile, honors the proxy environment and times out requests.
-func newHTTPClient(caFile string) (*http.Client, error) {
-	tlsConfig, err := tlsConfigWithCA(caFile)
+// caPEM, honors the proxy environment and times out requests.
+func newHTTPClient(caPEM []byte) (*http.Client, error) {
+	tlsConfig, err := tlsConfigWithCA(caPEM)
 	if err != nil {
 		return nil, err
 	}
@@ -109,25 +108,20 @@ func newAuthorizer(httpClient *http.Client, credential auth.Credential) auth.Cli
 	}
 }
 
-// tlsConfigWithCA trusts the system roots plus the certificates in caFile.
-// With no caFile it returns a config using the system roots only.
-func tlsConfigWithCA(caFile string) (*tls.Config, error) {
+// tlsConfigWithCA trusts the system roots plus the certificates in caPEM.
+// With no caPEM it returns a config using the system roots only.
+func tlsConfigWithCA(caPEM []byte) (*tls.Config, error) {
 	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
-	if caFile == "" {
+	if len(caPEM) == 0 {
 		return cfg, nil
-	}
-
-	pem, err := os.ReadFile(caFile)
-	if err != nil {
-		return nil, fmt.Errorf("read CA file: %w", err)
 	}
 
 	pool, err := x509.SystemCertPool()
 	if err != nil {
 		pool = x509.NewCertPool()
 	}
-	if !pool.AppendCertsFromPEM(pem) {
-		return nil, fmt.Errorf("%w: %s holds no PEM certificate", ErrInvalidOptions, caFile)
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("%w: the CA certificate holds no PEM certificate", ErrInvalidOptions)
 	}
 	cfg.RootCAs = pool
 	return cfg, nil

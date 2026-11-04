@@ -5,8 +5,6 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -98,12 +96,11 @@ func TestVerifyLoginNeverSendsTheWrongCredentialsAnonymously(t *testing.T) {
 func TestVerifyLoginOverTLS(t *testing.T) {
 	srv := httptest.NewTLSServer(registryAPI("admin", "right"))
 	t.Cleanup(srv.Close)
-	caFile := filepath.Join(t.TempDir(), "ca.pem")
-	require.NoError(t, os.WriteFile(caFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}), 0o600))
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw})
 	host := hostOf(t, srv)
 
 	t.Run("with the CA", func(t *testing.T) {
-		verified, err := VerifyLogin(context.Background(), host, ClientOptions{Username: "admin", Password: "right", CAFile: caFile})
+		verified, err := VerifyLogin(context.Background(), host, ClientOptions{Username: "admin", Password: "right", CAPEM: caPEM})
 
 		require.NoError(t, err)
 		require.True(t, verified)
@@ -154,8 +151,8 @@ func TestVerifyLoginRejectsBadOptions(t *testing.T) {
 	}{
 		{name: "no credentials", opts: ClientOptions{PlainHTTP: true}},
 		{name: "username only", opts: ClientOptions{Username: "u", PlainHTTP: true}},
-		{name: "CA file with plain HTTP", opts: ClientOptions{Username: "u", Password: "p", PlainHTTP: true, CAFile: "ca.pem"}},
-		{name: "missing CA file", opts: ClientOptions{Username: "u", Password: "p", CAFile: filepath.Join(t.TempDir(), "absent.pem")}},
+		{name: "CA certificate with plain HTTP", opts: ClientOptions{Username: "u", Password: "p", PlainHTTP: true, CAPEM: []byte("x")}},
+		{name: "CA that is not PEM", opts: ClientOptions{Username: "u", Password: "p", CAPEM: []byte("not a certificate")}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

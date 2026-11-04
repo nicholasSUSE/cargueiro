@@ -23,12 +23,12 @@ func VerifyLogin(ctx context.Context, host string, opts ClientOptions) (verified
 		return false, fmt.Errorf("%w: a login needs a username and a password", ErrInvalidOptions)
 	}
 
-	httpClient, err := newHTTPClient(opts.CAFile)
+	httpClient, err := newHTTPClient(opts.CAPEM)
 	if err != nil {
 		return false, err
 	}
 
-	anonymous := ClientOptions{PlainHTTP: opts.PlainHTTP, CAFile: opts.CAFile}
+	anonymous := ClientOptions{PlainHTTP: opts.PlainHTTP, CAPEM: opts.CAPEM}
 	if err := ping(ctx, host, httpClient, anonymous); err == nil {
 		return false, nil
 	}

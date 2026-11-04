@@ -207,6 +207,7 @@ func TestPushAuthenticationFailures(t *testing.T) {
 				require.NotZero(t, res.ExitCode)
 				require.Empty(t, res.Stdout)
 				require.Contains(t, res.Stderr, "401")
+				require.Contains(t, res.Stderr, `hint: the registry rejected the credentials of user "admin"`)
 				require.NotContains(t, res.Stderr, "not-the-password")
 			})
 
@@ -217,6 +218,8 @@ func TestPushAuthenticationFailures(t *testing.T) {
 				require.NotZero(t, res.ExitCode)
 				require.Empty(t, res.Stdout)
 				require.Regexp(t, `401|credential`, res.Stderr, "the registry demands credentials")
+				require.Contains(t, res.Stderr, "hint: the registry requires credentials")
+				require.Contains(t, res.Stderr, "CARGUEIRO_PASSWORD")
 			})
 
 			t.Run("nothing was stored", func(t *testing.T) {
@@ -230,28 +233,32 @@ func TestPushTransportMismatches(t *testing.T) {
 	archive := published(t, "fleet-crd")
 
 	tests := []struct {
-		name    string
-		address func(t *testing.T) string
-		flags   func(t *testing.T) []string
-		wantErr string
+		name     string
+		address  func(t *testing.T) string
+		flags    func(t *testing.T) []string
+		wantErr  string
+		wantHint string
 	}{
 		{
-			name:    "TLS registry without its CA",
-			address: harness.TLSRegistry,
-			flags:   func(*testing.T) []string { return nil },
-			wantErr: "certificate",
+			name:     "TLS registry without its CA",
+			address:  harness.TLSRegistry,
+			flags:    func(*testing.T) []string { return nil },
+			wantErr:  "certificate",
+			wantHint: "hint: the registry's certificate is not trusted: pass the CA that signed it with --ca-file",
 		},
 		{
-			name:    "plain HTTP against the TLS registry",
-			address: harness.TLSRegistry,
-			flags:   func(*testing.T) []string { return []string{"--plain-http"} },
-			wantErr: "400",
+			name:     "plain HTTP against the TLS registry",
+			address:  harness.TLSRegistry,
+			flags:    func(*testing.T) []string { return []string{"--plain-http"} },
+			wantErr:  "400",
+			wantHint: "hint: the registry answered plain HTTP with 400, so it probably serves HTTPS: drop --plain-http",
 		},
 		{
-			name:    "HTTPS against the plain HTTP registry",
-			address: harness.HTTPRegistry,
-			flags:   func(*testing.T) []string { return nil },
-			wantErr: "HTTP response to HTTPS client",
+			name:     "HTTPS against the plain HTTP registry",
+			address:  harness.HTTPRegistry,
+			flags:    func(*testing.T) []string { return nil },
+			wantErr:  "HTTP response to HTTPS client",
+			wantHint: "hint: the registry answers plain HTTP: use --plain-http",
 		},
 		{
 			name:    "CA file together with plain HTTP",
@@ -276,8 +283,31 @@ func TestPushTransportMismatches(t *testing.T) {
 			require.NotZero(t, res.ExitCode)
 			require.Empty(t, res.Stdout)
 			require.Contains(t, res.Stderr, tt.wantErr)
+			if tt.wantHint != "" {
+				require.Contains(t, res.Stderr, tt.wantHint)
+			} else {
+				require.NotContains(t, res.Stderr, "hint:", "no hint for a failure that is not one of the known causes")
+			}
 		})
 	}
+}
+
+func TestPushUnreachableRegistry(t *testing.T) {
+	// Nothing listens on port 1 of the loopback interface.
+	res := push(t, "127.0.0.1:1/charts", []string{"--plain-http"}, published(t, "fleet-crd"))
+
+	require.NotZero(t, res.ExitCode)
+	require.Empty(t, res.Stdout)
+	require.Contains(t, res.Stderr, "hint: nothing accepted the connection")
+}
+
+func TestPushUnknownHost(t *testing.T) {
+	// The .invalid TLD is reserved and never resolves.
+	res := push(t, "registry.cargueiro.invalid/charts", nil, published(t, "fleet-crd"))
+
+	require.NotZero(t, res.ExitCode)
+	require.Empty(t, res.Stdout)
+	require.Contains(t, res.Stderr, "hint: the host name in --registry could not be resolved")
 }
 
 func TestPushPartialFailure(t *testing.T) {

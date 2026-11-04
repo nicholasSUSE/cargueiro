@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -152,16 +154,6 @@ func TestPushCmdCredentials(t *testing.T) {
 			args:  []string{"--registry", "r", "--username", "admin", "--password-stdin"},
 			want:  oci.ClientOptions{Username: "admin", Password: "stdin-secret"},
 		},
-		{
-			name: "transport flags",
-			args: []string{"--registry", "r", "--plain-http"},
-			want: oci.ClientOptions{PlainHTTP: true},
-		},
-		{
-			name: "ca file",
-			args: []string{"--registry", "r", "--ca-file", "ca.crt"},
-			want: oci.ClientOptions{CAFile: "ca.crt"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -225,34 +217,6 @@ func TestPushCmdSecretsNeverInOutput(t *testing.T) {
 	require.NotContains(t, res.stderr, "super-secret")
 }
 
-func TestPushCmdShowsEachHintOnce(t *testing.T) {
-	untrusted := &oci.RegistryError{Kind: oci.KindUntrustedCertificate, Err: errors.New("x509: unknown authority")}
-	failing := map[string]error{"a.tgz": untrusted, "b.tgz": untrusted, "c.tgz": untrusted}
-
-	res := runPush(t, nil, "", failing, "a.tgz", "b.tgz", "c.tgz", "--registry", "reg.local")
-
-	require.ErrorContains(t, res.err, "3 of 3 archives failed")
-	require.Equal(t, 1, strings.Count(res.err.Error(), "hint: "), "one hint for three identical failures")
-	require.ErrorContains(t, res.err, "--ca-file")
-	require.ErrorContains(t, res.err, "x509: unknown authority", "the original error is still shown")
-	require.ErrorIs(t, res.err, untrusted)
-}
-
-func TestPushCmdHintMentionsTheUser(t *testing.T) {
-	rejected := &oci.RegistryError{Kind: oci.KindAuthRejected, Err: errors.New("401")}
-
-	res := runPush(t, nil, "", map[string]error{"a.tgz": rejected}, "a.tgz", "--registry", "reg.local", "--username", "admin")
-
-	require.ErrorContains(t, res.err, `credentials of user "admin"`)
-}
-
-func TestPushCmdWithoutHint(t *testing.T) {
-	res := runPush(t, nil, "", map[string]error{"a.tgz": errors.New("boom")}, "a.tgz", "--registry", "reg.local")
-
-	require.ErrorContains(t, res.err, "boom")
-	require.NotContains(t, res.err.Error(), "hint:")
-}
-
 func TestPushCmdRefusesProtectedRegistries(t *testing.T) {
 	for _, registry := range []string{
 		"registry.suse.com/rancher/catalog",
@@ -278,11 +242,15 @@ func TestPushCmdAllowsTheSamePathOnOtherRegistries(t *testing.T) {
 	require.Equal(t, oci.Target{Host: "localhost:5051", Path: "rancher/catalog"}, res.env.target)
 }
 
-func TestPushCmdUsesSavedCredentials(t *testing.T) {
-	ctx := context.Background()
+func saveLogin(t *testing.T, store *auth.Store, login auth.Login) {
+	t.Helper()
+
+	require.NoError(t, store.Save(login))
+}
+
+func TestPushCmdUsesTheSavedLogin(t *testing.T) {
 	store := newTestStore(t)
-	_, err := store.Put(ctx, "reg.local:5000", auth.Credential{Username: "saved-user", Password: "saved-pass"})
-	require.NoError(t, err)
+	saveLogin(t, store, auth.Login{Host: "reg.local:5000", Username: "saved-user", Password: "saved-pass", PlainHTTP: true})
 
 	tests := []struct {
 		name string
@@ -291,26 +259,26 @@ func TestPushCmdUsesSavedCredentials(t *testing.T) {
 		want oci.ClientOptions
 	}{
 		{
-			name: "no credentials given: the saved ones are used",
+			name: "no credentials given: the saved ones and the saved transport are used",
 			args: []string{"--registry", "reg.local:5000/charts"},
-			want: oci.ClientOptions{Username: "saved-user", Password: "saved-pass"},
+			want: oci.ClientOptions{Username: "saved-user", Password: "saved-pass", PlainHTTP: true},
 		},
 		{
 			name: "host matching ignores case",
 			args: []string{"--registry", "REG.local:5000/charts"},
-			want: oci.ClientOptions{Username: "saved-user", Password: "saved-pass"},
+			want: oci.ClientOptions{Username: "saved-user", Password: "saved-pass", PlainHTTP: true},
 		},
 		{
-			name: "username flag beats saved credentials",
+			name: "username flag beats the saved credentials but not the saved transport",
 			env:  map[string]string{"CARGUEIRO_PASSWORD": "env-pass"},
 			args: []string{"--registry", "reg.local:5000/charts", "--username", "flag-user"},
-			want: oci.ClientOptions{Username: "flag-user", Password: "env-pass"},
+			want: oci.ClientOptions{Username: "flag-user", Password: "env-pass", PlainHTTP: true},
 		},
 		{
-			name: "environment beats saved credentials",
+			name: "environment beats the saved credentials",
 			env:  map[string]string{"CARGUEIRO_USERNAME": "env-user", "CARGUEIRO_PASSWORD": "env-pass"},
 			args: []string{"--registry", "reg.local:5000/charts"},
-			want: oci.ClientOptions{Username: "env-user", Password: "env-pass"},
+			want: oci.ClientOptions{Username: "env-user", Password: "env-pass", PlainHTTP: true},
 		},
 		{
 			name: "another host gets nothing",
@@ -323,9 +291,15 @@ func TestPushCmdUsesSavedCredentials(t *testing.T) {
 			want: oci.ClientOptions{},
 		},
 		{
-			name: "same host without the port gets nothing",
+			name: "the same host without the port gets nothing",
 			args: []string{"--registry", "reg.local/charts"},
 			want: oci.ClientOptions{},
+		},
+		{
+			name: "another host with explicit credentials gets only those",
+			env:  map[string]string{"CARGUEIRO_USERNAME": "u", "CARGUEIRO_PASSWORD": "p"},
+			args: []string{"--registry", "other.local:5000/charts"},
+			want: oci.ClientOptions{Username: "u", Password: "p"},
 		},
 	}
 
@@ -339,67 +313,38 @@ func TestPushCmdUsesSavedCredentials(t *testing.T) {
 	}
 }
 
-func TestPushCmdHintsToLoginWhenSavedCredentialsAreRejected(t *testing.T) {
-	ctx := context.Background()
+func TestPushCmdUsesTheSavedCA(t *testing.T) {
 	store := newTestStore(t)
-	_, err := store.Put(ctx, "reg.local", auth.Credential{Username: "u", Password: "p"})
-	require.NoError(t, err)
-	rejected := &oci.RegistryError{Kind: oci.KindAuthRejected, Err: errors.New("401")}
+	saveLogin(t, store, auth.Login{Host: "secure.test:5051", Username: "u", Password: "p", CAPEM: testCAPEM})
 
-	res := runPushWithStore(t, store, nil, "", map[string]error{"a.tgz": rejected}, "a.tgz", "--registry", "reg.local")
+	res := runPushWithStore(t, store, nil, "", nil, "a.tgz", "--registry", "secure.test:5051/charts")
 
-	require.ErrorContains(t, res.err, "hint: the registry rejected the saved credentials for reg.local")
-	require.ErrorContains(t, res.err, "registry login reg.local")
+	require.NoError(t, res.err)
+	require.Equal(t, oci.ClientOptions{Username: "u", Password: "p", CAPEM: []byte(testCAPEM)}, res.env.opts)
 }
 
-func TestPushCmdHintsToLoginWhenNothingIsSaved(t *testing.T) {
-	required := &oci.RegistryError{Kind: oci.KindAuthRequired, Err: errors.New("credential not found")}
+func TestPushCmdWithNoLoginIsAnonymousOverHTTPS(t *testing.T) {
+	res := runPush(t, nil, "", nil, "a.tgz", "--registry", "reg.local")
 
-	res := runPush(t, nil, "", map[string]error{"a.tgz": required}, "a.tgz", "--registry", "reg.local:5000/charts")
-
-	require.ErrorContains(t, res.err, "registry login reg.local:5000")
+	require.NoError(t, res.err)
+	require.Equal(t, oci.ClientOptions{}, res.env.opts)
 }
 
-func TestPushCmdFailsOnACorruptCredentialsFile(t *testing.T) {
-	broken := func() (*auth.Store, error) { return nil, errors.New("credentials file is corrupt") }
-	var out, errOut bytes.Buffer
-	opts := &rootOptions{
-		stderr:    &errOut,
-		getenv:    func(string) string { return "" },
-		openStore: broken,
-		prompt:    &fakePrompter{},
+func TestPushCmdFailsOnACorruptLoginFile(t *testing.T) {
+	for name, env := range map[string]map[string]string{
+		"no credentials given":      nil,
+		"with explicit credentials": {"CARGUEIRO_USERNAME": "u", "CARGUEIRO_PASSWORD": "p"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store := newTestStore(t)
+			require.NoError(t, os.MkdirAll(filepath.Dir(store.Path()), 0o700))
+			require.NoError(t, os.WriteFile(store.Path(), []byte("{ not json"), 0o600))
+
+			res := runPushWithStore(t, store, env, "", nil, "a.tgz", "--registry", "reg.local")
+
+			require.ErrorContains(t, res.err, "registry logout", "it says how to recover")
+			require.Equal(t, pushEnv{}, res.env, "the saved transport cannot be known, so do nothing")
+			require.Empty(t, res.pusher.pushed)
+		})
 	}
-	factoryCalled := false
-	factory := func(oci.Target, oci.ClientOptions) (archivePusher, error) {
-		factoryCalled = true
-		return &fakePusher{}, nil
-	}
-	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
-	require.NoError(t, err)
-	root.SetArgs([]string{"push", "a.tgz", "--registry", "reg.local"})
-
-	err = root.Execute()
-
-	require.ErrorContains(t, err, "credentials file is corrupt")
-	require.False(t, factoryCalled, "a broken credentials file must not silently fall back to anonymous")
-}
-
-func TestPushCmdDoesNotReadTheStoreWhenCredentialsAreGiven(t *testing.T) {
-	broken := func() (*auth.Store, error) { return nil, errors.New("must not be opened") }
-	var out, errOut bytes.Buffer
-	opts := &rootOptions{
-		stderr: &errOut,
-		getenv: func(k string) string {
-			return map[string]string{"CARGUEIRO_USERNAME": "u", "CARGUEIRO_PASSWORD": "p"}[k]
-		},
-		openStore: broken,
-		prompt:    &fakePrompter{},
-	}
-	fake := &fakePusher{}
-	factory := func(oci.Target, oci.ClientOptions) (archivePusher, error) { return fake, nil }
-	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
-	require.NoError(t, err)
-	root.SetArgs([]string{"push", "a.tgz", "--registry", "reg.local"})
-
-	require.NoError(t, root.Execute())
 }

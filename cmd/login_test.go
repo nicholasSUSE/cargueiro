@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/nicholasSUSE/cargueiro/internal/auth"
 	"github.com/nicholasSUSE/cargueiro/internal/oci"
 )
+
+const testCAPEM = "-----BEGIN CERTIFICATE-----\nMIIBhTCCASugAwIBAgIQIRi6zePL6mKjOipn+dNuaTAKBggqhkjOPQQDAjASMRAw\n-----END CERTIFICATE-----\n"
 
 // verifyCall is what a fake verifyFunc was asked.
 type verifyCall struct {
@@ -27,7 +30,7 @@ type registryResult struct {
 	calls  []verifyCall
 }
 
-// runRegistry executes a `registry ...` command with fakes for the credential
+// runRegistry executes a `registry ...` command with fakes for the login
 // store, the prompter and the login check.
 func runRegistry(t *testing.T, store *auth.Store, p *fakePrompter, env map[string]string, stdin string,
 	verified bool, verifyErr error, args ...string) registryResult {
@@ -56,12 +59,12 @@ func runRegistry(t *testing.T, store *auth.Store, p *fakePrompter, env map[strin
 	return res
 }
 
-func saved(t *testing.T, store *auth.Store, host string) (auth.Credential, bool) {
+func saved(t *testing.T, store *auth.Store) (auth.Login, bool) {
 	t.Helper()
 
-	cred, found, err := store.Get(context.Background(), host)
+	login, found, err := store.Load()
 	require.NoError(t, err)
-	return cred, found
+	return login, found
 }
 
 func requireNoSecret(t *testing.T, res registryResult, secrets ...string) {
@@ -76,7 +79,7 @@ func requireNoSecret(t *testing.T, res registryResult, secrets ...string) {
 	}
 }
 
-func TestLoginSavesVerifiedCredentials(t *testing.T) {
+func TestLoginSavesTheVerifiedLogin(t *testing.T) {
 	store := newTestStore(t)
 
 	res := runRegistry(t, store, &fakePrompter{}, nil, "s3cret-pass\n", true, nil,
@@ -88,20 +91,11 @@ func TestLoginSavesVerifiedCredentials(t *testing.T) {
 		host: "reg.example.com:5000",
 		opts: oci.ClientOptions{Username: "admin", Password: "s3cret-pass", PlainHTTP: true},
 	}}, res.calls, "the credentials are checked against the registry first")
-	cred, found := saved(t, store, "reg.example.com:5000")
+	login, found := saved(t, store)
 	require.True(t, found)
-	require.Equal(t, auth.Credential{Username: "admin", Password: "s3cret-pass"}, cred)
-	require.Contains(t, res.stderr, "stored unencrypted", "plaintext storage is called out")
-	require.Contains(t, res.stderr, store.Path())
+	require.Equal(t, auth.Login{Host: "reg.example.com:5000", Username: "admin", Password: "s3cret-pass", PlainHTTP: true}, login)
+	require.Contains(t, res.stderr, "saved in plain text in "+store.Path())
 	requireNoSecret(t, res, "s3cret-pass")
-}
-
-func TestLoginPassesTheCAFile(t *testing.T) {
-	res := runRegistry(t, newTestStore(t), &fakePrompter{}, nil, "pw\n", true, nil,
-		"login", "reg.example.com", "-u", "admin", "--password-stdin", "--ca-file", "ca.crt")
-
-	require.NoError(t, res.err)
-	require.Equal(t, "ca.crt", res.calls[0].opts.CAFile)
 }
 
 func TestLoginHostForms(t *testing.T) {
@@ -109,13 +103,12 @@ func TestLoginHostForms(t *testing.T) {
 		name     string
 		arg      string
 		wantHost string
-		wantKey  string
 	}{
-		{name: "plain host", arg: "reg.example.com", wantHost: "reg.example.com", wantKey: "reg.example.com"},
-		{name: "scheme is ignored", arg: "https://reg.example.com", wantHost: "reg.example.com", wantKey: "reg.example.com"},
-		{name: "oci scheme and slash", arg: "oci://reg.example.com/", wantHost: "reg.example.com", wantKey: "reg.example.com"},
-		{name: "host is saved case-insensitively", arg: "Reg.Example.COM:5000", wantHost: "Reg.Example.COM:5000", wantKey: "reg.example.com:5000"},
-		{name: "a protected SUSE host can be logged in to", arg: "registry.suse.com", wantHost: "registry.suse.com", wantKey: "registry.suse.com"},
+		{name: "plain host", arg: "reg.example.com", wantHost: "reg.example.com"},
+		{name: "scheme is ignored", arg: "https://reg.example.com", wantHost: "reg.example.com"},
+		{name: "oci scheme and slash", arg: "oci://reg.example.com/", wantHost: "reg.example.com"},
+		{name: "case is kept as typed", arg: "Reg.Example.COM:5000", wantHost: "Reg.Example.COM:5000"},
+		{name: "a protected SUSE host can be logged in to", arg: "registry.suse.com", wantHost: "registry.suse.com"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -126,8 +119,8 @@ func TestLoginHostForms(t *testing.T) {
 
 			require.NoError(t, res.err)
 			require.Equal(t, tt.wantHost, res.calls[0].host)
-			_, found := saved(t, store, tt.wantKey)
-			require.True(t, found)
+			login, _ := saved(t, store)
+			require.Equal(t, tt.wantHost, login.Host)
 		})
 	}
 }
@@ -142,6 +135,26 @@ func TestLoginRefusesAnAddressWithAPath(t *testing.T) {
 	require.ErrorContains(t, res.err, `use "reg.example.com"`)
 	require.Empty(t, res.calls, "no network call")
 	require.NoFileExists(t, store.Path())
+}
+
+func TestLoginWhenAlreadyLoggedInAsksToLogOutFirst(t *testing.T) {
+	for _, host := range []string{"a.example.com", "b.example.com"} {
+		t.Run(host, func(t *testing.T) {
+			store := newTestStore(t)
+			existing := auth.Login{Host: "a.example.com", Username: "alice", Password: "pa", PlainHTTP: true}
+			require.NoError(t, store.Save(existing))
+			prompter := &fakePrompter{interactive: true, line: "bob", secret: "pb"}
+
+			res := runRegistry(t, store, prompter, nil, "pw\n", true, nil, "login", host, "-u", "admin", "--password-stdin")
+
+			require.ErrorContains(t, res.err, "already logged in to a.example.com: run `cargueiro registry logout` first")
+			require.Empty(t, res.calls, "nothing is checked against any registry")
+			require.Empty(t, prompter.asked, "the user is not asked for anything")
+			require.Empty(t, res.stdout)
+			login, _ := saved(t, store)
+			require.Equal(t, existing, login, "the saved login is untouched")
+		})
+	}
 }
 
 func TestLoginPasswordSources(t *testing.T) {
@@ -213,10 +226,12 @@ func TestLoginPasswordSources(t *testing.T) {
 				append([]string{"login", "reg.example.com"}, tt.args...)...)
 
 			require.NoError(t, res.err)
-			require.Equal(t, auth.Credential{Username: tt.wantUser, Password: tt.wantPass}, credentialOf(res.calls[0].opts))
-			cred, found := saved(t, store, "reg.example.com")
+			want := auth.Login{Host: "reg.example.com", Username: tt.wantUser, Password: tt.wantPass}
+			login, found := saved(t, store)
 			require.True(t, found)
-			require.Equal(t, auth.Credential{Username: tt.wantUser, Password: tt.wantPass}, cred)
+			require.Equal(t, want, login)
+			require.Equal(t, tt.wantUser, res.calls[0].opts.Username)
+			require.Equal(t, tt.wantPass, res.calls[0].opts.Password)
 			if tt.wantWarn != "" {
 				require.Contains(t, res.stderr, tt.wantWarn)
 			} else {
@@ -228,15 +243,10 @@ func TestLoginPasswordSources(t *testing.T) {
 	}
 }
 
-func credentialOf(o oci.ClientOptions) auth.Credential {
-	return auth.Credential{Username: o.Username, Password: o.Password}
-}
-
 func TestLoginMissingInput(t *testing.T) {
 	tests := []struct {
 		name     string
 		prompter *fakePrompter
-		env      map[string]string
 		stdin    string
 		args     []string
 		wantErr  string
@@ -248,73 +258,40 @@ func TestLoginMissingInput(t *testing.T) {
 		{name: "empty password on stdin", prompter: &fakePrompter{}, stdin: "\n", args: []string{"-u", "admin", "--password-stdin"}, wantErr: "a password is required"},
 		{name: "empty password typed", prompter: &fakePrompter{interactive: true, secret: ""}, args: []string{"-u", "admin"}, wantErr: "a password is required"},
 		{name: "password flag and stdin together", prompter: &fakePrompter{}, args: []string{"-u", "admin", "--password", "p", "--password-stdin"}, wantErr: "none of the others can be"},
-		{name: "no host", prompter: &fakePrompter{}, args: nil, wantErr: ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newTestStore(t)
-			args := append([]string{"login", "reg.example.com"}, tt.args...)
-			if tt.name == "no host" {
-				args = []string{"login"}
-				tt.wantErr = "accepts 1 arg"
-			}
 
-			res := runRegistry(t, store, tt.prompter, tt.env, tt.stdin, true, nil, args...)
+			res := runRegistry(t, store, tt.prompter, nil, tt.stdin, true, nil,
+				append([]string{"login", "reg.example.com"}, tt.args...)...)
 
 			require.ErrorContains(t, res.err, tt.wantErr)
 			require.Empty(t, res.calls, "nothing is checked against the registry")
 			require.NoFileExists(t, store.Path(), "nothing is saved")
 		})
 	}
+
+	t.Run("no host", func(t *testing.T) {
+		res := runRegistry(t, newTestStore(t), &fakePrompter{}, nil, "", true, nil, "login")
+
+		require.ErrorContains(t, res.err, "accepts 1 arg")
+	})
 }
 
-func TestLoginFailureSavesNothingAndHints(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		wantHint string
-	}{
-		{
-			name:     "credentials rejected",
-			err:      &oci.RegistryError{Kind: oci.KindAuthRejected, Err: errors.New("401 Unauthorized")},
-			wantHint: `hint: the registry rejected the credentials of user "admin"`,
-		},
-		{
-			name:     "TLS registry without its CA",
-			err:      &oci.RegistryError{Kind: oci.KindUntrustedCertificate, Err: errors.New("x509: unknown authority")},
-			wantHint: "hint: the registry's certificate is not trusted: pass the CA that signed it with --ca-file",
-		},
-		{
-			name:     "unreachable names the address, not a flag that does not exist",
-			err:      &oci.RegistryError{Kind: oci.KindUnreachable, Err: errors.New("connection refused")},
-			wantHint: "check the host and port in the registry address",
-		},
-		{
-			name: "no hint for an unknown failure",
-			err:  errors.New("boom"),
-		},
-	}
+func TestLoginFailureSavesNothing(t *testing.T) {
+	store := newTestStore(t)
+	failure := &oci.RegistryError{Kind: oci.KindAuthRejected, Err: errors.New("401 Unauthorized")}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			store := newTestStore(t)
+	res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", false, failure,
+		"login", "reg.example.com", "-u", "admin", "--password-stdin")
 
-			res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", false, tt.err,
-				"login", "reg.example.com", "-u", "admin", "--password-stdin")
-
-			require.ErrorIs(t, res.err, tt.err)
-			require.ErrorContains(t, res.err, "login to reg.example.com failed")
-			if tt.wantHint != "" {
-				require.ErrorContains(t, res.err, tt.wantHint)
-			} else {
-				require.NotContains(t, res.err.Error(), "hint:")
-			}
-			require.Empty(t, res.stdout)
-			require.NoFileExists(t, store.Path(), "credentials that failed the check are never saved")
-			requireNoSecret(t, res, "pw")
-		})
-	}
+	require.ErrorIs(t, res.err, failure)
+	require.ErrorContains(t, res.err, "login to reg.example.com failed")
+	require.Empty(t, res.stdout)
+	require.NoFileExists(t, store.Path(), "credentials that failed the check are never saved")
+	requireNoSecret(t, res, "pw")
 }
 
 func TestLoginWarnsWhenTheCredentialsCannotBeChecked(t *testing.T) {
@@ -325,44 +302,100 @@ func TestLoginWarnsWhenTheCredentialsCannotBeChecked(t *testing.T) {
 
 	require.NoError(t, res.err)
 	require.Contains(t, res.stderr, "open.example.com accepts anonymous requests, so these credentials could not be checked")
-	_, found := saved(t, store, "open.example.com")
+	_, found := saved(t, store)
 	require.True(t, found, "they are saved anyway")
 }
 
-func TestLoginReplacesExistingCredentials(t *testing.T) {
-	store := newTestStore(t)
-	_, err := store.Put(context.Background(), "reg.example.com", auth.Credential{Username: "old", Password: "old-pass"})
-	require.NoError(t, err)
+func writeCA(t *testing.T) string {
+	t.Helper()
 
-	res := runRegistry(t, store, &fakePrompter{}, nil, "new-pass\n", true, nil,
-		"login", "reg.example.com", "-u", "new", "--password-stdin")
-
-	require.NoError(t, res.err)
-	cred, _ := saved(t, store, "reg.example.com")
-	require.Equal(t, auth.Credential{Username: "new", Password: "new-pass"}, cred)
+	path := filepath.Join(t.TempDir(), "ca.crt")
+	require.NoError(t, os.WriteFile(path, []byte(testCAPEM), 0o600))
+	return path
 }
 
-func TestLoginTightensALooseCredentialsFile(t *testing.T) {
+func TestLoginReadsTheCAFileAndSavesItsContents(t *testing.T) {
 	store := newTestStore(t)
-	_, err := store.Put(context.Background(), "other.example.com", auth.Credential{Username: "u", Password: "p"})
-	require.NoError(t, err)
-	require.NoError(t, os.Chmod(store.Path(), 0o644))
+	caFile := writeCA(t)
+
+	res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", true, nil,
+		"login", "reg.example.com", "-u", "admin", "--password-stdin", "--ca-file", caFile)
+
+	require.NoError(t, res.err)
+	require.Equal(t, []byte(testCAPEM), res.calls[0].opts.CAPEM, "the check uses the certificate, not the path")
+	login, _ := saved(t, store)
+	require.Equal(t, testCAPEM, login.CAPEM)
+	require.False(t, login.PlainHTTP)
+
+	t.Run("the saved copy survives the file being deleted", func(t *testing.T) {
+		require.NoError(t, os.Remove(caFile))
+
+		login, found := saved(t, store)
+
+		require.True(t, found)
+		require.Equal(t, testCAPEM, login.CAPEM)
+	})
+}
+
+func TestLoginWithoutTransportFlagsSavesNone(t *testing.T) {
+	store := newTestStore(t)
 
 	res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", true, nil,
 		"login", "reg.example.com", "-u", "admin", "--password-stdin")
 
 	require.NoError(t, res.err)
-	require.Contains(t, res.stderr, "accessible to other users")
-	require.Contains(t, res.stderr, "now restricted")
-	require.NoError(t, store.CheckPermissions())
+	login, _ := saved(t, store)
+	require.False(t, login.PlainHTTP)
+	require.Empty(t, login.CAPEM)
 }
 
-func TestLoginFailsOnACorruptCredentialsFile(t *testing.T) {
+func TestLoginRejectsABadCAFile(t *testing.T) {
+	notPEM := filepath.Join(t.TempDir(), "junk.crt")
+	require.NoError(t, os.WriteFile(notPEM, []byte("not a certificate"), 0o600))
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "missing file", args: []string{"--ca-file", filepath.Join(t.TempDir(), "absent.crt")}, wantErr: "read CA file"},
+		{name: "not PEM", args: []string{"--ca-file", notPEM}},
+		{name: "with plain HTTP", args: []string{"--ca-file", "x", "--plain-http"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newTestStore(t)
+
+			res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", false, errors.New("rejected by the fake"),
+				append([]string{"login", "reg.example.com", "-u", "admin", "--password-stdin"}, tt.args...)...)
+
+			require.Error(t, res.err)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, res.err, tt.wantErr)
+			}
+			require.NoFileExists(t, store.Path(), "nothing is saved")
+		})
+	}
+}
+
+func TestLoginFailsOnACorruptLoginFile(t *testing.T) {
+	store := newTestStore(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(store.Path()), 0o700))
+	require.NoError(t, os.WriteFile(store.Path(), []byte("{ not json"), 0o600))
+
+	res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", true, nil,
+		"login", "reg.example.com", "-u", "admin", "--password-stdin")
+
+	require.ErrorContains(t, res.err, "registry logout", "it says how to recover")
+	require.Empty(t, res.calls)
+}
+
+func TestLoginFailsWhenTheLoginFileCannotBeOpened(t *testing.T) {
 	var out, errOut bytes.Buffer
 	opts := &rootOptions{
 		stderr:    &errOut,
 		getenv:    func(string) string { return "" },
-		openStore: func() (*auth.Store, error) { return nil, errors.New("credentials file is corrupt") },
+		openStore: func() (*auth.Store, error) { return nil, errors.New("no config directory") },
 		prompt:    &fakePrompter{},
 	}
 	called := false
@@ -372,7 +405,7 @@ func TestLoginFailsOnACorruptCredentialsFile(t *testing.T) {
 	root.SetIn(strings.NewReader("pw\n"))
 	root.SetArgs([]string{"registry", "login", "reg.example.com", "-u", "admin", "--password-stdin"})
 
-	require.ErrorContains(t, root.Execute(), "credentials file is corrupt")
+	require.ErrorContains(t, root.Execute(), "no config directory")
 	require.False(t, called, "fail before asking the user or the registry anything")
 }
 

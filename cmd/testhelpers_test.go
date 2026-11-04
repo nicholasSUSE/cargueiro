@@ -4,19 +4,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/nicholasSUSE/cargueiro/internal/auth"
 )
 
-// newTestStore returns a credential store in a temporary directory, with no
-// native helper so tests never touch the machine's keychain.
+// newTestStore returns a login store in a temporary directory.
 func newTestStore(t *testing.T) *auth.Store {
 	t.Helper()
 
-	store, err := auth.Open(filepath.Join(t.TempDir(), "cfg", "auth.json"), auth.Options{})
-	require.NoError(t, err)
-	return store
+	return auth.Open(filepath.Join(t.TempDir(), "cfg", "login.json"))
 }
 
 // openerFor returns an openStore function that always hands out store.

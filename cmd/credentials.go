@@ -17,41 +17,71 @@ type credentials struct {
 	Stored bool
 }
 
-// defaultStore opens the credentials file in the user's config directory.
+// connection is how to reach a registry: who to authenticate as, and the
+// transport settings saved at login.
+type connection struct {
+	credentials
+	PlainHTTP bool
+	CAPEM     []byte
+}
+
+// clientOptions turns the connection into oci client options.
+func (c connection) clientOptions() oci.ClientOptions {
+	return oci.ClientOptions{
+		Username:  c.Username,
+		Password:  c.Password,
+		PlainHTTP: c.PlainHTTP,
+		CAPEM:     c.CAPEM,
+	}
+}
+
+// defaultStore opens the login file in the user's config directory.
 func defaultStore() (*auth.Store, error) {
 	path, err := auth.DefaultPath()
 	if err != nil {
 		return nil, err
 	}
-	return auth.Open(path, auth.Options{UseNativeStore: true})
+	return auth.Open(path), nil
 }
 
-// resolveCredentials picks the credentials for host: the ones given on the
-// command line or in the environment when there are any, otherwise the ones
-// saved for exactly this host, otherwise none (anonymous).
-func resolveCredentials(ctx context.Context, opts *rootOptions, host, username, password string) (credentials, error) {
-	if username != "" || password != "" {
-		return credentials{Username: username, Password: password}, nil
-	}
-
+// resolveConnection works out how to reach host. The saved login is only used
+// for the registry it was made for. The transport settings come from it. The
+// credentials are the ones given on the command line or in the environment
+// when there are any, otherwise the saved ones, otherwise none (anonymous).
+func resolveConnection(ctx context.Context, opts *rootOptions, host, username, password string) (connection, error) {
 	store, err := opts.openStore()
 	if err != nil {
-		return credentials{}, fmt.Errorf("open the credentials file: %w", err)
+		return connection{}, fmt.Errorf("open the login file: %w", err)
 	}
 
-	saved, found, err := store.Get(ctx, host)
+	login, found, err := store.Load()
 	if err != nil {
-		return credentials{}, err
-	}
-	if !found {
-		return credentials{}, nil
+		return connection{}, err
 	}
 
-	opts.log.DebugContext(ctx, "using saved credentials", "host", host, "user", saved.Username)
+	var conn connection
+	forThisHost := found && login.Matches(host)
+	if forThisHost {
+		conn.PlainHTTP = login.PlainHTTP
+		if login.CAPEM != "" {
+			conn.CAPEM = []byte(login.CAPEM)
+		}
+	}
+
+	if username != "" || password != "" {
+		conn.Username, conn.Password = username, password
+		return conn, nil
+	}
+	if !forThisHost {
+		return conn, nil
+	}
+
+	opts.log.DebugContext(ctx, "using the saved login", "host", host, "user", login.Username)
 	if err := store.CheckPermissions(); err != nil {
 		warnf(opts.stderr, "%v", err)
 	}
-	return credentials{Username: saved.Username, Password: saved.Password, Stored: true}, nil
+	conn.Username, conn.Password, conn.Stored = login.Username, login.Password, true
+	return conn, nil
 }
 
 // registryHost parses the host a login or logout applies to. Credentials

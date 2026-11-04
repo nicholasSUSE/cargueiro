@@ -8,28 +8,29 @@ import (
 
 func newLogoutCmd(opts *rootOptions) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:  "logout <host>",
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			host, err := registryHost(args[0])
-			if err != nil {
-				return err
-			}
-
+		Use:  "logout",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			store, err := opts.openStore()
 			if err != nil {
-				return fmt.Errorf("open the credentials file: %w", err)
+				return fmt.Errorf("open the login file: %w", err)
 			}
 
-			removed, err := store.Delete(cmd.Context(), host)
+			// The file may be corrupt; logout still removes it.
+			login, known, _ := store.Load()
+
+			removed, err := store.Delete()
 			if err != nil {
 				return err
 			}
 
-			if removed {
-				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Removed credentials for %s\n", host)
-			} else {
-				_, err = fmt.Fprintf(cmd.OutOrStdout(), "No credentials stored for %s\n", host)
+			switch {
+			case !removed:
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), "No saved login")
+			case known:
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Removed the saved login for %s\n", login.Host)
+			default:
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), "Removed the saved login")
 			}
 			return err
 		},

@@ -43,8 +43,6 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 		registry      string
 		username      string
 		passwordStdin bool
-		plainHTTP     bool
-		caFile        string
 	)
 
 	cmd := &cobra.Command{
@@ -68,33 +66,23 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				return err
 			}
 
-			creds, err := resolveCredentials(cmd.Context(), opts, target.Host, username, password)
+			conn, err := resolveConnection(cmd.Context(), opts, target.Host, username, password)
 			if err != nil {
 				return err
 			}
 
-			pusher, err := newPusher(target, oci.ClientOptions{
-				Username:  creds.Username,
-				Password:  creds.Password,
-				PlainHTTP: plainHTTP,
-				CAFile:    caFile,
-			})
+			pusher, err := newPusher(target, conn.clientOptions())
 			if err != nil {
 				return err
 			}
 
-			var (
-				errs  []error
-				hints hintSet
-			)
-			hintCtx := hintContext{username: creds.Username, caFile: caFile, host: target.Host, stored: creds.Stored}
+			var errs []error
 			for _, archive := range archives {
 				opts.log.DebugContext(cmd.Context(), "pushing chart", "archive", archive, "registry", registry)
 
 				ref, err := pusher.Push(cmd.Context(), archive)
 				if err != nil {
 					errs = append(errs, err)
-					hints.add(hintFor(err, hintCtx))
 					continue
 				}
 				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "oci://"+ref); err != nil {
@@ -103,7 +91,7 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 			}
 
 			if len(errs) > 0 {
-				return fmt.Errorf("%d of %d archives failed:\n%w%s", len(errs), len(archives), errors.Join(errs...), &hints)
+				return fmt.Errorf("%d of %d archives failed:\n%w", len(errs), len(archives), errors.Join(errs...))
 			}
 			return nil
 		},
@@ -113,8 +101,6 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 	flags.StringVar(&registry, "registry", "", "destination registry: host[:port][/path]")
 	flags.StringVarP(&username, "username", "u", "", "registry username (default: $"+envUsername+")")
 	flags.BoolVar(&passwordStdin, "password-stdin", false, "read the password from standard input instead of $"+envPassword)
-	flags.BoolVar(&plainHTTP, "plain-http", false, "use HTTP instead of HTTPS")
-	flags.StringVar(&caFile, "ca-file", "", "PEM file with extra CA certificates to trust")
 	if err := cmd.MarkFlagRequired("registry"); err != nil {
 		return nil, fmt.Errorf("mark --registry required: %w", err)
 	}

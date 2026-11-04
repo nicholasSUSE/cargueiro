@@ -56,8 +56,8 @@ func TestPackageCmd(t *testing.T) {
 		{
 			name:       "single chart, default output dir",
 			args:       []string{"package", "charts/fleet"},
-			wantStdout: "/abs/dist/fleet.tgz\n",
-			wantCalls:  []call{{src: "charts/fleet", dest: "dist"}},
+			wantStdout: "/abs/assets/fleet.tgz\n",
+			wantCalls:  []call{{src: "charts/fleet", dest: "assets"}},
 		},
 		{
 			name:       "custom output dir",
@@ -68,22 +68,22 @@ func TestPackageCmd(t *testing.T) {
 		{
 			name:       "several charts keep argument order",
 			args:       []string{"package", "charts/fleet-crd", "charts/fleet", "charts/fleet-agent"},
-			wantStdout: "/abs/dist/fleet-crd.tgz\n/abs/dist/fleet.tgz\n/abs/dist/fleet-agent.tgz\n",
+			wantStdout: "/abs/assets/fleet-crd.tgz\n/abs/assets/fleet.tgz\n/abs/assets/fleet-agent.tgz\n",
 			wantCalls: []call{
-				{src: "charts/fleet-crd", dest: "dist"},
-				{src: "charts/fleet", dest: "dist"},
-				{src: "charts/fleet-agent", dest: "dist"},
+				{src: "charts/fleet-crd", dest: "assets"},
+				{src: "charts/fleet", dest: "assets"},
+				{src: "charts/fleet-agent", dest: "assets"},
 			},
 		},
 		{
 			name:       "one failure does not stop the others",
 			args:       []string{"package", "charts/a", "charts/bad", "charts/c"},
 			failing:    map[string]error{"charts/bad": errBoom},
-			wantStdout: "/abs/dist/a.tgz\n/abs/dist/c.tgz\n",
+			wantStdout: "/abs/assets/a.tgz\n/abs/assets/c.tgz\n",
 			wantCalls: []call{
-				{src: "charts/a", dest: "dist"},
-				{src: "charts/bad", dest: "dist"},
-				{src: "charts/c", dest: "dist"},
+				{src: "charts/a", dest: "assets"},
+				{src: "charts/bad", dest: "assets"},
+				{src: "charts/c", dest: "assets"},
 			},
 			wantErr: "boom",
 		},
@@ -92,7 +92,7 @@ func TestPackageCmd(t *testing.T) {
 			args:    []string{"package", "charts/x"},
 			failing: map[string]error{"charts/x": errBoom},
 			wantCalls: []call{
-				{src: "charts/x", dest: "dist"},
+				{src: "charts/x", dest: "assets"},
 			},
 			wantErr: "boom",
 		},
@@ -126,7 +126,7 @@ func TestPackageCmdLogsToStderr(t *testing.T) {
 	stdout, stderr, err := run(t, fake, "--debug", "package", "charts/fleet")
 
 	require.NoError(t, err)
-	require.Equal(t, "/abs/dist/fleet.tgz\n", stdout)
+	require.Equal(t, "/abs/assets/fleet.tgz\n", stdout)
 	require.Contains(t, stderr, "packaging chart")
 }
 

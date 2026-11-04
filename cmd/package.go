@@ -9,7 +9,7 @@ import (
 )
 
 // defaultOutputDir is where archives are written unless --output-dir is set.
-const defaultOutputDir = "dist"
+const defaultOutputDir = "assets"
 
 // packageFunc packages the chart in srcDir into destDir and returns the
 // path of the archive it wrote.

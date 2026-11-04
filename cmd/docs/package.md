@@ -2,7 +2,7 @@
 
 Package Helm charts into .tgz archives.
 
-Each argument is a chart directory containing a `Chart.yaml`. The archive is named `<name>-<version>.tgz` after the chart metadata and written to the output directory (`--output-dir`, default `dist`), which is created if it does not exist.
+Each argument is a chart directory containing a `Chart.yaml`. The archive is named `<name>-<version>.tgz` after the chart metadata and written to the output directory (`--output-dir`, default `assets`), which is created if it does not exist.
 
 Archive paths are printed to stdout, one per line, in argument order, so the output can be piped into other tools. Logs go to stderr.
 
@@ -13,7 +13,7 @@ Dependencies declared in `Chart.yaml` must already be present under the chart's 
 ## Examples
 
 ```
-# package one chart into ./dist
+# package one chart into ./assets
 cargueiro package charts/fleet/110.0.3+up0.16.3
 ```
 

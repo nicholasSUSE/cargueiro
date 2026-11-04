@@ -22,5 +22,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return cmd.NewRootCmd(os.Stdout, os.Stderr).ExecuteContext(ctx)
+	root, err := cmd.NewRootCmd(os.Stdout, os.Stderr)
+	if err != nil {
+		return err
+	}
+
+	return root.ExecuteContext(ctx)
 }

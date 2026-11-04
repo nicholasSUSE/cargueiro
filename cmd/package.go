@@ -15,16 +15,11 @@ const defaultOutputDir = "dist"
 // path of the archive it wrote.
 type packageFunc func(ctx context.Context, srcDir, destDir string) (string, error)
 
-func newPackageCmd(opts *rootOptions, pkg packageFunc) *cobra.Command {
+func newPackageCmd(opts *rootOptions, pkg packageFunc) (*cobra.Command, error) {
 	var outputDir string
 
 	cmd := &cobra.Command{
-		Use:   "package <chart-dir>...",
-		Short: "Package Helm charts into .tgz archives",
-		Long: `Package each chart directory into <name>-<version>.tgz inside the output directory.
-
-Archive paths are printed to stdout, one per line, in argument order.
-Logs go to stderr. Every chart is attempted; the exit code is non-zero if any fails.`,
+		Use:  "package <chart-dir>...",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, chartDirs []string) error {
 			var errs []error
@@ -44,6 +39,9 @@ Logs go to stderr. Every chart is attempted; the exit code is non-zero if any fa
 		},
 	}
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", defaultOutputDir, "directory to write archives to")
+	if err := applyDoc(cmd, "package"); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }

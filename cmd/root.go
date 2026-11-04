@@ -20,12 +20,12 @@ type rootOptions struct {
 
 // NewRootCmd builds the root command. Output streams are injected so
 // commands stay testable.
-func NewRootCmd(stdout, stderr io.Writer) *cobra.Command {
+func NewRootCmd(stdout, stderr io.Writer) (*cobra.Command, error) {
 	return newRootCmd(stdout, stderr, &rootOptions{stderr: stderr}, chart.Package)
 }
 
 // newRootCmd is NewRootCmd with its dependencies injected.
-func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, pkg packageFunc) *cobra.Command {
+func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, pkg packageFunc) (*cobra.Command, error) {
 	root := &cobra.Command{
 		Use:           "cargueiro",
 		Short:         "Package Helm charts and push them to OCI registries",
@@ -39,8 +39,15 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, pkg packageFunc) *c
 	root.SetErr(stderr)
 	root.PersistentFlags().BoolVar(&opts.debug, "debug", false, "enable debug logging")
 
-	root.AddCommand(newVersionCmd())
-	root.AddCommand(newPackageCmd(opts, pkg))
+	versionCmd, err := newVersionCmd()
+	if err != nil {
+		return nil, err
+	}
+	packageCmd, err := newPackageCmd(opts, pkg)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd)
 
-	return root
+	return root, nil
 }

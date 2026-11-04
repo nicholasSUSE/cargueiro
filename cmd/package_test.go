@@ -34,7 +34,8 @@ func run(t *testing.T, fake *fakePackager, args ...string) (stdout, stderr strin
 
 	var out, errOut bytes.Buffer
 	opts := &rootOptions{stderr: &errOut}
-	root := newRootCmd(&out, &errOut, opts, fake.pkg)
+	root, err := newRootCmd(&out, &errOut, opts, fake.pkg)
+	require.NoError(t, err)
 	root.SetArgs(args)
 
 	err = root.Execute()
@@ -133,14 +134,16 @@ func TestPackageCmdEndToEnd(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "out")
 
 	var out, errOut bytes.Buffer
-	root := NewRootCmd(&out, &errOut)
+	root, err := NewRootCmd(&out, &errOut)
+	require.NoError(t, err)
 	root.SetArgs([]string{"package", "../internal/chart/testdata/valid", "-o", dest})
 
 	require.NoError(t, root.Execute())
 	require.Equal(t, filepath.Join(dest, "valid-0.1.0.tgz")+"\n", out.String())
 
 	// The real packager rejects a directory that is not a chart.
-	root = NewRootCmd(&out, &errOut)
+	root, err = NewRootCmd(&out, &errOut)
+	require.NoError(t, err)
 	root.SetArgs([]string{"package", "../internal/chart/testdata/noyaml", "-o", dest})
 	require.ErrorIs(t, root.Execute(), chart.ErrNoChartYaml)
 }

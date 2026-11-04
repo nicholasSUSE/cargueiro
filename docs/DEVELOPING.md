@@ -52,6 +52,30 @@ The script is committed. The hook registration lives in `.claude/settings.json`,
 
 The hook is fast local feedback only. CI is the enforcing check.
 
+## Command documentation
+
+Each command is documented once, in `cmd/docs/<command>.md`. That file feeds `cargueiro <command> --help` and the commands table in `README.md`.
+
+Layout of a command doc:
+
+````markdown
+# <command>
+
+<first paragraph: short description>
+
+<long description>
+
+## Examples
+
+```
+cargueiro <command> ...
+```
+````
+
+Flags stay defined in Go and show up in `--help` automatically. Mention each local flag (for example `--output-dir`) in the doc; a test fails if one is missing.
+
+After changing a doc, run `make docs` to refresh the README table. `make test` fails if the table is stale, if a command has no doc, or if a doc has no command.
+
 ## Debugging (VSCode)
 
 `.vscode/` is gitignored. Create `.vscode/launch.json` locally from this template (requires [Delve](https://github.com/go-delve/delve)):

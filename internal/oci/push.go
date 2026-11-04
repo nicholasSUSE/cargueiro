@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 
 	ci "helm.sh/helm/v4/pkg/chart"
@@ -42,6 +43,9 @@ func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	if err := CheckTarget(p.target); err != nil {
+		return "", err
+	}
 
 	data, err := os.ReadFile(archivePath)
 	if err != nil {
@@ -51,6 +55,11 @@ func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 	name, version, err := chartIdentity(data)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s: %w", ErrInvalidArchive, archivePath, err)
+	}
+
+	// The chart name is part of the repository, so check the final path too.
+	if err := checkRepository(p.target.Host, path.Join(p.target.Path, name)); err != nil {
+		return "", err
 	}
 
 	ref, err := p.client.Push(data, p.target.Ref(name, version))

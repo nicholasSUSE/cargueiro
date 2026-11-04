@@ -55,6 +55,10 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 			if err != nil {
 				return err
 			}
+			// Before reading any secret or touching the network.
+			if err := oci.CheckTarget(target); err != nil {
+				return err
+			}
 
 			if username == "" {
 				username = opts.getenv(envUsername)

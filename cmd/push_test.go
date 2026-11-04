@@ -234,3 +234,28 @@ func TestPushCmdWithoutHint(t *testing.T) {
 	require.ErrorContains(t, res.err, "boom")
 	require.NotContains(t, res.err.Error(), "hint:")
 }
+
+func TestPushCmdRefusesProtectedRegistries(t *testing.T) {
+	for _, registry := range []string{
+		"registry.suse.com/rancher/catalog",
+		"stgregistry.suse.com/rancher/catalog",
+		"https://Registry.SUSE.com:443/rancher/catalog/",
+	} {
+		t.Run(registry, func(t *testing.T) {
+			res := runPush(t, map[string]string{"CARGUEIRO_PASSWORD": "secret"}, "", nil,
+				"a.tgz", "--registry", registry, "--username", "admin")
+
+			require.ErrorIs(t, res.err, oci.ErrProtectedRegistry)
+			require.Equal(t, pushEnv{}, res.env, "no pusher may even be built")
+			require.Empty(t, res.pusher.pushed)
+			require.Empty(t, res.stdout)
+		})
+	}
+}
+
+func TestPushCmdAllowsTheSamePathOnOtherRegistries(t *testing.T) {
+	res := runPush(t, nil, "", nil, "a.tgz", "--registry", "localhost:5051/rancher/catalog")
+
+	require.NoError(t, res.err)
+	require.Equal(t, oci.Target{Host: "localhost:5051", Path: "rancher/catalog"}, res.env.target)
+}

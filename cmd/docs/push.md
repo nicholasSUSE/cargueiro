@@ -10,6 +10,8 @@ The pushed references are printed to stdout as `oci://<registry>/<name>:<tag>`, 
 
 Every archive is attempted. If any fails, the others are still pushed, every error is reported at the end and the exit code is non-zero. When the failure has a known cause (missing or wrong credentials, a TLS or plain-HTTP mismatch, an untrusted certificate, an unreachable or unknown host), a `hint:` line after the errors says how to fix it. The same hint is shown once, however many archives hit it.
 
+Pushing to `registry.suse.com/rancher/catalog` or `stgregistry.suse.com/rancher/catalog`, or anywhere under them, is refused: charts published there must never be overwritten. The check looks only at the address (host names are compared case-insensitively, and the port is ignored), runs before any password is read or any connection is made, and has no flag to turn it off. Any other registry, local ones included, may be overwritten: pushing a chart that already exists replaces it.
+
 Authentication uses basic auth. Give the user with `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD` or, with `--password-stdin`, on standard input. There is no password flag, so the secret stays out of shell history and the process list. Without credentials the push is anonymous. Only the credentials given here are used; Docker's and Helm's stored credentials are never read.
 
 Connections use HTTPS and the system trust store. For a registry behind a private or self-signed CA, trust its certificate with `--ca-file`. `--plain-http` talks plain HTTP instead, for local testing; it cannot be combined with `--ca-file`.

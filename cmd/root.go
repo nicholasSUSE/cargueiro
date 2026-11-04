@@ -8,8 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/nicholasSUSE/cargueiro/internal/auth"
 	"github.com/nicholasSUSE/cargueiro/internal/chart"
 	"github.com/nicholasSUSE/cargueiro/internal/logger"
+	"github.com/nicholasSUSE/cargueiro/internal/oci"
 )
 
 // rootOptions holds state shared by all subcommands.
@@ -18,19 +20,33 @@ type rootOptions struct {
 	stderr io.Writer
 	log    *slog.Logger
 	getenv func(string) string
+	// openStore opens the saved registry credentials.
+	openStore func() (*auth.Store, error)
+	// prompt asks the user for input.
+	prompt prompter
 }
 
 // dependencies are the collaborators commands call, replaced in tests.
 type dependencies struct {
-	pkg       packageFunc
-	newPusher pusherFactory
+	pkg         packageFunc
+	newPusher   pusherFactory
+	verifyLogin verifyFunc
 }
 
 // NewRootCmd builds the root command. Output streams are injected so
 // commands stay testable.
 func NewRootCmd(stdout, stderr io.Writer) (*cobra.Command, error) {
-	opts := &rootOptions{stderr: stderr, getenv: os.Getenv}
-	return newRootCmd(stdout, stderr, opts, dependencies{pkg: chart.Package, newPusher: newOCIPusher})
+	opts := &rootOptions{
+		stderr:    stderr,
+		getenv:    os.Getenv,
+		openStore: defaultStore,
+		prompt:    newTerminalPrompter(os.Stdin, stderr),
+	}
+	return newRootCmd(stdout, stderr, opts, dependencies{
+		pkg:         chart.Package,
+		newPusher:   newOCIPusher,
+		verifyLogin: oci.VerifyLogin,
+	})
 }
 
 // newRootCmd is NewRootCmd with its dependencies injected.
@@ -60,7 +76,11 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd, pushCmd)
+	registryCmd, err := newRegistryCmd(opts, deps.verifyLogin)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd)
 
 	return root, nil
 }

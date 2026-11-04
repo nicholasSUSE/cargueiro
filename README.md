@@ -18,6 +18,9 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 |---------|-------------|
 | [`package`](cmd/docs/package.md) | Package Helm charts into .tgz archives. |
 | [`push`](cmd/docs/push.md) | Push packaged Helm charts to an OCI registry. |
+| [`registry`](cmd/docs/registry.md) | Manage the registry credentials cargueiro saves. |
+| [`registry login`](cmd/docs/registry-login.md) | Save credentials for a registry. |
+| [`registry logout`](cmd/docs/registry-logout.md) | Remove the saved credentials for a registry. |
 | [`version`](cmd/docs/version.md) | Print the cargueiro version. |
 <!-- COMMANDS:END -->
 

@@ -68,9 +68,14 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				return err
 			}
 
+			creds, err := resolveCredentials(cmd.Context(), opts, target.Host, username, password)
+			if err != nil {
+				return err
+			}
+
 			pusher, err := newPusher(target, oci.ClientOptions{
-				Username:  username,
-				Password:  password,
+				Username:  creds.Username,
+				Password:  creds.Password,
 				PlainHTTP: plainHTTP,
 				CAFile:    caFile,
 			})
@@ -82,7 +87,7 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				errs  []error
 				hints hintSet
 			)
-			hintCtx := pushContext{username: username, caFile: caFile}
+			hintCtx := hintContext{username: creds.Username, caFile: caFile, host: target.Host, stored: creds.Stored}
 			for _, archive := range archives {
 				opts.log.DebugContext(cmd.Context(), "pushing chart", "archive", archive, "registry", registry)
 

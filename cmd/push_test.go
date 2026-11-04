@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholasSUSE/cargueiro/internal/auth"
 	"github.com/nicholasSUSE/cargueiro/internal/oci"
 )
 
@@ -45,6 +46,13 @@ type pushResult struct {
 func runPush(t *testing.T, env map[string]string, stdin string, failing map[string]error, args ...string) pushResult {
 	t.Helper()
 
+	return runPushWithStore(t, newTestStore(t), env, stdin, failing, args...)
+}
+
+// runPushWithStore is runPush with the saved credentials in store.
+func runPushWithStore(t *testing.T, store *auth.Store, env map[string]string, stdin string, failing map[string]error, args ...string) pushResult {
+	t.Helper()
+
 	res := pushResult{pusher: &fakePusher{failing: failing}}
 	factory := func(target oci.Target, opts oci.ClientOptions) (archivePusher, error) {
 		res.env = pushEnv{target: target, opts: opts}
@@ -52,7 +60,12 @@ func runPush(t *testing.T, env map[string]string, stdin string, failing map[stri
 	}
 
 	var out, errOut bytes.Buffer
-	opts := &rootOptions{stderr: &errOut, getenv: func(k string) string { return env[k] }}
+	opts := &rootOptions{
+		stderr:    &errOut,
+		getenv:    func(k string) string { return env[k] },
+		openStore: openerFor(store),
+		prompt:    &fakePrompter{},
+	}
 	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
 	require.NoError(t, err)
 	root.SetIn(strings.NewReader(stdin))
@@ -190,7 +203,12 @@ func TestPushCmdFactoryError(t *testing.T) {
 	factory := func(oci.Target, oci.ClientOptions) (archivePusher, error) { return nil, errBadOpts }
 
 	var out, errOut bytes.Buffer
-	opts := &rootOptions{stderr: &errOut, getenv: func(string) string { return "" }}
+	opts := &rootOptions{
+		stderr:    &errOut,
+		getenv:    func(string) string { return "" },
+		openStore: openerFor(newTestStore(t)),
+		prompt:    &fakePrompter{},
+	}
 	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
 	require.NoError(t, err)
 	root.SetArgs([]string{"push", "a.tgz", "--registry", "r"})
@@ -258,4 +276,130 @@ func TestPushCmdAllowsTheSamePathOnOtherRegistries(t *testing.T) {
 
 	require.NoError(t, res.err)
 	require.Equal(t, oci.Target{Host: "localhost:5051", Path: "rancher/catalog"}, res.env.target)
+}
+
+func TestPushCmdUsesSavedCredentials(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	_, err := store.Put(ctx, "reg.local:5000", auth.Credential{Username: "saved-user", Password: "saved-pass"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		env  map[string]string
+		args []string
+		want oci.ClientOptions
+	}{
+		{
+			name: "no credentials given: the saved ones are used",
+			args: []string{"--registry", "reg.local:5000/charts"},
+			want: oci.ClientOptions{Username: "saved-user", Password: "saved-pass"},
+		},
+		{
+			name: "host matching ignores case",
+			args: []string{"--registry", "REG.local:5000/charts"},
+			want: oci.ClientOptions{Username: "saved-user", Password: "saved-pass"},
+		},
+		{
+			name: "username flag beats saved credentials",
+			env:  map[string]string{"CARGUEIRO_PASSWORD": "env-pass"},
+			args: []string{"--registry", "reg.local:5000/charts", "--username", "flag-user"},
+			want: oci.ClientOptions{Username: "flag-user", Password: "env-pass"},
+		},
+		{
+			name: "environment beats saved credentials",
+			env:  map[string]string{"CARGUEIRO_USERNAME": "env-user", "CARGUEIRO_PASSWORD": "env-pass"},
+			args: []string{"--registry", "reg.local:5000/charts"},
+			want: oci.ClientOptions{Username: "env-user", Password: "env-pass"},
+		},
+		{
+			name: "another host gets nothing",
+			args: []string{"--registry", "other.local:5000/charts"},
+			want: oci.ClientOptions{},
+		},
+		{
+			name: "another port gets nothing",
+			args: []string{"--registry", "reg.local:5001/charts"},
+			want: oci.ClientOptions{},
+		},
+		{
+			name: "same host without the port gets nothing",
+			args: []string{"--registry", "reg.local/charts"},
+			want: oci.ClientOptions{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := runPushWithStore(t, store, tt.env, "", nil, append([]string{"a.tgz"}, tt.args...)...)
+
+			require.NoError(t, res.err)
+			require.Equal(t, tt.want, res.env.opts)
+		})
+	}
+}
+
+func TestPushCmdHintsToLoginWhenSavedCredentialsAreRejected(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	_, err := store.Put(ctx, "reg.local", auth.Credential{Username: "u", Password: "p"})
+	require.NoError(t, err)
+	rejected := &oci.RegistryError{Kind: oci.KindAuthRejected, Err: errors.New("401")}
+
+	res := runPushWithStore(t, store, nil, "", map[string]error{"a.tgz": rejected}, "a.tgz", "--registry", "reg.local")
+
+	require.ErrorContains(t, res.err, "hint: the registry rejected the saved credentials for reg.local")
+	require.ErrorContains(t, res.err, "registry login reg.local")
+}
+
+func TestPushCmdHintsToLoginWhenNothingIsSaved(t *testing.T) {
+	required := &oci.RegistryError{Kind: oci.KindAuthRequired, Err: errors.New("credential not found")}
+
+	res := runPush(t, nil, "", map[string]error{"a.tgz": required}, "a.tgz", "--registry", "reg.local:5000/charts")
+
+	require.ErrorContains(t, res.err, "registry login reg.local:5000")
+}
+
+func TestPushCmdFailsOnACorruptCredentialsFile(t *testing.T) {
+	broken := func() (*auth.Store, error) { return nil, errors.New("credentials file is corrupt") }
+	var out, errOut bytes.Buffer
+	opts := &rootOptions{
+		stderr:    &errOut,
+		getenv:    func(string) string { return "" },
+		openStore: broken,
+		prompt:    &fakePrompter{},
+	}
+	factoryCalled := false
+	factory := func(oci.Target, oci.ClientOptions) (archivePusher, error) {
+		factoryCalled = true
+		return &fakePusher{}, nil
+	}
+	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
+	require.NoError(t, err)
+	root.SetArgs([]string{"push", "a.tgz", "--registry", "reg.local"})
+
+	err = root.Execute()
+
+	require.ErrorContains(t, err, "credentials file is corrupt")
+	require.False(t, factoryCalled, "a broken credentials file must not silently fall back to anonymous")
+}
+
+func TestPushCmdDoesNotReadTheStoreWhenCredentialsAreGiven(t *testing.T) {
+	broken := func() (*auth.Store, error) { return nil, errors.New("must not be opened") }
+	var out, errOut bytes.Buffer
+	opts := &rootOptions{
+		stderr: &errOut,
+		getenv: func(k string) string {
+			return map[string]string{"CARGUEIRO_USERNAME": "u", "CARGUEIRO_PASSWORD": "p"}[k]
+		},
+		openStore: broken,
+		prompt:    &fakePrompter{},
+	}
+	fake := &fakePusher{}
+	factory := func(oci.Target, oci.ClientOptions) (archivePusher, error) { return fake, nil }
+	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
+	require.NoError(t, err)
+	root.SetArgs([]string{"push", "a.tgz", "--registry", "reg.local"})
+
+	require.NoError(t, root.Execute())
 }

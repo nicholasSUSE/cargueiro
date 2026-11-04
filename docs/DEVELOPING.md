@@ -26,6 +26,79 @@ If a pinned tool is shadowed, `mise which <tool>` shows the right one and `comma
 
 The pinned `helm` must match `helm.sh/helm/v4` in `go.mod`.
 
+## What a feature is
+
+cargueiro follows the Unix philosophy: each command does one thing, does it well, and prints results that other tools can consume. A **feature** is one such command, delivered end to end. It is **feature complete** only when all five layers exist:
+
+| # | Layer | Where | Done when |
+|---|-------|-------|-----------|
+| 1 | Command | `cmd/<name>.go` | The cobra command parses arguments and flags, calls the implementation and reports. |
+| 2 | Implementation | `internal/<area>/` | The logic lives here, with no cobra and no printing. |
+| 3 | Unit tests | next to the code | Every path is covered without external tools. |
+| 4 | E2E tests | `tests/<name>/` | The real binary is proven correct on real data. |
+| 5 | Documentation | `cmd/docs/<name>.md` | `--help`, the README table and the doc page agree. |
+
+A change that skips a layer is not a finished feature, whatever the other layers look like.
+
+### 1. Command
+
+- One command, one job. If a command needs "and" to describe it, split it.
+- Keep it thin: validate arguments, call `internal/`, write results. No business logic.
+- Results go to **stdout**, one item per line, so another command can read them. Logs and errors go to **stderr**.
+- Return errors from `RunE`; only `main` exits. A command that processes several inputs attempts all of them and reports every failure together (`errors.Join`), then exits non-zero.
+- Inject dependencies (the implementation as a function or small interface) so the command is testable without the real thing.
+
+### 2. Implementation
+
+- Put it under `internal/<area>/`. It must not import cobra.
+- `context.Context` is the first parameter. Wrap errors with `%w` and expose sentinel errors (`ErrNoChartYaml`) for cases a caller may need to detect.
+- Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md); `make lint` enforces most of it.
+- Nothing is fetched or mutated beyond what the command's doc promises.
+
+### 3. Unit tests
+
+- Table-driven, next to the code (`*_test.go`), run by `make test-unit`.
+- Cover success, every error path and the edge cases. Use fakes for boundaries (the command tests use a fake packager).
+- No network, no Docker, no external binaries. Small fixtures go in a local `testdata/`.
+
+### 4. E2E tests
+
+- Live in `tests/<name>/`, behind the `e2e` build tag, run by `make test-e2e`.
+- Run the **real binary** as a black box through `tests/internal/harness`: arguments in, stdout, stderr and exit code out.
+- Use real data committed under `tests/data/` with a `PROVENANCE.md` saying where it came from. Never fetch data in a test.
+- Compare against an independent source of truth wherever one exists. For packaging that is the `helm` CLI and the archives published in `rancher/charts`; comparing against our own output proves nothing.
+- Cover the happy path, several inputs in one call, defaults, partial failure, that inputs are not modified, and determinism.
+- Break something on purpose once to see the test fail, so you know it can.
+- Features that need a registry get it from `registry:2`; tests read its address from the environment and never start it themselves.
+
+### 5. Documentation
+
+- Write `cmd/docs/<name>.md`: a title, a one-line summary, a longer description and an `## Examples` section. The layout is described in [Command documentation](#command-documentation).
+- Mention every local flag of the command in that file. A test fails if one is missing.
+- Run `make docs` to refresh the README table. A test fails if the table is stale.
+- Update this file when the feature changes how people work: new tools go in `mise.toml` and in Setup, new test data in its `PROVENANCE.md`.
+
+### Checklist
+
+A feature is complete when all of this is true:
+
+- [ ] The command, its implementation, unit tests, e2e tests and docs all exist.
+- [ ] `make fmt`, `make lint` and `make vet` report nothing.
+- [ ] `make test` passes (unit and e2e).
+- [ ] `make docs` leaves no diff.
+- [ ] New tools are pinned in `mise.toml`.
+- [ ] A human reviewed it, as required by [AGENTS.md](AGENTS.md).
+
+Commit by layer, with Conventional Commit messages, so the history reads like this list. For `package` that was `feat(chart)` for the implementation, `feat(cmd)` for the command, `test(e2e)` for the test data and tests, and `feat(docs)` for the documentation.
+
+### What already exists
+
+Later features reuse these and only add their own pieces:
+
+- The docs pipeline: the `cmd/docs` loader, the guard tests and `make docs`.
+- The e2e harness (`tests/internal/harness`): building and running the binary, running `helm`, comparing archives by content (`internal/chart/archivetest`).
+- The tooling: mise pins, lint config, the lint hook and the Make targets.
+
 ## Linting
 
 `.golangci.yml` is the single source of truth. Every runner (editor, agent hook, CI) uses the same config and the same pinned golangci-lint version from `mise.toml`.

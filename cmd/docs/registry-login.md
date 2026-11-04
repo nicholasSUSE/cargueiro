@@ -1,23 +1,18 @@
 # registry login
 
-Save credentials for a registry.
+Save credentials and connection settings for a registry.
 
-The registry is a host with an optional port, such as `registry.example.com` or `localhost:5000`. An address with a path is refused, because credentials belong to a host. A leading `oci://`, `https://` or `http://` is ignored.
+The registry is a host with an optional port, such as `registry.example.com` or `localhost:5000`. An address with a path is refused. If a login is already saved, `login` stops and asks you to run `registry logout` first.
 
-The username comes from `--username`, from `CARGUEIRO_USERNAME`, or is asked for on a terminal. The password comes from `--password`, standard input with `--password-stdin`, `CARGUEIRO_PASSWORD`, or a prompt that does not echo, in that order. `--password` is insecure: the password stays in your shell history and is visible in the process list, so a warning is printed. Prefer `--password-stdin` or the prompt.
+The username comes from `--username`, `CARGUEIRO_USERNAME`, or a prompt. The password comes from `--password`, `--password-stdin`, `CARGUEIRO_PASSWORD`, or a prompt that does not echo, in that order. `--password` is insecure, because it stays in your shell history and the process list, and it warns.
 
-Before anything is saved, the credentials are checked against the registry. If it rejects them, nothing is saved. If it accepts anonymous requests, the credentials cannot be checked and a warning says so.
+The credentials are checked against the registry before anything is saved, and a rejection saves nothing. A registry that accepts anonymous requests cannot check them, so a warning is printed and the login is saved anyway.
 
-The credentials are saved in a file of their own, mode 0600, in your user config directory (`$CARGUEIRO_CONFIG_DIR` overrides the directory). Without a Docker credential helper installed, the password is stored base64-encoded, which is not encryption, and a warning says so. Docker's and Helm's saved credentials are never read.
+`--plain-http` reaches the registry over HTTP, for local testing. `--ca-file` trusts the CA certificates in a PEM file, for a private or self-signed CA. They cannot be combined. Both are used for the check and then remembered for this registry. The contents of the CA file are saved, so moving the file later changes nothing.
 
-To reach a registry served over plain HTTP, such as a local one, use `--plain-http`. For a registry behind a private or self-signed CA, trust its certificate with `--ca-file`. The two cannot be combined. These only affect the check made at login.
+Everything is saved in `login.json`, mode 0600, in your user config directory (`$CARGUEIRO_CONFIG_DIR` overrides the directory). The password is stored there in plain text, and a warning says so.
 
 ## Examples
-
-```
-# the password from standard input
-echo "$PASSWORD" | cargueiro registry login registry.example.com --username admin --password-stdin
-```
 
 ```
 # asked for the username and password on a terminal

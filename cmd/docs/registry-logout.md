@@ -1,13 +1,13 @@
 # registry logout
 
-Remove the saved credentials for a registry.
+Forget the saved login.
 
-The registry is a host with an optional port, as for `registry login`. The credentials for other registries are left alone. Logging out of a registry with no saved credentials is not an error.
+This removes everything `registry login` saved, including the plain HTTP or CA setting, so `push` goes back to HTTPS with the system trust store and no credentials. You can then log in to another registry.
 
-No network call is made: this only edits the local credentials file.
+It takes no arguments and makes no network call. Logging out when nothing is saved is not an error, and it also removes a login file that has become unreadable.
 
 ## Examples
 
 ```
-cargueiro registry logout registry.example.com
+cargueiro registry logout
 ```

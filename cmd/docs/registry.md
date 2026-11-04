@@ -1,10 +1,10 @@
 # registry
 
-Manage the registry credentials cargueiro saves.
+Manage the registry login cargueiro saves.
 
-`cargueiro registry login` saves the credentials for a registry so that other commands, such as `push`, use them without being given a username and password every time. `cargueiro registry logout` removes them.
+`cargueiro registry login` saves the credentials for one registry, and how to reach it, so that other commands such as `push` use them without being told every time. `cargueiro registry logout` forgets them. Only one login is kept: log out before logging in to another registry.
 
-Credentials are saved per registry host and port, in a file of their own in your user config directory (`$CARGUEIRO_CONFIG_DIR` overrides the directory). Docker's and Helm's saved credentials are never read.
+The login is a file of its own in your user config directory (`$CARGUEIRO_CONFIG_DIR` overrides the directory). Docker's and Helm's saved credentials are never read.
 
 ## Examples
 
@@ -15,5 +15,5 @@ echo "$PASSWORD" | cargueiro registry login registry.example.com --username admi
 
 ```
 # forget them
-cargueiro registry logout registry.example.com
+cargueiro registry logout
 ```

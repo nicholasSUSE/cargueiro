@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/nicholasSUSE/cargueiro/internal/chart"
 	"github.com/nicholasSUSE/cargueiro/internal/logger"
 )
 
@@ -20,8 +21,11 @@ type rootOptions struct {
 // NewRootCmd builds the root command. Output streams are injected so
 // commands stay testable.
 func NewRootCmd(stdout, stderr io.Writer) *cobra.Command {
-	opts := &rootOptions{stderr: stderr}
+	return newRootCmd(stdout, stderr, &rootOptions{stderr: stderr}, chart.Package)
+}
 
+// newRootCmd is NewRootCmd with its dependencies injected.
+func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, pkg packageFunc) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "cargueiro",
 		Short:         "Package Helm charts and push them to OCI registries",
@@ -36,6 +40,7 @@ func NewRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	root.PersistentFlags().BoolVar(&opts.debug, "debug", false, "enable debug logging")
 
 	root.AddCommand(newVersionCmd())
+	root.AddCommand(newPackageCmd(opts, pkg))
 
 	return root
 }

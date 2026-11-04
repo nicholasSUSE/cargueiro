@@ -1,0 +1,7 @@
+apiVersion: v2
+name: missingdeps
+version: 0.1.0
+dependencies:
+  - name: absent
+    version: 1.0.0
+    repository: https://example.invalid/charts

@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,12 +8,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func openStore(t *testing.T) *Store {
+const testCA = `-----BEGIN CERTIFICATE-----
+MIIBhTCCASugAwIBAgIQIRi6zePL6mKjOipn+dNuaTAKBggqhkjOPQQDAjASMRAw
+DgYDVQQKEwdBY21lIENvMB4XDTE3MTAyMDE5NDMwNloXDTE4MTAyMDE5NDMwNlow
+EjEQMA4GA1UEChMHQWNtZSBDbzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABD0d
+7VNhbWvZLWPuj/RtHFjvtJBEwOkhbN/BnnE8rnZR8+sbwnc/KhCk3FhnpHZnQz7B
+5aETbbIgmuvewdjvSBSjYzBhMA4GA1UdDwEB/wQEAwICpDATBgNVHSUEDDAKBggr
+BgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdEQQiMCCCDmxvY2FsaG9zdDo1
+NDUzgg4xMjcuMC4wLjE6NTQ1MzAKBggqhkjOPQQDAgNIADBFAiEA2zpJEPQyz6/l
+Wf86aX6PepsntZv2GYlA5UpabfT2EZICICpJ5h/iI+i341gBmLiAFQOyTDT+/wQc
+6MF9+Yw1Yy0t
+-----END CERTIFICATE-----
+`
+
+func newStore(t *testing.T) *Store {
 	t.Helper()
 
-	s, err := Open(filepath.Join(t.TempDir(), "cfg", "auth.json"), Options{})
-	require.NoError(t, err)
-	return s
+	return Open(filepath.Join(t.TempDir(), "cfg", "login.json"))
+}
+
+func validLogin() Login {
+	return Login{Host: "reg.example.com:5000", Username: "admin", Password: "s3cret: with spaces & ünïcode"}
 }
 
 func TestDefaultPath(t *testing.T) {
@@ -25,7 +39,7 @@ func TestDefaultPath(t *testing.T) {
 		got, err := DefaultPath()
 
 		require.NoError(t, err)
-		require.Equal(t, "/custom/dir/auth.json", got)
+		require.Equal(t, "/custom/dir/login.json", got)
 	})
 
 	t.Run("XDG config home", func(t *testing.T) {
@@ -35,7 +49,7 @@ func TestDefaultPath(t *testing.T) {
 		got, err := DefaultPath()
 
 		require.NoError(t, err)
-		require.Equal(t, "/xdg/cargueiro/auth.json", got)
+		require.Equal(t, "/xdg/cargueiro/login.json", got)
 	})
 
 	t.Run("home directory fallback", func(t *testing.T) {
@@ -46,128 +60,100 @@ func TestDefaultPath(t *testing.T) {
 		got, err := DefaultPath()
 
 		require.NoError(t, err)
-		require.Equal(t, "/home/someone/.config/cargueiro/auth.json", got)
+		require.Equal(t, "/home/someone/.config/cargueiro/login.json", got)
 	})
 }
 
-func TestPutGetDelete(t *testing.T) {
-	ctx := context.Background()
-	s := openStore(t)
-	cred := Credential{Username: "admin", Password: "s3cret: with spaces & ünïcode"}
+func TestSaveAndLoad(t *testing.T) {
+	s := newStore(t)
 
-	_, found, err := s.Get(ctx, "reg.example.com")
+	_, found, err := s.Load()
 	require.NoError(t, err)
-	require.False(t, found, "nothing is stored at first")
+	require.False(t, found, "nothing is saved at first")
+	require.NoFileExists(t, s.Path(), "loading creates nothing")
 
-	_, err = s.Put(ctx, "reg.example.com", cred)
-	require.NoError(t, err)
+	login := validLogin()
+	login.CAPEM = testCA
+	require.NoError(t, s.Save(login))
 
-	got, found, err := s.Get(ctx, "reg.example.com")
+	got, found, err := s.Load()
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Equal(t, cred, got, "the password survives unchanged, colons and all")
+	require.Equal(t, login, got, "everything comes back byte for byte, colons and all")
+}
 
-	existed, err := s.Delete(ctx, "reg.example.com")
+func TestSaveReplacesThePreviousLogin(t *testing.T) {
+	s := newStore(t)
+	require.NoError(t, s.Save(Login{Host: "a.example.com", Username: "alice", Password: "pa", PlainHTTP: true}))
+
+	require.NoError(t, s.Save(Login{Host: "b.example.com", Username: "bob", Password: "pb"}))
+
+	got, _, err := s.Load()
+	require.NoError(t, err)
+	require.Equal(t, Login{Host: "b.example.com", Username: "bob", Password: "pb"}, got, "nothing of the first login is left")
+}
+
+func TestPlainHTTPAndCAAreSavedSeparately(t *testing.T) {
+	s := newStore(t)
+
+	require.NoError(t, s.Save(Login{Host: "h", Username: "u", Password: "p", PlainHTTP: true}))
+	got, _, err := s.Load()
+	require.NoError(t, err)
+	require.Equal(t, Login{Host: "h", Username: "u", Password: "p", PlainHTTP: true}, got)
+
+	require.NoError(t, s.Save(Login{Host: "h", Username: "u", Password: "p", CAPEM: testCA}))
+	got, _, err = s.Load()
+	require.NoError(t, err)
+	require.Equal(t, Login{Host: "h", Username: "u", Password: "p", CAPEM: testCA}, got)
+}
+
+func TestDelete(t *testing.T) {
+	s := newStore(t)
+	require.NoError(t, s.Save(validLogin()))
+
+	existed, err := s.Delete()
 	require.NoError(t, err)
 	require.True(t, existed)
-
-	_, found, err = s.Get(ctx, "reg.example.com")
+	require.NoFileExists(t, s.Path())
+	_, found, err := s.Load()
 	require.NoError(t, err)
 	require.False(t, found)
-}
 
-func TestDeleteMissingIsNotAnError(t *testing.T) {
-	existed, err := openStore(t).Delete(context.Background(), "nowhere.example.com")
-
+	existed, err = s.Delete()
 	require.NoError(t, err)
-	require.False(t, existed)
-}
-
-func TestHostsAreIndependent(t *testing.T) {
-	ctx := context.Background()
-	s := openStore(t)
-	_, err := s.Put(ctx, "a.example.com", Credential{Username: "alice", Password: "pa"})
-	require.NoError(t, err)
-	_, err = s.Put(ctx, "b.example.com", Credential{Username: "bob", Password: "pb"})
-	require.NoError(t, err)
-
-	_, found, err := s.Get(ctx, "c.example.com")
-	require.NoError(t, err)
-	require.False(t, found, "credentials are never offered to another host")
-
-	_, err = s.Delete(ctx, "a.example.com")
-	require.NoError(t, err)
-	got, found, err := s.Get(ctx, "b.example.com")
-	require.NoError(t, err)
-	require.True(t, found, "deleting one host keeps the others")
-	require.Equal(t, "bob", got.Username)
-}
-
-func TestHostKeys(t *testing.T) {
-	ctx := context.Background()
-	s := openStore(t)
-	_, err := s.Put(ctx, "Registry.Example.COM:5000", Credential{Username: "u", Password: "p"})
-	require.NoError(t, err)
-
-	tests := []struct {
-		name  string
-		host  string
-		found bool
-	}{
-		{name: "same host", host: "registry.example.com:5000", found: true},
-		{name: "different case", host: "REGISTRY.example.com:5000", found: true},
-		{name: "trailing dot", host: "registry.example.com.:5000", found: true},
-		{name: "surrounding space", host: " registry.example.com:5000 ", found: true},
-		{name: "port is part of the host", host: "registry.example.com", found: false},
-		{name: "another port", host: "registry.example.com:443", found: false},
-		{name: "empty host", host: "", found: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, found, err := s.Get(ctx, tt.host)
-
-			require.NoError(t, err)
-			require.Equal(t, tt.found, found)
-		})
-	}
+	require.False(t, existed, "deleting twice is not an error")
 }
 
 func TestPersistsAcrossOpens(t *testing.T) {
-	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "auth.json")
-	first, err := Open(path, Options{})
-	require.NoError(t, err)
-	_, err = first.Put(ctx, "reg.example.com", Credential{Username: "u", Password: "p"})
-	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "login.json")
+	require.NoError(t, Open(path).Save(validLogin()))
 
-	second, err := Open(path, Options{})
-	require.NoError(t, err)
+	got, found, err := Open(path).Load()
 
-	got, found, err := second.Get(ctx, "reg.example.com")
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Equal(t, Credential{Username: "u", Password: "p"}, got)
+	require.Equal(t, validLogin(), got)
 }
 
 func TestFileAndDirectoryModes(t *testing.T) {
-	ctx := context.Background()
-	s := openStore(t)
+	s := newStore(t)
 
-	_, err := s.Put(ctx, "reg.example.com", Credential{Username: "u", Password: "p"})
-	require.NoError(t, err)
+	require.NoError(t, s.Save(validLogin()))
 
 	fileInfo, err := os.Stat(s.Path())
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm(), "credentials file")
+	require.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm(), "login file")
 	dirInfo, err := os.Stat(filepath.Dir(s.Path()))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm(), "its directory")
+	entries, err := os.ReadDir(filepath.Dir(s.Path()))
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "no temporary file is left behind")
 
-	t.Run("a loose file is tightened on the next write", func(t *testing.T) {
+	t.Run("a loose file is tightened by the next save", func(t *testing.T) {
 		require.NoError(t, os.Chmod(s.Path(), 0o644))
 
-		_, err := s.Put(ctx, "other.example.com", Credential{Username: "u", Password: "p"})
-		require.NoError(t, err)
+		require.NoError(t, s.Save(validLogin()))
 
 		info, err := os.Stat(s.Path())
 		require.NoError(t, err)
@@ -175,22 +161,11 @@ func TestFileAndDirectoryModes(t *testing.T) {
 	})
 }
 
-func TestPutReportsPlaintext(t *testing.T) {
-	s := openStore(t)
-
-	plaintext, err := s.Put(context.Background(), "reg.example.com", Credential{Username: "u", Password: "p"})
-
-	require.NoError(t, err)
-	require.True(t, plaintext, "without a native helper the password is only base64 in the file")
-}
-
 func TestCheckPermissions(t *testing.T) {
-	ctx := context.Background()
-	s := openStore(t)
+	s := newStore(t)
 	require.NoError(t, s.CheckPermissions(), "a missing file is fine")
 
-	_, err := s.Put(ctx, "reg.example.com", Credential{Username: "u", Password: "p"})
-	require.NoError(t, err)
+	require.NoError(t, s.Save(validLogin()))
 	require.NoError(t, s.CheckPermissions())
 
 	for _, mode := range []os.FileMode{0o640, 0o604, 0o644, 0o666, 0o660} {
@@ -202,50 +177,74 @@ func TestCheckPermissions(t *testing.T) {
 	require.NoError(t, s.CheckPermissions(), "read-only for the owner is not a leak")
 }
 
-func TestPutRejectsBadCredentials(t *testing.T) {
+func TestSaveRejectsABadLogin(t *testing.T) {
 	tests := []struct {
-		name string
-		host string
-		cred Credential
+		name  string
+		login Login
 	}{
-		{name: "empty username", host: "h", cred: Credential{Password: "p"}},
-		{name: "empty password", host: "h", cred: Credential{Username: "u"}},
-		{name: "colon in username", host: "h", cred: Credential{Username: "a:b", Password: "p"}},
-		{name: "empty host", host: "", cred: Credential{Username: "u", Password: "p"}},
-		{name: "blank host", host: "  ", cred: Credential{Username: "u", Password: "p"}},
+		{name: "empty host", login: Login{Username: "u", Password: "p"}},
+		{name: "empty username", login: Login{Host: "h", Password: "p"}},
+		{name: "empty password", login: Login{Host: "h", Username: "u"}},
+		{name: "CA with plain HTTP", login: Login{Host: "h", Username: "u", Password: "p", PlainHTTP: true, CAPEM: testCA}},
+		{name: "CA that is not PEM", login: Login{Host: "h", Username: "u", Password: "p", CAPEM: "not a certificate"}},
+		{name: "PEM that is not a certificate", login: Login{Host: "h", Username: "u", Password: "p", CAPEM: "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := openStore(t)
+			s := newStore(t)
 
-			_, err := s.Put(context.Background(), tt.host, tt.cred)
+			err := s.Save(tt.login)
 
-			require.ErrorIs(t, err, ErrInvalidCredential)
-			require.NoFileExists(t, s.Path(), "a rejected credential must leave no file behind")
+			require.ErrorIs(t, err, ErrInvalidLogin)
+			require.NoFileExists(t, s.Path(), "a rejected login leaves no file behind")
 		})
 	}
 }
 
-func TestOpenRejectsACorruptFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "auth.json")
-	require.NoError(t, os.WriteFile(path, []byte("{ this is not json"), 0o600))
+func TestACorruptFileIsReportedAndCanBeDeleted(t *testing.T) {
+	s := newStore(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(s.Path()), 0o700))
 
-	_, err := Open(path, Options{})
+	for name, content := range map[string]string{
+		"not JSON":        "{ not json",
+		"missing fields":  `{"host": "h"}`,
+		"wrong data type": `{"host": 5}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, os.WriteFile(s.Path(), []byte(content), 0o600))
 
-	require.Error(t, err)
-	content, readErr := os.ReadFile(path)
-	require.NoError(t, readErr)
-	require.Equal(t, "{ this is not json", string(content), "a corrupt file is never overwritten")
+			_, found, err := s.Load()
+
+			require.Error(t, err)
+			require.ErrorContains(t, err, "registry logout", "it says how to recover")
+			require.False(t, found)
+			existed, err := s.Delete()
+			require.NoError(t, err)
+			require.True(t, existed, "logout can remove it")
+		})
+	}
 }
 
-func TestPasswordIsNotStoredAsPlainText(t *testing.T) {
-	s := openStore(t)
-	_, err := s.Put(context.Background(), "reg.example.com", Credential{Username: "admin", Password: "hunter2-hunter2"})
-	require.NoError(t, err)
+func TestMatches(t *testing.T) {
+	login := Login{Host: "Registry.Example.COM:5000"}
 
-	content, err := os.ReadFile(s.Path())
-	require.NoError(t, err)
+	tests := []struct {
+		host string
+		want bool
+	}{
+		{host: "Registry.Example.COM:5000", want: true},
+		{host: "registry.example.com:5000", want: true},
+		{host: "REGISTRY.EXAMPLE.COM:5000", want: true},
+		{host: "registry.example.com", want: false},
+		{host: "registry.example.com:5001", want: false},
+		{host: "other.example.com:5000", want: false},
+		{host: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.host, func(t *testing.T) {
+			require.Equal(t, tt.want, login.Matches(tt.host))
+		})
+	}
 
-	require.NotContains(t, string(content), "hunter2-hunter2", "base64-encoded, never the raw password")
-	require.Contains(t, string(content), `"reg.example.com"`)
+	require.False(t, Login{}.Matches(""), "an empty login matches nothing")
 }

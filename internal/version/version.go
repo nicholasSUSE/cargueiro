@@ -7,7 +7,7 @@ import "fmt"
 // package-level variables.
 var (
 	version = "dev"
-	commit  = "none"
+	commit  = "none" //nolint:gochecknoglobals // set via ldflags
 )
 
 // Info describes the running build.

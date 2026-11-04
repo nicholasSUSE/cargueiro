@@ -1,3 +1,4 @@
+// Command cargueiro packages Helm charts and pushes them to OCI registries.
 package main
 
 import (

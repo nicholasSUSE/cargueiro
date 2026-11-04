@@ -33,8 +33,8 @@ func run(t *testing.T, fake *fakePackager, args ...string) (stdout, stderr strin
 	t.Helper()
 
 	var out, errOut bytes.Buffer
-	opts := &rootOptions{stderr: &errOut}
-	root, err := newRootCmd(&out, &errOut, opts, fake.pkg)
+	opts := &rootOptions{stderr: &errOut, getenv: func(string) string { return "" }}
+	root, err := newRootCmd(&out, &errOut, opts, dependencies{pkg: fake.pkg, newPusher: nil})
 	require.NoError(t, err)
 	root.SetArgs(args)
 

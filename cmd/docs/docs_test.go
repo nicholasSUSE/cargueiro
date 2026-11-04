@@ -84,7 +84,7 @@ func TestParse(t *testing.T) {
 
 func TestLoad(t *testing.T) {
 	t.Run("embedded docs load", func(t *testing.T) {
-		for _, name := range []string{"package", "version"} {
+		for _, name := range []string{"package", "push", "version"} {
 			doc, err := Load(name)
 			require.NoError(t, err, name)
 			require.NotEmpty(t, doc.Short, name)
@@ -101,5 +101,5 @@ func TestLoad(t *testing.T) {
 func TestNames(t *testing.T) {
 	names, err := Names()
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"package", "version"}, names)
+	require.ElementsMatch(t, []string{"package", "push", "version"}, names)
 }

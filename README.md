@@ -17,6 +17,7 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 | Command | Description |
 |---------|-------------|
 | [`package`](cmd/docs/package.md) | Package Helm charts into .tgz archives. |
+| [`push`](cmd/docs/push.md) | Push packaged Helm charts to an OCI registry. |
 | [`version`](cmd/docs/version.md) | Print the cargueiro version. |
 <!-- COMMANDS:END -->
 

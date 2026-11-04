@@ -4,6 +4,7 @@ package cmd
 import (
 	"io"
 	"log/slog"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -16,16 +17,24 @@ type rootOptions struct {
 	debug  bool
 	stderr io.Writer
 	log    *slog.Logger
+	getenv func(string) string
+}
+
+// dependencies are the collaborators commands call, replaced in tests.
+type dependencies struct {
+	pkg       packageFunc
+	newPusher pusherFactory
 }
 
 // NewRootCmd builds the root command. Output streams are injected so
 // commands stay testable.
 func NewRootCmd(stdout, stderr io.Writer) (*cobra.Command, error) {
-	return newRootCmd(stdout, stderr, &rootOptions{stderr: stderr}, chart.Package)
+	opts := &rootOptions{stderr: stderr, getenv: os.Getenv}
+	return newRootCmd(stdout, stderr, opts, dependencies{pkg: chart.Package, newPusher: newOCIPusher})
 }
 
 // newRootCmd is NewRootCmd with its dependencies injected.
-func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, pkg packageFunc) (*cobra.Command, error) {
+func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) (*cobra.Command, error) {
 	root := &cobra.Command{
 		Use:           "cargueiro",
 		Short:         "Package Helm charts and push them to OCI registries",
@@ -43,11 +52,15 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, pkg packageFunc) (*
 	if err != nil {
 		return nil, err
 	}
-	packageCmd, err := newPackageCmd(opts, pkg)
+	packageCmd, err := newPackageCmd(opts, deps.pkg)
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd)
+	pushCmd, err := newPushCmd(opts, deps.newPusher)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd, pushCmd)
 
 	return root, nil
 }

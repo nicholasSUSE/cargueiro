@@ -22,24 +22,34 @@ const (
 // ErrMarkers is returned when the README lacks a well-formed marker pair.
 var ErrMarkers = errors.New("README commands markers")
 
-// Table renders a markdown table of the subcommands of root, each linking to
-// its doc. Hidden and cobra's own help and completion commands are skipped.
+// Table renders a markdown table of every command below root, nested ones
+// included, each linking to its doc. A nested command such as "registry login"
+// links to registry-login.md. Hidden commands and cobra's own help and
+// completion are skipped.
 func Table(root *cobra.Command) string {
-	cmds := make([]*cobra.Command, 0, len(root.Commands()))
-	for _, c := range root.Commands() {
-		if c.Hidden || c.Name() == "help" || c.Name() == "completion" {
-			continue
+	type row struct{ path, short string }
+	var rows []row
+
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		for _, child := range c.Commands() {
+			if child.Hidden || child.Name() == "help" || child.Name() == "completion" {
+				continue
+			}
+			path := strings.TrimPrefix(child.CommandPath(), root.CommandPath()+" ")
+			rows = append(rows, row{path: path, short: child.Short})
+			walk(child)
 		}
-		cmds = append(cmds, c)
 	}
-	sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
+	walk(root)
+	sort.Slice(rows, func(i, j int) bool { return rows[i].path < rows[j].path })
 
 	var b strings.Builder
 	b.WriteString("| Command | Description |\n")
 	b.WriteString("|---------|-------------|\n")
-	for _, c := range cmds {
+	for _, r := range rows {
 		fmt.Fprintf(&b, "| [`%s`](%s/%s.md) | %s |\n",
-			c.Name(), docsDir, c.Name(), strings.ReplaceAll(c.Short, "|", `\|`))
+			r.path, docsDir, strings.ReplaceAll(r.path, " ", "-"), strings.ReplaceAll(r.short, "|", `\|`))
 	}
 	return b.String()
 }

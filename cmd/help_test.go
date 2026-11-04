@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
@@ -17,34 +18,48 @@ func isBuiltin(name string) bool {
 	return name == "help" || name == "completion"
 }
 
+// documented returns every command below root that must have a doc, with the
+// doc name it must have: "registry login" is registry-login.
+func documented(root *cobra.Command) map[string]*cobra.Command {
+	found := map[string]*cobra.Command{}
+
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		for _, child := range c.Commands() {
+			if isBuiltin(child.Name()) || child.Hidden {
+				continue
+			}
+			path := strings.TrimPrefix(child.CommandPath(), root.CommandPath()+" ")
+			found[strings.ReplaceAll(path, " ", "-")] = child
+			walk(child)
+		}
+	}
+	walk(root)
+	return found
+}
+
 func TestEveryCommandHasADocAndViceVersa(t *testing.T) {
 	root, err := NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{})
 	require.NoError(t, err)
 
 	var commands []string
-	for _, c := range root.Commands() {
-		if !isBuiltin(c.Name()) && !c.Hidden {
-			commands = append(commands, c.Name())
-		}
+	for name := range documented(root) {
+		commands = append(commands, name)
 	}
 
-	documented, err := docs.Names()
+	docNames, err := docs.Names()
 	require.NoError(t, err)
 
-	require.ElementsMatch(t, commands, documented)
+	require.ElementsMatch(t, commands, docNames)
 }
 
 func TestEveryLocalFlagIsDocumented(t *testing.T) {
 	root, err := NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{})
 	require.NoError(t, err)
 
-	for _, c := range root.Commands() {
-		if isBuiltin(c.Name()) {
-			continue
-		}
-
-		t.Run(c.Name(), func(t *testing.T) {
-			doc, err := docs.Load(c.Name())
+	for name, c := range documented(root) {
+		t.Run(name, func(t *testing.T) {
+			doc, err := docs.Load(name)
 			require.NoError(t, err)
 
 			c.LocalNonPersistentFlags().VisitAll(func(f *pflag.Flag) {
@@ -52,7 +67,7 @@ func TestEveryLocalFlagIsDocumented(t *testing.T) {
 					return
 				}
 				require.Truef(t, strings.Contains(doc.Source, "--"+f.Name),
-					"flag --%s of %q is not mentioned in cmd/docs/%s.md", f.Name, c.Name(), c.Name())
+					"flag --%s of %q is not mentioned in cmd/docs/%s.md", f.Name, c.CommandPath(), name)
 			})
 		})
 	}

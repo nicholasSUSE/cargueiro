@@ -1,7 +1,9 @@
 // Package docs holds the embedded command documentation, the single source of
 // truth for the text shown by --help and linked from the README.
 //
-// Each command has one markdown file named after it, with this layout:
+// Each command has one markdown file named after it, with this layout. A nested
+// command such as "registry login" is stored as registry-login.md with the
+// title "registry login".
 //
 //	# <command>
 //
@@ -72,9 +74,11 @@ func Names() ([]string, error) {
 }
 
 func parse(name, src string) (Doc, error) {
-	body, ok := strings.CutPrefix(strings.TrimSpace(src), "# "+name+"\n")
+	// A nested command "registry login" lives in registry-login.md.
+	title := "# " + strings.ReplaceAll(name, "-", " ")
+	body, ok := strings.CutPrefix(strings.TrimSpace(src), title+"\n")
 	if !ok {
-		return Doc{}, fmt.Errorf("%w: %s must start with %q", ErrMalformed, name, "# "+name)
+		return Doc{}, fmt.Errorf("%w: %s must start with %q", ErrMalformed, name, title)
 	}
 
 	main, examples, hasExamples := strings.Cut(body, "\n"+examplesHeading+"\n")

@@ -30,6 +30,27 @@ func TestTable(t *testing.T) {
 	require.Equal(t, want, Table(root))
 }
 
+func TestTableNestedCommands(t *testing.T) {
+	root := &cobra.Command{Use: "tool"}
+	group := &cobra.Command{Use: "registry", Short: "Manage registries"}
+	group.AddCommand(
+		&cobra.Command{Use: "logout <host>", Short: "Forget credentials"},
+		&cobra.Command{Use: "login <host>", Short: "Save credentials"},
+		&cobra.Command{Use: "hidden", Short: "Not listed", Hidden: true},
+	)
+	root.AddCommand(group, &cobra.Command{Use: "push", Short: "Push charts"})
+
+	want := "" +
+		"| Command | Description |\n" +
+		"|---------|-------------|\n" +
+		"| [`push`](cmd/docs/push.md) | Push charts |\n" +
+		"| [`registry`](cmd/docs/registry.md) | Manage registries |\n" +
+		"| [`registry login`](cmd/docs/registry-login.md) | Save credentials |\n" +
+		"| [`registry logout`](cmd/docs/registry-logout.md) | Forget credentials |\n"
+
+	require.Equal(t, want, Table(root))
+}
+
 func TestReplace(t *testing.T) {
 	const table = "| a | b |\n"
 

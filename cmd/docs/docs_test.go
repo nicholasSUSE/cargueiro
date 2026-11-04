@@ -103,3 +103,16 @@ func TestNames(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"package", "push", "version"}, names)
 }
+
+func TestParseNestedCommand(t *testing.T) {
+	src := "# registry login\n\nSave credentials.\n\n## Examples\n\n```\ncargueiro registry login host\n```\n"
+
+	got, err := parse("registry-login", src)
+
+	require.NoError(t, err)
+	require.Equal(t, "Save credentials.", got.Short)
+	require.Equal(t, "cargueiro registry login host", got.Example)
+
+	_, err = parse("registry-login", "# registry-login\n\nSave credentials.\n")
+	require.ErrorIs(t, err, ErrMalformed, "the title uses spaces, like the command")
+}

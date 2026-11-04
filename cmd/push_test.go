@@ -206,3 +206,31 @@ func TestPushCmdSecretsNeverInOutput(t *testing.T) {
 	require.NotContains(t, res.stdout, "super-secret")
 	require.NotContains(t, res.stderr, "super-secret")
 }
+
+func TestPushCmdShowsEachHintOnce(t *testing.T) {
+	untrusted := &oci.RegistryError{Kind: oci.KindUntrustedCertificate, Err: errors.New("x509: unknown authority")}
+	failing := map[string]error{"a.tgz": untrusted, "b.tgz": untrusted, "c.tgz": untrusted}
+
+	res := runPush(t, nil, "", failing, "a.tgz", "b.tgz", "c.tgz", "--registry", "reg.local")
+
+	require.ErrorContains(t, res.err, "3 of 3 archives failed")
+	require.Equal(t, 1, strings.Count(res.err.Error(), "hint: "), "one hint for three identical failures")
+	require.ErrorContains(t, res.err, "--ca-file")
+	require.ErrorContains(t, res.err, "x509: unknown authority", "the original error is still shown")
+	require.ErrorIs(t, res.err, untrusted)
+}
+
+func TestPushCmdHintMentionsTheUser(t *testing.T) {
+	rejected := &oci.RegistryError{Kind: oci.KindAuthRejected, Err: errors.New("401")}
+
+	res := runPush(t, nil, "", map[string]error{"a.tgz": rejected}, "a.tgz", "--registry", "reg.local", "--username", "admin")
+
+	require.ErrorContains(t, res.err, `credentials of user "admin"`)
+}
+
+func TestPushCmdWithoutHint(t *testing.T) {
+	res := runPush(t, nil, "", map[string]error{"a.tgz": errors.New("boom")}, "a.tgz", "--registry", "reg.local")
+
+	require.ErrorContains(t, res.err, "boom")
+	require.NotContains(t, res.err.Error(), "hint:")
+}

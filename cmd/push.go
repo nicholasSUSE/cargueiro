@@ -74,13 +74,18 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				return err
 			}
 
-			var errs []error
+			var (
+				errs  []error
+				hints hintSet
+			)
+			hintCtx := pushContext{username: username, caFile: caFile}
 			for _, archive := range archives {
 				opts.log.DebugContext(cmd.Context(), "pushing chart", "archive", archive, "registry", registry)
 
 				ref, err := pusher.Push(cmd.Context(), archive)
 				if err != nil {
 					errs = append(errs, err)
+					hints.add(hintFor(err, hintCtx))
 					continue
 				}
 				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "oci://"+ref); err != nil {
@@ -89,7 +94,7 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 			}
 
 			if len(errs) > 0 {
-				return fmt.Errorf("%d of %d archives failed:\n%w", len(errs), len(archives), errors.Join(errs...))
+				return fmt.Errorf("%d of %d archives failed:\n%w%s", len(errs), len(archives), errors.Join(errs...), &hints)
 			}
 			return nil
 		},

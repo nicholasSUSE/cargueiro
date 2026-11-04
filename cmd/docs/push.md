@@ -8,7 +8,7 @@ Each argument is a chart archive (.tgz), such as the ones `cargueiro package` pr
 
 The pushed references are printed to stdout as `oci://<registry>/<name>:<tag>`, one per line, in argument order. Logs and errors go to stderr.
 
-Every archive is attempted. If any fails, the others are still pushed, every error is reported at the end and the exit code is non-zero.
+Every archive is attempted. If any fails, the others are still pushed, every error is reported at the end and the exit code is non-zero. When the failure has a known cause (missing or wrong credentials, a TLS or plain-HTTP mismatch, an untrusted certificate, an unreachable or unknown host), a `hint:` line after the errors says how to fix it. The same hint is shown once, however many archives hit it.
 
 Authentication uses basic auth. Give the user with `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD` or, with `--password-stdin`, on standard input. There is no password flag, so the secret stays out of shell history and the process list. Without credentials the push is anonymous. Only the credentials given here are used; Docker's and Helm's stored credentials are never read.
 

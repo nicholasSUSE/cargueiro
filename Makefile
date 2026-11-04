@@ -6,6 +6,7 @@ LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSI
 
 GOLANGCI_VERSION ?= v2.15.0
 GOLANGCI         := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
+PKG              ?= ./...
 
 .PHONY: build test vet lint fmt clean
 
@@ -19,10 +20,10 @@ vet:
 	go vet ./...
 
 lint:
-	$(GOLANGCI) run ./...
+	$(GOLANGCI) run $(PKG)
 
 fmt:
-	$(GOLANGCI) fmt ./...
+	$(GOLANGCI) fmt $(PKG)
 
 clean:
 	rm -rf bin

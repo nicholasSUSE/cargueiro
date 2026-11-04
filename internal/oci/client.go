@@ -37,39 +37,18 @@ type ClientOptions struct {
 // NewClient returns a Client for a registry. Only the credentials in opts are
 // used: nothing is read from Helm's or Docker's credential stores.
 func NewClient(opts ClientOptions) (Client, error) {
-	if (opts.Username == "") != (opts.Password == "") {
-		return nil, fmt.Errorf("%w: username and password must be given together", ErrInvalidOptions)
-	}
-	if opts.PlainHTTP && opts.CAFile != "" {
-		return nil, fmt.Errorf("%w: a CA file cannot be used with plain HTTP", ErrInvalidOptions)
-	}
-
-	tlsConfig, err := tlsConfigWithCA(opts.CAFile)
-	if err != nil {
+	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	httpClient := &http.Client{
-		Timeout: requestTimeout,
-		Transport: &http.Transport{
-			Proxy:               http.ProxyFromEnvironment,
-			TLSClientConfig:     tlsConfig,
-			TLSHandshakeTimeout: tlsHandshakeTimeout,
-			ForceAttemptHTTP2:   true,
-		},
-	}
 
-	credential := auth.EmptyCredential
-	if opts.Username != "" {
-		credential = auth.Credential{Username: opts.Username, Password: opts.Password}
-	}
-	authorizer := auth.Client{
-		Client:     httpClient,
-		Credential: func(context.Context, string) (auth.Credential, error) { return credential, nil },
+	httpClient, err := newHTTPClient(opts.CAFile)
+	if err != nil {
+		return nil, err
 	}
 
 	clientOpts := []helmregistry.ClientOption{
 		helmregistry.ClientOptHTTPClient(httpClient),
-		helmregistry.ClientOptAuthorizer(authorizer),
+		helmregistry.ClientOptAuthorizer(newAuthorizer(httpClient, opts.credential())),
 	}
 	if opts.PlainHTTP {
 		clientOpts = append(clientOpts, helmregistry.ClientOptPlainHTTP())
@@ -81,6 +60,53 @@ func NewClient(opts ClientOptions) (Client, error) {
 	}
 
 	return helmClient{client: c, opts: opts}, nil
+}
+
+// validate rejects contradictory options.
+func (o ClientOptions) validate() error {
+	if (o.Username == "") != (o.Password == "") {
+		return fmt.Errorf("%w: username and password must be given together", ErrInvalidOptions)
+	}
+	if o.PlainHTTP && o.CAFile != "" {
+		return fmt.Errorf("%w: a CA file cannot be used with plain HTTP", ErrInvalidOptions)
+	}
+	return nil
+}
+
+// credential returns the basic-auth credential in o, or the empty credential
+// for anonymous access.
+func (o ClientOptions) credential() auth.Credential {
+	if o.Username == "" {
+		return auth.EmptyCredential
+	}
+	return auth.Credential{Username: o.Username, Password: o.Password}
+}
+
+// newHTTPClient returns an HTTP client that trusts the system roots plus
+// caFile, honors the proxy environment and times out requests.
+func newHTTPClient(caFile string) (*http.Client, error) {
+	tlsConfig, err := tlsConfigWithCA(caFile)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{
+		Timeout: requestTimeout,
+		Transport: &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
+			TLSClientConfig:     tlsConfig,
+			TLSHandshakeTimeout: tlsHandshakeTimeout,
+			ForceAttemptHTTP2:   true,
+		},
+	}, nil
+}
+
+// newAuthorizer answers every registry challenge with credential. Nothing is
+// read from Helm's or Docker's credential stores.
+func newAuthorizer(httpClient *http.Client, credential auth.Credential) auth.Client {
+	return auth.Client{
+		Client:     httpClient,
+		Credential: func(context.Context, string) (auth.Credential, error) { return credential, nil },
+	}
 }
 
 // tlsConfigWithCA trusts the system roots plus the certificates in caFile.

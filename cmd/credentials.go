@@ -51,7 +51,7 @@ func defaultStore() (*auth.Store, error) {
 func resolveConnection(ctx context.Context, opts *rootOptions, host, username, password string) (connection, error) {
 	store, err := opts.openStore()
 	if err != nil {
-		return connection{}, fmt.Errorf("open the login file: %w", err)
+		return connection{}, err
 	}
 
 	login, found, err := store.Load()

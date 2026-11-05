@@ -34,7 +34,7 @@ func VerifyLogin(ctx context.Context, host string, opts ClientOptions) (verified
 	}
 
 	if err := ping(ctx, host, httpClient, opts); err != nil {
-		return false, fmt.Errorf("ping %s: %w", host, err)
+		return false, err
 	}
 	return true, nil
 }

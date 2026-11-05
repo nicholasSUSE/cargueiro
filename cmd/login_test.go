@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -292,6 +293,18 @@ func TestLoginFailureSavesNothing(t *testing.T) {
 	require.Empty(t, res.stdout)
 	require.NoFileExists(t, store.Path(), "credentials that failed the check are never saved")
 	requireNoSecret(t, res, "pw")
+}
+
+func TestLoginInvalidOptionsAreNotALoginFailure(t *testing.T) {
+	store := newTestStore(t)
+	invalid := fmt.Errorf("%w: a CA certificate cannot be used with plain HTTP", oci.ErrInvalidOptions)
+
+	res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", false, invalid,
+		"login", "reg.example.com", "-u", "admin", "--password-stdin")
+
+	require.ErrorIs(t, res.err, oci.ErrInvalidOptions)
+	require.NotContains(t, res.err.Error(), "login to reg.example.com failed", "no request was made")
+	require.NoFileExists(t, store.Path())
 }
 
 func TestLoginWarnsWhenTheCredentialsCannotBeChecked(t *testing.T) {

@@ -132,7 +132,7 @@ func TestLoginRefusesAnAddressWithAPath(t *testing.T) {
 	res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", true, nil,
 		"login", "reg.example.com/rancher/catalog", "-u", "admin", "--password-stdin")
 
-	require.ErrorIs(t, res.err, oci.ErrInvalidRegistry)
+	require.ErrorContains(t, res.err, "invalid registry: credentials belong to a host, not a path")
 	require.ErrorContains(t, res.err, `use "reg.example.com"`)
 	require.Empty(t, res.calls, "no network call")
 	require.NoFileExists(t, store.Path())

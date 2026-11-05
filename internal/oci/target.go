@@ -8,9 +8,6 @@ import (
 	"strings"
 )
 
-// ErrInvalidRegistry is returned when a registry address cannot be used.
-var ErrInvalidRegistry = errors.New("invalid registry")
-
 // Target is a registry location: a host (with optional port) and an optional
 // repository path prefix under which charts are pushed.
 type Target struct {
@@ -54,7 +51,7 @@ func ParseTarget(s string) (Target, error) {
 }
 
 func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: %s", ErrInvalidRegistry, fmt.Sprintf(format, args...))
+	return fmt.Errorf("invalid registry: %s", fmt.Sprintf(format, args...))
 }
 
 // checkHost accepts "name" or "name:port" with a numeric port.

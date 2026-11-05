@@ -102,7 +102,7 @@ func registryHost(arg string) (string, error) {
 		return "", err
 	}
 	if target.Path != "" {
-		return "", fmt.Errorf("%w: credentials belong to a host, not a path: use %q", oci.ErrInvalidRegistry, target.Host)
+		return "", fmt.Errorf("invalid registry: credentials belong to a host, not a path: use %q", target.Host)
 	}
 	return target.Host, nil
 }

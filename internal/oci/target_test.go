@@ -42,7 +42,7 @@ func TestParseTarget(t *testing.T) {
 			got, err := ParseTarget(tt.in)
 
 			if tt.wantErr != "" {
-				require.ErrorIs(t, err, ErrInvalidRegistry)
+				require.ErrorContains(t, err, "invalid registry: ")
 				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}

@@ -45,7 +45,7 @@ func ping(ctx context.Context, host string, httpClient *http.Client, opts Client
 
 	reg, err := remote.NewRegistry(host)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidRegistry, err)
+		return fmt.Errorf("invalid registry: %w", err)
 	}
 	reg.Client = &authorizer
 	reg.PlainHTTP = opts.PlainHTTP

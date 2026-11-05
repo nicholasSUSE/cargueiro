@@ -13,9 +13,6 @@ import (
 	"helm.sh/helm/v4/pkg/chart/loader"
 )
 
-// ErrInvalidArchive is returned when a file is not a usable chart archive.
-var ErrInvalidArchive = errors.New("invalid chart archive")
-
 // repoName is the form OCI allows for a repository path component.
 var repoName = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
 
@@ -54,7 +51,7 @@ func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 
 	name, version, err := chartIdentity(data)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %w", ErrInvalidArchive, archivePath, err)
+		return "", fmt.Errorf("invalid chart archive: %s: %w", archivePath, err)
 	}
 
 	// The chart name is part of the repository, so check the final path too.

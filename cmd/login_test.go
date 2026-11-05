@@ -282,7 +282,7 @@ func TestLoginMissingInput(t *testing.T) {
 
 func TestLoginFailureSavesNothing(t *testing.T) {
 	store := newTestStore(t)
-	failure := &oci.RegistryError{Kind: oci.KindAuthRejected, Err: errors.New("401 Unauthorized")}
+	failure := errors.New("401 Unauthorized")
 
 	res := runRegistry(t, store, &fakePrompter{}, nil, "pw\n", false, failure,
 		"login", "reg.example.com", "-u", "admin", "--password-stdin")

@@ -13,8 +13,8 @@ import (
 //
 // verified is true when the registry demanded credentials and accepted them.
 // It is false, with a nil error, when the registry answers anonymous requests:
-// then nothing proves the credentials are right. A rejection is returned as a
-// *RegistryError of kind KindAuthRejected.
+// then nothing proves the credentials are right. A rejection is returned as an
+// error.
 func VerifyLogin(ctx context.Context, host string, opts ClientOptions) (verified bool, err error) {
 	if err := opts.validate(); err != nil {
 		return false, err
@@ -34,9 +34,6 @@ func VerifyLogin(ctx context.Context, host string, opts ClientOptions) (verified
 	}
 
 	if err := ping(ctx, host, httpClient, opts); err != nil {
-		if kind, ok := Classify(err, opts); ok {
-			return false, &RegistryError{Kind: kind, Err: err}
-		}
 		return false, fmt.Errorf("ping %s: %w", host, err)
 	}
 	return true, nil

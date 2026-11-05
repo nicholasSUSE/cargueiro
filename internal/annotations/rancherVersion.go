@@ -1,0 +1,58 @@
+package annotations
+
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+// checkRancherVersion reports a rancher-version annotation that is not a
+// bounded range of Rancher versions. An absent or blank one is left to
+// checkMissing.
+func checkRancherVersion(annotations map[string]string) []string {
+	value := annotations[prefix+"rancher-version"]
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	if err := rancherVersion(value); err != nil {
+		return []string{fmt.Sprintf("%srancher-version %q: %v", prefix, value, err)}
+	}
+	return nil
+}
+
+// rancherVersionRange matches a range with both bounds: ">= 2.15.0-0 < 2.16.0-0".
+// The -0 suffix is required, because Rancher compares ranges including
+// prereleases.
+var rancherVersionRange = regexp.MustCompile(`^>=\s*(\d+)\.(\d+)\.(\d+)-0\s*<\s*(\d+)\.(\d+)\.(\d+)-0$`)
+
+// rancherVersion returns an error unless value is a range with a lower and an
+// upper bound, the lower below the upper.
+func rancherVersion(value string) error {
+	m := rancherVersionRange.FindStringSubmatch(strings.TrimSpace(value))
+	if m == nil {
+		return fmt.Errorf("must look like %q", ">= 2.15.0-0 < 2.16.0-0")
+	}
+
+	var lower, upper [3]int
+	for i := range lower {
+		lower[i], _ = strconv.Atoi(m[1+i])
+		upper[i], _ = strconv.Atoi(m[4+i])
+	}
+	if !rancherLess(lower, upper) {
+		return fmt.Errorf("lower bound %d.%d.%d-0 must be below upper bound %d.%d.%d-0",
+			lower[0], lower[1], lower[2], upper[0], upper[1], upper[2])
+	}
+	return nil
+}
+
+// rancherLess reports whether Rancher version a is below b. Versions are
+// {major, minor, patch}.
+func rancherLess(a, b [3]int) bool {
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] < b[i]
+		}
+	}
+	return false
+}

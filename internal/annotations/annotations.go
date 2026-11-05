@@ -33,6 +33,7 @@ func ValidateMainChart(chart rules.Chart, annotations map[string]string) []strin
 		checkMissing(chart, annotations),
 		checkReleaseName(chart, annotations),
 		checkKubeVersion(annotations),
+		checkRancherVersion(annotations),
 	)
 }
 
@@ -49,6 +50,7 @@ func ValidateExtraChart(chart rules.Chart, annotations map[string]string) []stri
 	return collect(
 		checkMissing(chart, annotations),
 		checkKubeVersion(annotations),
+		checkRancherVersion(annotations),
 	)
 }
 

@@ -52,6 +52,34 @@ func TestValidate(t *testing.T) {
 			"catalog.cattle.io/certified":    "rancher",
 			"catalog.cattle.io/kube-version": "latest",
 		}, want: []string{`catalog.cattle.io/kube-version "latest": must look like ">= 1.34.0-0 < 1.37.0-0"`}},
+		{name: "main bad rancher-version", chart: main, annotations: map[string]string{
+			"catalog.cattle.io/release-name":    "fleet",
+			"catalog.cattle.io/certified":       "rancher",
+			"catalog.cattle.io/rancher-version": ">= 2.11.0-0",
+		}, want: []string{`catalog.cattle.io/rancher-version ">= 2.11.0-0": must look like ">= 2.15.0-0 < 2.16.0-0"`}},
+		{name: "extra bad rancher-version", chart: extra, annotations: map[string]string{
+			"catalog.cattle.io/certified":       "rancher",
+			"catalog.cattle.io/rancher-version": "latest",
+		}, want: []string{`catalog.cattle.io/rancher-version "latest": must look like ">= 2.15.0-0 < 2.16.0-0"`}},
+		{name: "crd does not check rancher-version", chart: crd, annotations: map[string]string{
+			"catalog.cattle.io/release-name":    "fleet-crd",
+			"catalog.cattle.io/certified":       "rancher",
+			"catalog.cattle.io/rancher-version": "latest",
+		}},
+		{name: "main bad rancher-version", chart: main, annotations: map[string]string{
+			"catalog.cattle.io/release-name":    "fleet",
+			"catalog.cattle.io/certified":       "rancher",
+			"catalog.cattle.io/rancher-version": ">= 2.11.0-0",
+		}, want: []string{`catalog.cattle.io/rancher-version ">= 2.11.0-0": must look like ">= 2.15.0-0 < 2.16.0-0"`}},
+		{name: "extra bad rancher-version", chart: extra, annotations: map[string]string{
+			"catalog.cattle.io/certified":       "rancher",
+			"catalog.cattle.io/rancher-version": "latest",
+		}, want: []string{`catalog.cattle.io/rancher-version "latest": must look like ">= 2.15.0-0 < 2.16.0-0"`}},
+		{name: "crd does not check rancher-version", chart: crd, annotations: map[string]string{
+			"catalog.cattle.io/release-name":    "fleet-crd",
+			"catalog.cattle.io/certified":       "rancher",
+			"catalog.cattle.io/rancher-version": "latest",
+		}},
 		{name: "crd does not check kube-version", chart: crd, annotations: map[string]string{
 			"catalog.cattle.io/release-name": "fleet-crd",
 			"catalog.cattle.io/certified":    "rancher",

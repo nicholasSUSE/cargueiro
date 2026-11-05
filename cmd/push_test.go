@@ -217,7 +217,8 @@ func TestPushCmdRefusesProtectedRegistries(t *testing.T) {
 			res := runPush(t, map[string]string{"CARGUEIRO_PASSWORD": "secret"}, "", nil,
 				"a.tgz", "--registry", registry, "--username", "admin")
 
-			require.ErrorIs(t, res.err, oci.ErrProtectedRegistry)
+			require.ErrorContains(t, res.err, "pushing to this registry is not allowed: ")
+			require.ErrorContains(t, res.err, "must never be overwritten")
 			require.Equal(t, pushEnv{}, res.env, "no pusher may even be built")
 			require.Empty(t, res.pusher.pushed)
 			require.Empty(t, res.stdout)

@@ -313,6 +313,19 @@ func TestPushCmdUsesTheSavedLogin(t *testing.T) {
 	}
 }
 
+func TestPushCmdWarnsWhenOthersCanReadTheLoginFile(t *testing.T) {
+	store := newTestStore(t)
+	saveLogin(t, store, auth.Login{Host: "reg.local:5000", Username: "saved-user", Password: "saved-pass", PlainHTTP: true})
+	require.NoError(t, os.Chmod(store.Path(), 0o644))
+
+	res := runPushWithStore(t, store, nil, "", nil, "a.tgz", "--registry", "reg.local:5000/charts")
+
+	require.NoError(t, res.err, "the push still goes ahead")
+	require.Equal(t, oci.ClientOptions{Username: "saved-user", Password: "saved-pass", PlainHTTP: true}, res.env.opts)
+	require.Contains(t, res.stderr, "warning: "+auth.ErrInsecurePermissions.Error())
+	require.NotContains(t, res.stderr, "saved-pass")
+}
+
 func TestPushCmdUsesTheSavedCA(t *testing.T) {
 	store := newTestStore(t)
 	saveLogin(t, store, auth.Login{Host: "secure.test:5051", Username: "u", Password: "p", CAPEM: testCAPEM})

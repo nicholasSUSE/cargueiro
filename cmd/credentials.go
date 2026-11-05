@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -78,6 +79,9 @@ func resolveConnection(ctx context.Context, opts *rootOptions, host, username, p
 
 	opts.log.DebugContext(ctx, "using the saved login", "host", host, "user", login.Username)
 	if err := store.CheckPermissions(); err != nil {
+		if !errors.Is(err, auth.ErrInsecurePermissions) {
+			return connection{}, err
+		}
 		warnf(opts.stderr, "%v", err)
 	}
 	conn.Username, conn.Password, conn.Stored = login.Username, login.Password, true

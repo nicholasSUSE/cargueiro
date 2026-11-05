@@ -29,13 +29,6 @@ import (
 //go:embed *.md
 var files embed.FS
 
-var (
-	// ErrNotFound is returned when a command has no embedded doc.
-	ErrNotFound = errors.New("command doc not found")
-	// ErrMalformed is returned when a doc does not follow the expected layout.
-	ErrMalformed = errors.New("malformed command doc")
-)
-
 const examplesHeading = "## Examples"
 
 // Doc is the parsed documentation of one command.
@@ -51,7 +44,7 @@ func Load(name string) (Doc, error) {
 	src, err := files.ReadFile(name + ".md")
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return Doc{}, fmt.Errorf("%w: %s", ErrNotFound, name)
+			return Doc{}, fmt.Errorf("command doc not found: %s", name)
 		}
 		return Doc{}, fmt.Errorf("read doc %s: %w", name, err)
 	}
@@ -78,7 +71,7 @@ func parse(name, src string) (Doc, error) {
 	title := "# " + strings.ReplaceAll(name, "-", " ")
 	body, ok := strings.CutPrefix(strings.TrimSpace(src), title+"\n")
 	if !ok {
-		return Doc{}, fmt.Errorf("%w: %s must start with %q", ErrMalformed, name, title)
+		return Doc{}, fmt.Errorf("malformed command doc: %s must start with %q", name, title)
 	}
 
 	main, examples, hasExamples := strings.Cut(body, "\n"+examplesHeading+"\n")
@@ -86,7 +79,7 @@ func parse(name, src string) (Doc, error) {
 
 	short := strings.Join(strings.Fields(paragraphs[0]), " ")
 	if short == "" {
-		return Doc{}, fmt.Errorf("%w: %s has no short description", ErrMalformed, name)
+		return Doc{}, fmt.Errorf("malformed command doc: %s has no short description", name)
 	}
 
 	doc := Doc{Short: short, Long: short, Source: src}
@@ -97,7 +90,7 @@ func parse(name, src string) (Doc, error) {
 	if hasExamples {
 		example, err := fencedBlocks(examples)
 		if err != nil {
-			return Doc{}, fmt.Errorf("%w: %s: %w", ErrMalformed, name, err)
+			return Doc{}, fmt.Errorf("malformed command doc: %s: %w", name, err)
 		}
 		doc.Example = example
 	}

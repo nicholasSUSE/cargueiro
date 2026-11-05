@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -25,32 +24,12 @@ type Chart struct {
 	Required []string
 }
 
-// annotationPrefix starts every annotation named in the rules file.
-const annotationPrefix = "catalog.cattle.io/"
-
-// Missing returns the required annotations that annotations lacks, in the order
-// the rules file lists them. An annotation with an empty value counts as lacking.
-func (c Chart) Missing(annotations map[string]string) []string {
-	var missing []string
-	for _, name := range c.Required {
-		if strings.TrimSpace(annotations[annotationPrefix+name]) == "" {
-			missing = append(missing, name)
-		}
-	}
-	return missing
-}
-
-// ReleaseNameMismatch reports whether the release-name annotation is set to
-// something other than the chart's ReleaseName, and returns the value found. An
-// absent or empty annotation is not a mismatch: Missing reports it when the
-// chart's kind requires it.
-func (c Chart) ReleaseNameMismatch(annotations map[string]string) (got string, bad bool) {
-	got = annotations[annotationPrefix+"release-name"]
-	if strings.TrimSpace(got) == "" {
-		return "", false
-	}
-	return got, got != c.ReleaseName
-}
+// The kinds a rules file may define.
+const (
+	KindMain  = "main"
+	KindCRD   = "crd"
+	KindExtra = "extra"
+)
 
 // Config is the parsed rules file.
 type Config struct {
@@ -97,6 +76,9 @@ func Parse(data []byte) (*Config, error) {
 	}
 
 	for kind, rule := range f.Kinds {
+		if kind != KindMain && kind != KindCRD && kind != KindExtra {
+			return nil, fmt.Errorf("parse rules: unknown kind %q", kind)
+		}
 		if err := checkRule(rule); err != nil {
 			return nil, fmt.Errorf("parse rules: kind %q: %w", kind, err)
 		}

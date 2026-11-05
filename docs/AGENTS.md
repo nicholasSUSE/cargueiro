@@ -5,7 +5,7 @@ Guidelines for working with LLM agents in this repository.
 ## Rules
 
 1. **No AI-written code without human review.** Every new feature or modification must be reviewed by a human before it is committed.
-2. **Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).** No `init()`, no mutable globals, wrap errors with `%w`, handle errors once, exit only in `main`, table-driven tests.
+2. **Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).** No `init()`, no mutable globals, table-driven tests. Errors follow [Error handling in DEVELOPING.md](DEVELOPING.md#error-handling).
 3. **Work in small steps.** Plan, review, implement one small chunk, review, test. Do not mix structural changes with new functionality.
 
 ## Commits

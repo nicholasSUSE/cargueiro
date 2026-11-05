@@ -45,13 +45,13 @@ A change that skips a layer is not a finished feature, whatever the other layers
 - One command, one job. If a command needs "and" to describe it, split it.
 - Keep it thin: validate arguments, call `internal/`, write results. No business logic.
 - Results go to **stdout**, one item per line, so another command can read them. Logs and errors go to **stderr**.
-- Return errors from `RunE`; only `main` exits. A command that processes several inputs attempts all of them and reports every failure together (`errors.Join`), then exits non-zero.
+- Return errors from `RunE` ([error handling](#error-handling)). A command that processes several inputs attempts all of them and reports every failure together (`errors.Join`), then exits non-zero.
 - Inject dependencies (the implementation as a function or small interface) so the command is testable without the real thing.
 
 ### 2. Implementation
 
 - Put it under `internal/<area>/`. It must not import cobra.
-- `context.Context` is the first parameter. Wrap errors with `%w` and expose sentinel errors (`ErrNoChartYaml`) for cases a caller may need to detect.
+- `context.Context` is the first parameter. Errors follow [Error handling](#error-handling).
 - Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md); `make lint` enforces most of it.
 - Nothing is fetched or mutated beyond what the command's doc promises.
 
@@ -98,6 +98,20 @@ Later features reuse these and only add their own pieces:
 - The docs pipeline: the `cmd/docs` loader, the guard tests and `make docs`.
 - The e2e harness (`tests/internal/harness`): building and running the binary, running `helm`, comparing archives by content (`internal/chart/archivetest`).
 - The tooling: mise pins, lint config, the lint hook and the Make targets.
+
+## Error handling
+
+| # | Rule |
+|---|------|
+| 1 | Wrap with context: `fmt.Errorf("verb noun: %w", err)`. Lowercase, no trailing punctuation. Add context only when the inner error lacks it. |
+| 2 | Use `fmt.Errorf` or `errors.New`. Add an error type only when a caller must branch on it. |
+| 3 | Sentinels (`var ErrX = errors.New(...)`, matched with `errors.Is`) name stable conditions. Declare them next to the code that returns them. |
+| 4 | Custom types (matched with `errors.As`) only when the caller needs data from the error. |
+| 5 | Handle an error once: log it or return it, never both. Only `main` prints errors and exits. |
+| 6 | Do not leak internals: wrap with `%w` only where callers may depend on the cause, otherwise `%v`. |
+| 7 | Advice for the user belongs in `cmd/`. `internal/` returns facts. |
+| 8 | Exit codes: 0 success, 1 failure. |
+| 9 | No package-wide `errors.go`. A dedicated file is only for an error type with methods. |
 
 ## Linting
 

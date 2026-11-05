@@ -28,7 +28,7 @@ func Package(ctx context.Context, srcDir, destDir string) (string, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("%w in %s", ErrNoChartYaml, srcDir)
 		}
-		return "", fmt.Errorf("stat chart %s: %w", srcDir, err)
+		return "", err
 	}
 
 	absDest, err := filepath.Abs(destDir)

@@ -54,6 +54,13 @@ func TestPackage(t *testing.T) {
 	}
 }
 
+func TestPackageSourceIsAFile(t *testing.T) {
+	_, err := Package(context.Background(), "testdata/valid/Chart.yaml", t.TempDir())
+
+	require.ErrorContains(t, err, "testdata/valid/Chart.yaml/Chart.yaml: not a directory")
+	require.NotContains(t, err.Error(), "stat chart", "the error already names the path")
+}
+
 func TestPackageCreatesDestination(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "a", "b")
 

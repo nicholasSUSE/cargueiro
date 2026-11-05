@@ -3,7 +3,6 @@
 package docgen
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -18,9 +17,6 @@ const (
 	// docsDir is where each command's markdown lives, relative to the README.
 	docsDir = "cmd/docs"
 )
-
-// ErrMarkers is returned when the README lacks a well-formed marker pair.
-var ErrMarkers = errors.New("README commands markers")
 
 // Table renders a markdown table of every command below root, nested ones
 // included, each linking to its doc. A nested command such as "registry login"
@@ -59,13 +55,13 @@ func Table(root *cobra.Command) string {
 // by exactly one end marker.
 func Replace(readme, table string) (string, error) {
 	if strings.Count(readme, startMarker) != 1 || strings.Count(readme, endMarker) != 1 {
-		return "", fmt.Errorf("%w: want exactly one %s and one %s", ErrMarkers, startMarker, endMarker)
+		return "", fmt.Errorf("README commands markers: want exactly one %s and one %s", startMarker, endMarker)
 	}
 
 	start := strings.Index(readme, startMarker)
 	end := strings.Index(readme, endMarker)
 	if end < start {
-		return "", fmt.Errorf("%w: %s comes before %s", ErrMarkers, endMarker, startMarker)
+		return "", fmt.Errorf("README commands markers: %s comes before %s", endMarker, startMarker)
 	}
 
 	return readme[:start+len(startMarker)] + "\n" + table + readme[end:], nil

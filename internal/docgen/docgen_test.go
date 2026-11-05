@@ -97,7 +97,7 @@ func TestReplace(t *testing.T) {
 			got, err := Replace(tt.readme, table)
 
 			if tt.wantErr != "" {
-				require.ErrorIs(t, err, ErrMarkers)
+				require.ErrorContains(t, err, "README commands markers: ")
 				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}

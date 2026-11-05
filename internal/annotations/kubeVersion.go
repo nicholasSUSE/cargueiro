@@ -8,7 +8,7 @@ import (
 )
 
 // checkKubeVersion reports a kube-version annotation that is not a bounded range of
-// Kubernetes versions. An absent or blank one is left to missing.
+// Kubernetes versions. An absent or blank one is left to checkMissing.
 func checkKubeVersion(annotations map[string]string) []string {
 	value := annotations[prefix+"kube-version"]
 	if strings.TrimSpace(value) == "" {

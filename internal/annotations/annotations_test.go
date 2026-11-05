@@ -67,7 +67,7 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestMissing(t *testing.T) {
+func TestCheckMissing(t *testing.T) {
 	chart := rules.Chart{Required: []string{"release-name", "certified"}}
 
 	tests := []struct {
@@ -96,14 +96,14 @@ func TestMissing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, missing(chart, tt.annotations))
+			require.Equal(t, tt.want, checkMissing(chart, tt.annotations))
 		})
 	}
 
-	require.Empty(t, missing(rules.Chart{}, map[string]string{"catalog.cattle.io/hidden": "true"}))
+	require.Empty(t, checkMissing(rules.Chart{}, map[string]string{"catalog.cattle.io/hidden": "true"}))
 }
 
-func TestReleaseName(t *testing.T) {
+func TestCheckReleaseName(t *testing.T) {
 	chart := rules.Chart{Name: "elemental", ReleaseName: "elemental-operator"}
 
 	tests := []struct {
@@ -115,14 +115,14 @@ func TestReleaseName(t *testing.T) {
 		{name: "differs", value: map[string]string{"catalog.cattle.io/release-name": "elemental"}, want: []string{`catalog.cattle.io/release-name is "elemental", want "elemental-operator"`}},
 		{name: "differs in case", value: map[string]string{"catalog.cattle.io/release-name": "Elemental-Operator"}, want: []string{`catalog.cattle.io/release-name is "Elemental-Operator", want "elemental-operator"`}},
 		{name: "differs by surrounding space", value: map[string]string{"catalog.cattle.io/release-name": " elemental-operator"}, want: []string{`catalog.cattle.io/release-name is " elemental-operator", want "elemental-operator"`}},
-		{name: "absent is left to missing", value: map[string]string{}},
+		{name: "absent is left to checkMissing", value: map[string]string{}},
 		{name: "nil annotations", value: nil},
-		{name: "blank is left to missing", value: map[string]string{"catalog.cattle.io/release-name": " "}},
+		{name: "blank is left to checkMissing", value: map[string]string{"catalog.cattle.io/release-name": " "}},
 		{name: "other prefix is ignored", value: map[string]string{"catalog.rancher.io/release-name": "other"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, releaseName(chart, tt.value))
+			require.Equal(t, tt.want, checkReleaseName(chart, tt.value))
 		})
 	}
 }

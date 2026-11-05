@@ -29,23 +29,41 @@ func Validate(chart rules.Chart, annotations map[string]string) []string {
 
 // ValidateMainChart checks the annotations of a main chart.
 func ValidateMainChart(chart rules.Chart, annotations map[string]string) []string {
-	problems := append(missing(chart, annotations), releaseName(chart, annotations)...)
-	return append(problems, checkKubeVersion(annotations)...)
+	return collect(
+		checkMissing(chart, annotations),
+		checkReleaseName(chart, annotations),
+		checkKubeVersion(annotations),
+	)
 }
 
 // ValidateCRD checks the annotations of a CRD chart.
 func ValidateCRD(chart rules.Chart, annotations map[string]string) []string {
-	return append(missing(chart, annotations), releaseName(chart, annotations)...)
+	return collect(
+		checkMissing(chart, annotations),
+		checkReleaseName(chart, annotations),
+	)
 }
 
 // ValidateExtraChart checks the annotations of an extra chart.
 func ValidateExtraChart(chart rules.Chart, annotations map[string]string) []string {
-	return append(missing(chart, annotations), checkKubeVersion(annotations)...)
+	return collect(
+		checkMissing(chart, annotations),
+		checkKubeVersion(annotations),
+	)
 }
 
-// missing reports each annotation the chart requires and lacks, in the order
+// collect joins the problems found by each check, in order.
+func collect(checks ...[]string) []string {
+	var problems []string
+	for _, found := range checks {
+		problems = append(problems, found...)
+	}
+	return problems
+}
+
+// checkMissing reports each annotation the chart requires and lacks, in the order
 // the rules file lists them. A blank value counts as lacking.
-func missing(chart rules.Chart, annotations map[string]string) []string {
+func checkMissing(chart rules.Chart, annotations map[string]string) []string {
 	var problems []string
 	for _, name := range chart.Required {
 		if strings.TrimSpace(annotations[prefix+name]) == "" {
@@ -55,9 +73,9 @@ func missing(chart rules.Chart, annotations map[string]string) []string {
 	return problems
 }
 
-// releaseName reports a release-name annotation that differs from the one the
-// rules file expects. An absent or blank one is left to missing.
-func releaseName(chart rules.Chart, annotations map[string]string) []string {
+// checkReleaseName reports a release-name annotation that differs from the one the
+// rules file expects. An absent or blank one is left to checkMissing.
+func checkReleaseName(chart rules.Chart, annotations map[string]string) []string {
 	got := annotations[prefix+"release-name"]
 	if strings.TrimSpace(got) == "" || got == chart.ReleaseName {
 		return nil

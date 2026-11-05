@@ -19,8 +19,8 @@ func TestCheckKubeVersion(t *testing.T) {
 		{name: "valid with surrounding space", value: "  >= 1.34.0-0 < 1.37.0-0 "},
 		{name: "valid with a patch version", value: ">= 1.34.2-0 < 1.37.1-0"},
 
-		{name: "absent is left to missing", value: ""},
-		{name: "blank is left to missing", value: "  "},
+		{name: "absent is left to checkMissing", value: ""},
+		{name: "blank is left to checkMissing", value: "  "},
 
 		{name: "upper bound only", value: "< 1.37.0-0", want: []string{`catalog.cattle.io/kube-version "< 1.37.0-0": ` + form}},
 		{name: "lower bound only", value: ">= 1.34.0-0", want: []string{`catalog.cattle.io/kube-version ">= 1.34.0-0": ` + form}},

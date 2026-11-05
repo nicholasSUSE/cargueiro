@@ -1,6 +1,6 @@
 # push
 
-Push packaged Helm charts to an OCI registry.
+Push a packaged Helm chart to an OCI registry.
 
 The argument is one chart archive (.tgz), such as the one `cargueiro package` prints. A chart is pushed to `<registry>/<name>:<version>`, with name and version read from the chart inside the archive, not from the file name. A `+` in the version becomes `_` in the tag: `110.0.3+up0.16.3` is stored as `110.0.3_up0.16.3`.
 

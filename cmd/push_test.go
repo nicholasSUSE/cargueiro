@@ -79,34 +79,20 @@ func runPushWithStore(t *testing.T, store *auth.Store, env map[string]string, st
 }
 
 func TestPushCmdPrintsReferences(t *testing.T) {
-	res := runPush(t, nil, "", nil, "a.tgz", "b.tgz", "--registry", "reg.local/charts")
+	res := runPush(t, nil, "", nil, "a.tgz", "--registry", "reg.local/charts")
 
 	require.NoError(t, res.err)
-	require.Equal(t, "oci://reg.local/charts/a:1.0.0\noci://reg.local/charts/b:1.0.0\n", res.stdout)
-	require.Equal(t, []string{"a.tgz", "b.tgz"}, res.pusher.pushed, "argument order")
+	require.Equal(t, "oci://reg.local/charts/a:1.0.0\n", res.stdout)
+	require.Equal(t, []string{"a.tgz"}, res.pusher.pushed)
 	require.Equal(t, oci.Target{Host: "reg.local", Path: "charts"}, res.env.target)
 }
 
-func TestPushCmdAttemptsEveryArchive(t *testing.T) {
+func TestPushCmdReturnsThePushError(t *testing.T) {
 	errBoom := errors.New("boom")
 
-	res := runPush(t, nil, "", map[string]error{"bad.tgz": errBoom}, "a.tgz", "bad.tgz", "c.tgz", "--registry", "reg.local")
+	res := runPush(t, nil, "", map[string]error{"a.tgz": errBoom}, "a.tgz", "--registry", "reg.local")
 
-	require.Error(t, res.err)
 	require.ErrorIs(t, res.err, errBoom)
-	require.ErrorContains(t, res.err, "1 of 3 archives failed")
-	require.Equal(t, []string{"a.tgz", "bad.tgz", "c.tgz"}, res.pusher.pushed)
-	require.Equal(t, "oci://reg.local/charts/a:1.0.0\noci://reg.local/charts/c:1.0.0\n", res.stdout, "successes still reported")
-}
-
-func TestPushCmdReportsEveryFailure(t *testing.T) {
-	errA, errB := errors.New("first failure"), errors.New("second failure")
-
-	res := runPush(t, nil, "", map[string]error{"a.tgz": errA, "b.tgz": errB}, "a.tgz", "b.tgz", "--registry", "reg.local")
-
-	require.ErrorContains(t, res.err, "2 of 2 archives failed")
-	require.ErrorContains(t, res.err, "first failure")
-	require.ErrorContains(t, res.err, "second failure")
 	require.Empty(t, res.stdout)
 }
 
@@ -174,7 +160,8 @@ func TestPushCmdRejectsBadInput(t *testing.T) {
 		wantErr string
 	}{
 		{name: "no registry", args: []string{"a.tgz"}, wantErr: `required flag(s) "registry" not set`},
-		{name: "no archive", args: []string{"--registry", "r"}, wantErr: "requires at least 1 arg"},
+		{name: "no archive", args: []string{"--registry", "r"}, wantErr: "accepts 1 arg(s), received 0"},
+		{name: "two archives", args: []string{"a.tgz", "b.tgz", "--registry", "r"}, wantErr: "accepts 1 arg(s), received 2"},
 		{name: "invalid registry", args: []string{"a.tgz", "--registry", "host/a//b"}, wantErr: "invalid registry"},
 		{name: "password too long", args: []string{"a.tgz", "--registry", "r", "--password-stdin"}, stdin: strings.Repeat("x", 5000), wantErr: "longer than"},
 	}

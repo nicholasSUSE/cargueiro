@@ -2,9 +2,9 @@
 
 Push packaged Helm charts to an OCI registry.
 
-Each argument is a chart archive (.tgz), such as the ones `cargueiro package` prints. A chart is pushed to `<registry>/<name>:<version>`, with name and version read from the chart inside the archive, not from the file name. A `+` in the version becomes `_` in the tag: `110.0.3+up0.16.3` is stored as `110.0.3_up0.16.3`.
+The argument is one chart archive (.tgz), such as the one `cargueiro package` prints. A chart is pushed to `<registry>/<name>:<version>`, with name and version read from the chart inside the archive, not from the file name. A `+` in the version becomes `_` in the tag: `110.0.3+up0.16.3` is stored as `110.0.3_up0.16.3`.
 
-`--registry` is the destination, as `host[:port][/path]`. The pushed references are printed to stdout as `oci://<registry>/<name>:<tag>`, one per line; errors go to stderr. Every archive is attempted: if one fails the others are still pushed, all errors are reported at the end, and the exit code is non-zero.
+`--registry` is the destination, as `host[:port][/path]`. The pushed reference is printed to stdout as `oci://<registry>/<name>:<tag>`; errors go to stderr and the exit code is non-zero.
 
 For credentials, give `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD` or `--password-stdin`. Without them, the login saved by `cargueiro registry login` is used when it is for this registry; otherwise the push is anonymous.
 
@@ -18,11 +18,6 @@ Pushing to `registry.suse.com/rancher/catalog` or `stgregistry.suse.com/rancher/
 # push a packaged chart, password from the environment
 export CARGUEIRO_PASSWORD=...
 cargueiro push assets/fleet-crd-110.0.3+up0.16.3.tgz --registry registry.example.com/charts --username admin
-```
-
-```
-# package and push in one pipeline
-cargueiro package charts/fleet-crd/110.0.3+up0.16.3 | xargs -d '\n' cargueiro push --registry registry.example.com/charts --username admin
 ```
 
 ```

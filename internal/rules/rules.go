@@ -40,6 +40,18 @@ func (c Chart) Missing(annotations map[string]string) []string {
 	return missing
 }
 
+// ReleaseNameMismatch reports whether the release-name annotation is set to
+// something other than the chart's ReleaseName, and returns the value found. An
+// absent or empty annotation is not a mismatch: Missing reports it when the
+// chart's kind requires it.
+func (c Chart) ReleaseNameMismatch(annotations map[string]string) (got string, bad bool) {
+	got = annotations[annotationPrefix+"release-name"]
+	if strings.TrimSpace(got) == "" {
+		return "", false
+	}
+	return got, got != c.ReleaseName
+}
+
 // Config is the parsed rules file.
 type Config struct {
 	charts map[string]Chart

@@ -116,6 +116,58 @@ func TestChartMissingNothingRequired(t *testing.T) {
 	require.Empty(t, Chart{}.Missing(map[string]string{"catalog.cattle.io/hidden": "true"}))
 }
 
+func TestChartReleaseNameMismatch(t *testing.T) {
+	chart := Chart{Name: "elemental", ReleaseName: "elemental-operator"}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		wantGot     string
+		wantBad     bool
+	}{
+		{
+			name:        "matches",
+			annotations: map[string]string{"catalog.cattle.io/release-name": "elemental-operator"},
+			wantGot:     "elemental-operator",
+		},
+		{
+			name:        "differs",
+			annotations: map[string]string{"catalog.cattle.io/release-name": "elemental"},
+			wantGot:     "elemental",
+			wantBad:     true,
+		},
+		{
+			name:        "differs in case",
+			annotations: map[string]string{"catalog.cattle.io/release-name": "Elemental-Operator"},
+			wantGot:     "Elemental-Operator",
+			wantBad:     true,
+		},
+		{
+			name:        "differs by surrounding space",
+			annotations: map[string]string{"catalog.cattle.io/release-name": " elemental-operator"},
+			wantGot:     " elemental-operator",
+			wantBad:     true,
+		},
+		{name: "absent is left to Missing", annotations: map[string]string{}},
+		{name: "nil annotations", annotations: nil},
+		{
+			name:        "empty is left to Missing",
+			annotations: map[string]string{"catalog.cattle.io/release-name": " "},
+		},
+		{
+			name:        "other prefix is ignored",
+			annotations: map[string]string{"catalog.rancher.io/release-name": "other"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, bad := chart.ReleaseNameMismatch(tt.annotations)
+			require.Equal(t, tt.wantGot, got)
+			require.Equal(t, tt.wantBad, bad)
+		})
+	}
+}
+
 func TestLookupUnlistedChart(t *testing.T) {
 	cfg, err := Parse([]byte(valid))
 	require.NoError(t, err)

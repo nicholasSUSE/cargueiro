@@ -29,7 +29,8 @@ func Validate(chart rules.Chart, annotations map[string]string) []string {
 
 // ValidateMainChart checks the annotations of a main chart.
 func ValidateMainChart(chart rules.Chart, annotations map[string]string) []string {
-	return append(missing(chart, annotations), releaseName(chart, annotations)...)
+	problems := append(missing(chart, annotations), releaseName(chart, annotations)...)
+	return append(problems, checkKubeVersion(annotations)...)
 }
 
 // ValidateCRD checks the annotations of a CRD chart.
@@ -39,7 +40,7 @@ func ValidateCRD(chart rules.Chart, annotations map[string]string) []string {
 
 // ValidateExtraChart checks the annotations of an extra chart.
 func ValidateExtraChart(chart rules.Chart, annotations map[string]string) []string {
-	return missing(chart, annotations)
+	return append(missing(chart, annotations), checkKubeVersion(annotations)...)
 }
 
 // missing reports each annotation the chart requires and lacks, in the order

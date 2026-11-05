@@ -43,6 +43,21 @@ func TestValidate(t *testing.T) {
 		{name: "extra missing", chart: extra, annotations: nil, want: []string{"missing annotation catalog.cattle.io/certified"}},
 		{name: "extra ignores release-name", chart: extra, annotations: wrongName},
 
+		{name: "main bad kube-version", chart: main, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet",
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/kube-version": "< 1.37.0-0",
+		}, want: []string{`catalog.cattle.io/kube-version "< 1.37.0-0": must look like ">= 1.34.0-0 < 1.37.0-0"`}},
+		{name: "extra bad kube-version", chart: extra, annotations: map[string]string{
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/kube-version": "latest",
+		}, want: []string{`catalog.cattle.io/kube-version "latest": must look like ">= 1.34.0-0 < 1.37.0-0"`}},
+		{name: "crd does not check kube-version", chart: crd, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet-crd",
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/kube-version": "latest",
+		}},
+
 		{name: "unknown kind", chart: rules.Chart{Name: "x", Kind: "other"}, annotations: nil, want: []string{`chart x has unknown kind "other"`}},
 	}
 	for _, tt := range tests {

@@ -11,7 +11,7 @@ cargueiro check [--local=<archive.tgz>] [--registry=<ref>]
 - Read-only. It writes nothing, anywhere.
 - At least one of `--local` or `--registry` is required.
 - **No comparison for now.** A separate command will compare two sources later.
-- No authentication yet, and no transport flags.
+- No transport flags: how a registry is reached (plain HTTP, an extra CA) is saved by `registry login` and reused, like the credentials. Only one login is kept.
 - Text output only. JSON comes later.
 - `--registry` takes a tag. A `@sha256:` suffix is recognized and **rejected** with "digest pinning is not supported yet", so a digest is never silently ignored. Later: resolve the tag first, compare its manifest digest with the given one, and fail on a mismatch.
 
@@ -54,7 +54,7 @@ Each step is small and reviewed before the next.
 
 ## Open points
 
-1. **How e2e tests reach a local registry** without transport flags. The test registries are on `127.0.0.1` over HTTP. Options: treat loopback addresses as plain HTTP automatically (Docker does this for `127.0.0.0/8`), a test-only environment variable, or per-registry settings stored at login (see the login plan).
+1. **Registries that need no password** but do need plain HTTP or a private CA cannot get their settings saved yet, because `registry login` requires credentials. The anonymous test registry (below) needs this to be read by `check`.
 2. **Exit codes.** Proposed `diff` style: 0 fine, 1 failed a check, 2 could not check (not found, unreachable, unreadable). `main` currently exits 1 for every error.
 3. **Both flags at once** now that nothing is compared: report both sources, or reject the combination.
 4. **An anonymous test registry** (port 5052) is needed, since the existing ones demand a password.

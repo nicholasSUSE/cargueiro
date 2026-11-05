@@ -2,10 +2,20 @@ package oci
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// requireRefused asserts err is the refusal for host/repository, word for word:
+// a reworded message must fail here, not pass unnoticed.
+func requireRefused(t *testing.T, err error, host, repository string) {
+	t.Helper()
+
+	require.EqualError(t, err, fmt.Sprintf(
+		"pushing to this registry is not allowed: %s/%s holds published charts that must never be overwritten", host, repository))
+}
 
 func TestCheckTarget(t *testing.T) {
 	tests := []struct {
@@ -50,7 +60,7 @@ func TestCheckTarget(t *testing.T) {
 			err = CheckTarget(target)
 
 			if tt.protected {
-				require.ErrorIs(t, err, ErrProtectedRegistry)
+				requireRefused(t, err, target.Host, target.Path)
 				return
 			}
 			require.NoError(t, err)
@@ -58,23 +68,17 @@ func TestCheckTarget(t *testing.T) {
 	}
 }
 
-func TestCheckTargetErrorNamesTheRegistry(t *testing.T) {
-	err := CheckTarget(Target{Host: "registry.suse.com", Path: "rancher/catalog"})
-
-	require.ErrorContains(t, err, "registry.suse.com/rancher/catalog")
-	require.ErrorContains(t, err, "never be overwritten")
-}
-
 func TestPusherRefusesProtectedTargets(t *testing.T) {
 	tests := []struct {
-		name   string
-		target Target
-		chart  string
+		name     string
+		target   Target
+		chart    string
+		wantRepo string
 	}{
-		{name: "production catalog", target: Target{Host: "registry.suse.com", Path: "rancher/catalog"}, chart: "fleet"},
-		{name: "staging catalog", target: Target{Host: "stgregistry.suse.com", Path: "rancher/catalog"}, chart: "fleet"},
-		{name: "case and port tricks", target: Target{Host: "Registry.SUSE.com.:443", Path: "Rancher/CATALOG"}, chart: "fleet"},
-		{name: "the chart name completes the path", target: Target{Host: "registry.suse.com", Path: "rancher"}, chart: "catalog"},
+		{name: "production catalog", target: Target{Host: "registry.suse.com", Path: "rancher/catalog"}, chart: "fleet", wantRepo: "rancher/catalog"},
+		{name: "staging catalog", target: Target{Host: "stgregistry.suse.com", Path: "rancher/catalog"}, chart: "fleet", wantRepo: "rancher/catalog"},
+		{name: "case and port tricks", target: Target{Host: "Registry.SUSE.com.:443", Path: "Rancher/CATALOG"}, chart: "fleet", wantRepo: "Rancher/CATALOG"},
+		{name: "the chart name completes the path", target: Target{Host: "registry.suse.com", Path: "rancher"}, chart: "catalog", wantRepo: "rancher/catalog"},
 	}
 
 	for _, tt := range tests {
@@ -84,7 +88,7 @@ func TestPusherRefusesProtectedTargets(t *testing.T) {
 
 			got, err := NewPusher(fake, tt.target).Push(context.Background(), archive)
 
-			require.ErrorIs(t, err, ErrProtectedRegistry)
+			requireRefused(t, err, tt.target.Host, tt.wantRepo)
 			require.Empty(t, got)
 			require.Empty(t, fake.refs, "nothing may reach the registry")
 		})
@@ -97,7 +101,7 @@ func TestPusherRefusesProtectedTargetBeforeReadingTheArchive(t *testing.T) {
 
 	_, err := NewPusher(fake, target).Push(context.Background(), "/no/such/archive.tgz")
 
-	require.ErrorIs(t, err, ErrProtectedRegistry, "the guard must come before any other work")
+	requireRefused(t, err, target.Host, target.Path) // the guard comes before any other work
 }
 
 func TestPusherAllowsOverwritingOutsideTheProtectedRegistries(t *testing.T) {

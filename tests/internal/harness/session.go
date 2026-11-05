@@ -82,10 +82,10 @@ func (s Session) LoginVia(t *testing.T, tr Transport) string {
 	return address
 }
 
-// Push pushes archives to registry. No credentials and no transport settings
-// are given: only what was saved by Login can authenticate or reach it.
-func (s Session) Push(t *testing.T, registry string, archives ...string) Result {
+// Push pushes one archive to registry. No credentials and no transport
+// settings are given: only what was saved by Login can authenticate or reach it.
+func (s Session) Push(t *testing.T, registry, archive string) Result {
 	t.Helper()
 
-	return s.Run(t, "", nil, append(append([]string{"push"}, archives...), "--registry", registry)...)
+	return s.Run(t, "", nil, "push", archive, "--registry", registry)
 }

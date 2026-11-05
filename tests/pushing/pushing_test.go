@@ -59,27 +59,19 @@ func pull(t *testing.T, tr harness.Transport, address, path, chart string) (stri
 	return harness.HelmPull(t, address, path, chart, fleetVersion, tr.HelmFlags(t))
 }
 
-func TestPushFleetFamily(t *testing.T) {
+func TestPushFleetCharts(t *testing.T) {
 	for _, tr := range harness.Transports() {
 		t.Run(tr.Name, func(t *testing.T) {
 			s := harness.NewSession(t)
 			address, path := s.LoginVia(t, tr), repoPath()
-			var archives []string
-			for _, chart := range fleetCharts() {
-				archives = append(archives, published(t, chart))
-			}
-
-			res := s.Push(t, address+"/"+path, archives...)
-
-			requireNoPassword(t, res)
-			require.Zero(t, res.ExitCode, res.Stderr)
-			var want []string
-			for _, chart := range fleetCharts() {
-				want = append(want, fmt.Sprintf("oci://%s/%s/%s:%s", address, path, chart, registryTag))
-			}
-			require.Equal(t, strings.Join(want, "\n")+"\n", res.Stdout, "references in argument order")
 
 			for _, chart := range fleetCharts() {
+				res := s.Push(t, address+"/"+path, published(t, chart))
+
+				requireNoPassword(t, res)
+				require.Zero(t, res.ExitCode, res.Stderr)
+				require.Equal(t, fmt.Sprintf("oci://%s/%s/%s:%s\n", address, path, chart, registryTag), res.Stdout)
+
 				pulled, pullRes := pull(t, tr, address, path, chart)
 				require.NotEmpty(t, pulled, pullRes.Stderr)
 
@@ -181,26 +173,17 @@ func TestPushWithoutLoginCannotReachAnyRegistry(t *testing.T) {
 	}
 }
 
-func TestPushPartialFailure(t *testing.T) {
-	tr := harness.Transports()[0]
+func TestPushCorruptArchive(t *testing.T) {
 	s := harness.NewSession(t)
-	address, path := s.LoginVia(t, tr), repoPath()
+	address, path := s.LoginVia(t, harness.Transports()[0]), repoPath()
 	corrupt := filepath.Join(t.TempDir(), "corrupt.tgz")
 	require.NoError(t, os.WriteFile(corrupt, []byte("this is not a chart"), 0o600))
 
-	res := s.Push(t, address+"/"+path, published(t, "fleet-crd"), corrupt, published(t, "fleet-agent"))
+	res := s.Push(t, address+"/"+path, corrupt)
 
 	require.NotZero(t, res.ExitCode)
-	require.Equal(t,
-		fmt.Sprintf("oci://%s/%s/fleet-crd:%s\noci://%s/%s/fleet-agent:%s\n", address, path, registryTag, address, path, registryTag),
-		res.Stdout, "the good archives are still pushed")
-	require.Contains(t, res.Stderr, "1 of 3 archives failed")
+	require.Empty(t, res.Stdout)
 	require.Contains(t, res.Stderr, corrupt)
-
-	for _, chart := range []string{"fleet-crd", "fleet-agent"} {
-		pulled, pullRes := pull(t, tr, address, path, chart)
-		require.NotEmpty(t, pulled, pullRes.Stderr)
-	}
 }
 
 func TestPushBadInput(t *testing.T) {
@@ -212,7 +195,8 @@ func TestPushBadInput(t *testing.T) {
 		wantErr string
 	}{
 		{name: "no registry flag", args: []string{"push", published(t, "fleet-crd")}, wantErr: "registry"},
-		{name: "no archive", args: []string{"push", "--registry", address}, wantErr: "requires at least 1 arg"},
+		{name: "no archive", args: []string{"push", "--registry", address}, wantErr: "accepts 1 arg(s), received 0"},
+		{name: "two archives", args: []string{"push", published(t, "fleet-crd"), published(t, "fleet-agent"), "--registry", address}, wantErr: "accepts 1 arg(s), received 2"},
 		{name: "invalid registry", args: []string{"push", published(t, "fleet-crd"), "--registry", address + "/a//b"}, wantErr: "invalid registry"},
 		{name: "missing archive file", args: []string{"push", filepath.Join(t.TempDir(), "absent.tgz"), "--registry", address}, wantErr: "absent.tgz"},
 	}

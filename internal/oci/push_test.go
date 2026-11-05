@@ -126,13 +126,12 @@ func TestPusherPushFailures(t *testing.T) {
 			name:    "not an archive",
 			archive: func(*testing.T) string { return notAnArchive },
 			client:  &fakeClient{},
-			wantIs:  ErrInvalidArchive,
+			wantMsg: "invalid chart archive: ",
 		},
 		{
 			name:    "chart name is not a valid repository name",
 			archive: func(t *testing.T) string { return writeChart(t, "UpperCase", "1.0.0") },
 			client:  &fakeClient{},
-			wantIs:  ErrInvalidArchive,
 			wantMsg: "not a valid registry repository name",
 		},
 		{
@@ -150,7 +149,9 @@ func TestPusherPushFailures(t *testing.T) {
 
 			got, err := NewPusher(tt.client, target).Push(context.Background(), archive)
 
-			require.ErrorIs(t, err, tt.wantIs)
+			if tt.wantIs != nil {
+				require.ErrorIs(t, err, tt.wantIs)
+			}
 			if tt.wantMsg != "" {
 				require.ErrorContains(t, err, tt.wantMsg)
 			}

@@ -36,7 +36,7 @@ func newLoginCmd(opts *rootOptions, verify verifyFunc) (*cobra.Command, error) {
 			}
 			store, err := opts.openStore()
 			if err != nil {
-				return fmt.Errorf("open the login file: %w", err)
+				return err
 			}
 			existing, loggedIn, err := store.Load()
 			if err != nil {
@@ -59,6 +59,9 @@ func newLoginCmd(opts *rootOptions, verify verifyFunc) (*cobra.Command, error) {
 				Username: cred.Username, Password: cred.Password, PlainHTTP: plainHTTP, CAPEM: caPEM,
 			}
 			verified, err := verify(ctx, host, clientOpts)
+			if errors.Is(err, oci.ErrInvalidOptions) {
+				return err
+			}
 			if err != nil {
 				return fmt.Errorf("login to %s failed: %w", host, err)
 			}

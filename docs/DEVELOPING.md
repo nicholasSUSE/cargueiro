@@ -43,15 +43,16 @@ A change that skips a layer is not a finished feature, whatever the other layers
 ### 1. Command
 
 - One command, one job. If a command needs "and" to describe it, split it.
+- One input. A command never takes several; a script calls it once per input.
 - Keep it thin: validate arguments, call `internal/`, write results. No business logic.
 - Results go to **stdout**, one item per line, so another command can read them. Logs and errors go to **stderr**.
-- Return errors from `RunE`; only `main` exits. A command that processes several inputs attempts all of them and reports every failure together (`errors.Join`), then exits non-zero.
+- Return errors from `RunE` ([error handling](#error-handling)).
 - Inject dependencies (the implementation as a function or small interface) so the command is testable without the real thing.
 
 ### 2. Implementation
 
 - Put it under `internal/<area>/`. It must not import cobra.
-- `context.Context` is the first parameter. Wrap errors with `%w` and expose sentinel errors (`ErrNoChartYaml`) for cases a caller may need to detect.
+- `context.Context` is the first parameter. Errors follow [Error handling](#error-handling).
 - Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md); `make lint` enforces most of it.
 - Nothing is fetched or mutated beyond what the command's doc promises.
 
@@ -67,7 +68,7 @@ A change that skips a layer is not a finished feature, whatever the other layers
 - Run the **real binary** as a black box through `tests/internal/harness`: arguments in, stdout, stderr and exit code out.
 - Use real data committed under `tests/data/` with a `PROVENANCE.md` saying where it came from. Never fetch data in a test.
 - Compare against an independent source of truth wherever one exists. For packaging that is the `helm` CLI and the archives published in `rancher/charts`; comparing against our own output proves nothing.
-- Cover the happy path, several inputs in one call, defaults, partial failure, that inputs are not modified, and determinism.
+- Cover the happy path, defaults, failures, that inputs are not modified, and determinism.
 - Break something on purpose once to see the test fail, so you know it can.
 - Features that need a registry get it from `registry:2`; tests read its address from the environment and never start it themselves.
 
@@ -98,6 +99,20 @@ Later features reuse these and only add their own pieces:
 - The docs pipeline: the `cmd/docs` loader, the guard tests and `make docs`.
 - The e2e harness (`tests/internal/harness`): building and running the binary, running `helm`, comparing archives by content (`internal/chart/archivetest`).
 - The tooling: mise pins, lint config, the lint hook and the Make targets.
+
+## Error handling
+
+| # | Rule |
+|---|------|
+| 1 | Wrap with context: `fmt.Errorf("verb noun: %w", err)`. Lowercase, no trailing punctuation. Add context only when the inner error lacks it. |
+| 2 | Use `fmt.Errorf` or `errors.New`. Add an error type only when a caller must branch on it. |
+| 3 | Sentinels (`var ErrX = errors.New(...)`, matched with `errors.Is`) name stable conditions. Declare them next to the code that returns them. |
+| 4 | Custom types (matched with `errors.As`) only when the caller needs data from the error. |
+| 5 | Handle an error once: log it or return it, never both. Only `main` prints errors and exits. |
+| 6 | Do not leak internals: wrap with `%w` only where callers may depend on the cause, otherwise `%v`. |
+| 7 | Advice for the user belongs in `cmd/`. `internal/` returns facts. |
+| 8 | Exit codes: 0 success, 1 failure. |
+| 9 | No package-wide `errors.go`. A dedicated file is only for an error type with methods. |
 
 ## Linting
 
@@ -235,7 +250,7 @@ E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`
 
 `tests/packaging` packages the real SUSE fleet charts in `tests/data/charts/fleet` and compares three archives per chart by content (mode, owner, size, sha256 per file; gzip headers and mtimes ignored): the one built by cargueiro, the one built by the `helm` CLI, and the one published in `rancher/charts`. It needs the `helm` CLI from `mise.toml` on `PATH`, at the same version as `helm.sh/helm/v4` in `go.mod`; a test fails with a clear message if it is not.
 
-`tests/pushing` pushes the published fleet archives to the local registries over HTTP and over TLS with a self-signed CA, then pulls them back with the `helm` CLI and compares the bytes. Each test logs in first, because `push` has no transport flags. It also covers a wrong explicit password, a push without any login, a corrupt archive among good ones, and `package` followed by `push`.
+`tests/pushing` pushes the published fleet archives to the local registries over HTTP and over TLS with a self-signed CA, then pulls them back with the `helm` CLI and compares the bytes. Each test logs in first, because `push` has no transport flags. It also covers a wrong explicit password, a push without any login, a corrupt archive, and `package` followed by `push`.
 
 `tests/login` logs in and out of the local registries over HTTP and TLS and checks what `push` does with what was saved: a second login is refused until logout, explicit credentials win, a wrong password saves nothing, logout forgets everything, and the file is private.
 

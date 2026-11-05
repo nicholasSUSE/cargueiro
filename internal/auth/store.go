@@ -20,13 +20,9 @@ const (
 	fileName     = "login.json"
 )
 
-var (
-	// ErrInvalidLogin is returned for a login that cannot be saved.
-	ErrInvalidLogin = errors.New("invalid login")
-	// ErrInsecurePermissions is returned when the login file can be read by
-	// users other than its owner.
-	ErrInsecurePermissions = errors.New("login file is accessible to other users")
-)
+// ErrInsecurePermissions is returned when the login file can be read by
+// users other than its owner.
+var ErrInsecurePermissions = errors.New("login file is accessible to other users")
 
 // Login is the saved registry login.
 type Login struct {
@@ -52,19 +48,19 @@ func (l Login) Matches(host string) bool {
 func (l Login) validate() error {
 	switch {
 	case l.Host == "":
-		return fmt.Errorf("%w: empty registry host", ErrInvalidLogin)
+		return errors.New("invalid login: empty registry host")
 	case l.Username == "":
-		return fmt.Errorf("%w: empty username", ErrInvalidLogin)
+		return errors.New("invalid login: empty username")
 	case l.Password == "":
-		return fmt.Errorf("%w: empty password", ErrInvalidLogin)
+		return errors.New("invalid login: empty password")
 	case l.PlainHTTP && l.CAPEM != "":
-		return fmt.Errorf("%w: a CA certificate cannot be used with plain HTTP", ErrInvalidLogin)
+		return errors.New("invalid login: a CA certificate cannot be used with plain HTTP")
 	}
 
 	if l.CAPEM != "" {
 		block, _ := pem.Decode([]byte(l.CAPEM))
 		if block == nil || block.Type != "CERTIFICATE" {
-			return fmt.Errorf("%w: the CA certificate is not PEM", ErrInvalidLogin)
+			return errors.New("invalid login: the CA certificate is not PEM")
 		}
 	}
 	return nil

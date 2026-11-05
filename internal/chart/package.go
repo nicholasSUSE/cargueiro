@@ -11,9 +11,6 @@ import (
 	"helm.sh/helm/v4/pkg/action"
 )
 
-// ErrNoChartYaml is returned when the source directory has no Chart.yaml.
-var ErrNoChartYaml = errors.New("no Chart.yaml found")
-
 // Package packages the chart in srcDir into destDir and returns the absolute
 // path of the resulting .tgz archive. destDir is created if it does not exist.
 //
@@ -26,9 +23,9 @@ func Package(ctx context.Context, srcDir, destDir string) (string, error) {
 
 	if _, err := os.Stat(filepath.Join(srcDir, "Chart.yaml")); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("%w in %s", ErrNoChartYaml, srcDir)
+			return "", fmt.Errorf("no Chart.yaml found in %s", srcDir)
 		}
-		return "", fmt.Errorf("stat chart %s: %w", srcDir, err)
+		return "", err
 	}
 
 	absDest, err := filepath.Abs(destDir)

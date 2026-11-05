@@ -70,7 +70,7 @@ func TestParse(t *testing.T) {
 			got, err := parse("cmd", tt.src)
 
 			if tt.wantMalform != "" {
-				require.ErrorIs(t, err, ErrMalformed)
+				require.ErrorContains(t, err, "malformed command doc: ")
 				require.ErrorContains(t, err, tt.wantMalform)
 				return
 			}
@@ -94,7 +94,7 @@ func TestLoad(t *testing.T) {
 
 	t.Run("unknown command", func(t *testing.T) {
 		_, err := Load("nope")
-		require.ErrorIs(t, err, ErrNotFound)
+		require.EqualError(t, err, "command doc not found: nope")
 	})
 }
 
@@ -114,5 +114,5 @@ func TestParseNestedCommand(t *testing.T) {
 	require.Equal(t, "cargueiro registry login host", got.Example)
 
 	_, err = parse("registry-login", "# registry-login\n\nSave credentials.\n")
-	require.ErrorIs(t, err, ErrMalformed, "the title uses spaces, like the command")
+	require.ErrorContains(t, err, "malformed command doc: ", "the title uses spaces, like the command")
 }

@@ -58,7 +58,7 @@ func NewClient(opts ClientOptions) (Client, error) {
 		return nil, fmt.Errorf("create registry client: %w", err)
 	}
 
-	return helmClient{client: c, opts: opts}, nil
+	return helmClient{client: c}, nil
 }
 
 // validate rejects contradictory options.
@@ -130,7 +130,6 @@ func tlsConfigWithCA(caPEM []byte) (*tls.Config, error) {
 // helmClient adapts Helm's registry client to Client.
 type helmClient struct {
 	client *helmregistry.Client
-	opts   ClientOptions
 }
 
 var _ Client = helmClient{}
@@ -140,9 +139,6 @@ var _ Client = helmClient{}
 func (h helmClient) Push(data []byte, ref string) (string, error) {
 	res, err := h.client.Push(data, ref, helmregistry.PushOptStrictMode(true))
 	if err != nil {
-		if kind, ok := Classify(err, h.opts); ok {
-			return "", &RegistryError{Kind: kind, Err: err}
-		}
 		return "", err
 	}
 	return res.Ref, nil

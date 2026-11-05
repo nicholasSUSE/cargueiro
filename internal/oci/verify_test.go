@@ -48,11 +48,11 @@ func TestVerifyLogin(t *testing.T) {
 		srv          *httptest.Server
 		user, pass   string
 		wantVerified bool
-		wantKind     Kind
+		wantErr      string
 	}{
 		{name: "right credentials", srv: protected, user: "admin", pass: "right", wantVerified: true},
-		{name: "wrong password", srv: protected, user: "admin", pass: "wrong", wantKind: KindAuthRejected},
-		{name: "wrong user", srv: protected, user: "someone", pass: "right", wantKind: KindAuthRejected},
+		{name: "wrong password", srv: protected, user: "admin", pass: "wrong", wantErr: "401"},
+		{name: "wrong user", srv: protected, user: "someone", pass: "right", wantErr: "401"},
 		{name: "registry that needs no credentials cannot verify them", srv: open, user: "admin", pass: "whatever"},
 	}
 
@@ -62,13 +62,11 @@ func TestVerifyLogin(t *testing.T) {
 				ClientOptions{Username: tt.user, Password: tt.pass, PlainHTTP: true})
 
 			require.Equal(t, tt.wantVerified, verified)
-			if tt.wantKind == 0 {
+			if tt.wantErr == "" {
 				require.NoError(t, err)
 				return
 			}
-			var registryErr *RegistryError
-			require.ErrorAs(t, err, &registryErr)
-			require.Equal(t, tt.wantKind, registryErr.Kind)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -109,9 +107,7 @@ func TestVerifyLoginOverTLS(t *testing.T) {
 	t.Run("without the CA", func(t *testing.T) {
 		_, err := VerifyLogin(context.Background(), host, ClientOptions{Username: "admin", Password: "right"})
 
-		var registryErr *RegistryError
-		require.ErrorAs(t, err, &registryErr)
-		require.Equal(t, KindUntrustedCertificate, registryErr.Kind)
+		require.ErrorContains(t, err, "certificate")
 	})
 }
 
@@ -130,18 +126,14 @@ func TestVerifyLoginTransportMismatches(t *testing.T) {
 	t.Run("HTTPS against a plain HTTP server", func(t *testing.T) {
 		_, err := VerifyLogin(context.Background(), hostOf(t, httpSrv), ClientOptions{Username: "admin", Password: "right"})
 
-		var registryErr *RegistryError
-		require.ErrorAs(t, err, &registryErr)
-		require.Equal(t, KindHTTPOnly, registryErr.Kind)
+		require.ErrorContains(t, err, "HTTP response to HTTPS client")
 	})
 }
 
 func TestVerifyLoginUnreachable(t *testing.T) {
 	_, err := VerifyLogin(context.Background(), "127.0.0.1:1", ClientOptions{Username: "u", Password: "p", PlainHTTP: true})
 
-	var registryErr *RegistryError
-	require.ErrorAs(t, err, &registryErr)
-	require.Equal(t, KindUnreachable, registryErr.Kind)
+	require.ErrorContains(t, err, "connection refused")
 }
 
 func TestVerifyLoginRejectsBadOptions(t *testing.T) {

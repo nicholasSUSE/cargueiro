@@ -13,7 +13,7 @@ func newLogoutCmd(opts *rootOptions) (*cobra.Command, error) {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			store, err := opts.openStore()
 			if err != nil {
-				return fmt.Errorf("open the login file: %w", err)
+				return err
 			}
 
 			// The file may be corrupt; logout still removes it.

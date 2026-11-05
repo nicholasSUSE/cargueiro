@@ -1,14 +1,9 @@
 package oci
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
-
-// ErrProtectedRegistry is returned when a push targets a repository whose
-// published charts must never be overwritten.
-var ErrProtectedRegistry = errors.New("pushing to this registry is not allowed")
 
 // isProtectedHost reports whether name, already normalized, is a registry
 // whose catalog repository is off limits.
@@ -24,7 +19,7 @@ func isProtectedHost(name string) bool {
 // published charts.
 const protectedPrefix = "rancher/catalog"
 
-// CheckTarget returns ErrProtectedRegistry when t is, or lies under,
+// CheckTarget refuses t when it is, or lies under,
 // <protected host>/rancher/catalog. It looks at the address only and makes no
 // network call.
 func CheckTarget(t Target) error {
@@ -40,8 +35,8 @@ func checkRepository(host, repository string) error {
 
 	repo := strings.ToLower(repository)
 	if repo == protectedPrefix || strings.HasPrefix(repo, protectedPrefix+"/") {
-		return fmt.Errorf("%w: %s/%s holds published charts that must never be overwritten",
-			ErrProtectedRegistry, host, repository)
+		return fmt.Errorf("pushing to this registry is not allowed: %s/%s holds published charts that must never be overwritten",
+			host, repository)
 	}
 	return nil
 }

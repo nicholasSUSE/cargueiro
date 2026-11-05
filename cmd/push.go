@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -46,9 +45,9 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 	)
 
 	cmd := &cobra.Command{
-		Use:  "push <archive.tgz>...",
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, archives []string) error {
+		Use:  "push <archive.tgz>",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
 			target, err := oci.ParseTarget(registry)
 			if err != nil {
 				return err
@@ -76,22 +75,15 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				return err
 			}
 
-			var errs []error
-			for _, archive := range archives {
-				opts.log.DebugContext(cmd.Context(), "pushing chart", "archive", archive, "registry", registry)
+			archive := args[0]
+			opts.log.DebugContext(cmd.Context(), "pushing chart", "archive", archive, "registry", registry)
 
-				ref, err := pusher.Push(cmd.Context(), archive)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "oci://"+ref); err != nil {
-					return fmt.Errorf("write reference: %w", err)
-				}
+			ref, err := pusher.Push(cmd.Context(), archive)
+			if err != nil {
+				return err
 			}
-
-			if len(errs) > 0 {
-				return fmt.Errorf("%d of %d archives failed:\n%w", len(errs), len(archives), errors.Join(errs...))
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), "oci://"+ref); err != nil {
+				return fmt.Errorf("write reference: %w", err)
 			}
 			return nil
 		},

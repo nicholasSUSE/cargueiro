@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
 )
 
 type call struct{ src, dest string }
@@ -71,29 +69,7 @@ func TestPackageCmd(t *testing.T) {
 			wantCalls:  []call{{src: "charts/fleet", dest: "out"}},
 		},
 		{
-			name:       "several charts keep argument order",
-			args:       []string{"package", "charts/fleet-crd", "charts/fleet", "charts/fleet-agent"},
-			wantStdout: "/abs/assets/fleet-crd.tgz\n/abs/assets/fleet.tgz\n/abs/assets/fleet-agent.tgz\n",
-			wantCalls: []call{
-				{src: "charts/fleet-crd", dest: "assets"},
-				{src: "charts/fleet", dest: "assets"},
-				{src: "charts/fleet-agent", dest: "assets"},
-			},
-		},
-		{
-			name:       "one failure does not stop the others",
-			args:       []string{"package", "charts/a", "charts/bad", "charts/c"},
-			failing:    map[string]error{"charts/bad": errBoom},
-			wantStdout: "/abs/assets/a.tgz\n/abs/assets/c.tgz\n",
-			wantCalls: []call{
-				{src: "charts/a", dest: "assets"},
-				{src: "charts/bad", dest: "assets"},
-				{src: "charts/c", dest: "assets"},
-			},
-			wantErr: "boom",
-		},
-		{
-			name:    "all fail, nothing on stdout",
+			name:    "failure, nothing on stdout",
 			args:    []string{"package", "charts/x"},
 			failing: map[string]error{"charts/x": errBoom},
 			wantCalls: []call{
@@ -104,7 +80,12 @@ func TestPackageCmd(t *testing.T) {
 		{
 			name:    "no chart given",
 			args:    []string{"package"},
-			wantErr: "requires at least 1 arg",
+			wantErr: "accepts 1 arg(s), received 0",
+		},
+		{
+			name:    "two charts",
+			args:    []string{"package", "charts/a", "charts/b"},
+			wantErr: "accepts 1 arg(s), received 2",
 		},
 	}
 
@@ -150,5 +131,5 @@ func TestPackageCmdEndToEnd(t *testing.T) {
 	root, err = NewRootCmd(&out, &errOut)
 	require.NoError(t, err)
 	root.SetArgs([]string{"package", "../internal/chart/testdata/noyaml", "-o", dest})
-	require.ErrorIs(t, root.Execute(), chart.ErrNoChartYaml)
+	require.ErrorContains(t, root.Execute(), "no Chart.yaml found")
 }

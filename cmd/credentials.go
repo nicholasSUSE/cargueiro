@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -51,7 +52,7 @@ func defaultStore() (*auth.Store, error) {
 func resolveConnection(ctx context.Context, opts *rootOptions, host, username, password string) (connection, error) {
 	store, err := opts.openStore()
 	if err != nil {
-		return connection{}, fmt.Errorf("open the login file: %w", err)
+		return connection{}, err
 	}
 
 	login, found, err := store.Load()
@@ -69,6 +70,12 @@ func resolveConnection(ctx context.Context, opts *rootOptions, host, username, p
 	}
 
 	if username != "" || password != "" {
+		switch {
+		case username == "":
+			return connection{}, fmt.Errorf("a username is required: give --username or set $%s", envUsername)
+		case password == "":
+			return connection{}, fmt.Errorf("a password is required: use --password-stdin or set $%s", envPassword)
+		}
 		conn.Username, conn.Password = username, password
 		return conn, nil
 	}
@@ -78,6 +85,9 @@ func resolveConnection(ctx context.Context, opts *rootOptions, host, username, p
 
 	opts.log.DebugContext(ctx, "using the saved login", "host", host, "user", login.Username)
 	if err := store.CheckPermissions(); err != nil {
+		if !errors.Is(err, auth.ErrInsecurePermissions) {
+			return connection{}, err
+		}
 		warnf(opts.stderr, "%v", err)
 	}
 	conn.Username, conn.Password, conn.Stored = login.Username, login.Password, true
@@ -92,7 +102,7 @@ func registryHost(arg string) (string, error) {
 		return "", err
 	}
 	if target.Path != "" {
-		return "", fmt.Errorf("%w: credentials belong to a host, not a path: use %q", oci.ErrInvalidRegistry, target.Host)
+		return "", fmt.Errorf("invalid registry: credentials belong to a host, not a path: use %q", target.Host)
 	}
 	return target.Host, nil
 }

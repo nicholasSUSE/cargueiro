@@ -15,12 +15,11 @@ func TestPackage(t *testing.T) {
 	tests := []struct {
 		name    string
 		src     string
-		wantErr error
 		wantMsg string
 	}{
 		{name: "valid chart", src: "testdata/valid"},
-		{name: "missing directory", src: "testdata/absent", wantErr: ErrNoChartYaml},
-		{name: "directory without Chart.yaml", src: "testdata/noyaml", wantErr: ErrNoChartYaml},
+		{name: "missing directory", src: "testdata/absent", wantMsg: "no Chart.yaml found in testdata/absent"},
+		{name: "directory without Chart.yaml", src: "testdata/noyaml", wantMsg: "no Chart.yaml found in testdata/noyaml"},
 		{name: "invalid version", src: "testdata/badversion", wantMsg: "package chart"},
 		{name: "declared dependency not vendored", src: "testdata/missingdeps", wantMsg: "package chart"},
 	}
@@ -31,10 +30,6 @@ func TestPackage(t *testing.T) {
 
 			got, err := Package(context.Background(), tt.src, dest)
 
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				return
-			}
 			if tt.wantMsg != "" {
 				require.ErrorContains(t, err, tt.wantMsg)
 				return
@@ -52,6 +47,13 @@ func TestPackage(t *testing.T) {
 			require.Equal(t, "0.1.0", acc.MetadataAsMap()["Version"])
 		})
 	}
+}
+
+func TestPackageSourceIsAFile(t *testing.T) {
+	_, err := Package(context.Background(), "testdata/valid/Chart.yaml", t.TempDir())
+
+	require.ErrorContains(t, err, "testdata/valid/Chart.yaml/Chart.yaml: not a directory")
+	require.NotContains(t, err.Error(), "stat chart", "the error already names the path")
 }
 
 func TestPackageCreatesDestination(t *testing.T) {

@@ -123,9 +123,9 @@ func TestPushCmdCredentials(t *testing.T) {
 		},
 		{
 			name: "flag beats environment username",
-			env:  map[string]string{"CARGUEIRO_USERNAME": "env-user"},
+			env:  map[string]string{"CARGUEIRO_USERNAME": "env-user", "CARGUEIRO_PASSWORD": "env-secret"},
 			args: []string{"--registry", "r", "-u", "flag-user"},
-			want: oci.ClientOptions{Username: "flag-user"},
+			want: oci.ClientOptions{Username: "flag-user", Password: "env-secret"},
 		},
 		{
 			name:  "password from stdin, trailing newline removed",
@@ -156,6 +156,7 @@ func TestPushCmdRejectsBadInput(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
+		env     map[string]string
 		stdin   string
 		wantErr string
 	}{
@@ -163,12 +164,14 @@ func TestPushCmdRejectsBadInput(t *testing.T) {
 		{name: "no archive", args: []string{"--registry", "r"}, wantErr: "accepts 1 arg(s), received 0"},
 		{name: "two archives", args: []string{"a.tgz", "b.tgz", "--registry", "r"}, wantErr: "accepts 1 arg(s), received 2"},
 		{name: "invalid registry", args: []string{"a.tgz", "--registry", "host/a//b"}, wantErr: "invalid registry"},
+		{name: "username without password", args: []string{"a.tgz", "--registry", "r", "-u", "admin"}, wantErr: "a password is required"},
+		{name: "password without username", args: []string{"a.tgz", "--registry", "r"}, env: map[string]string{"CARGUEIRO_PASSWORD": "p"}, wantErr: "a username is required"},
 		{name: "password too long", args: []string{"a.tgz", "--registry", "r", "--password-stdin"}, stdin: strings.Repeat("x", 5000), wantErr: "longer than"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := runPush(t, nil, tt.stdin, nil, tt.args...)
+			res := runPush(t, tt.env, tt.stdin, nil, tt.args...)
 
 			require.ErrorContains(t, res.err, tt.wantErr)
 			require.Empty(t, res.pusher.pushed, "nothing may be pushed")

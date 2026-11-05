@@ -70,6 +70,12 @@ func resolveConnection(ctx context.Context, opts *rootOptions, host, username, p
 	}
 
 	if username != "" || password != "" {
+		switch {
+		case username == "":
+			return connection{}, fmt.Errorf("a username is required: give --username or set $%s", envUsername)
+		case password == "":
+			return connection{}, fmt.Errorf("a password is required: use --password-stdin or set $%s", envPassword)
+		}
 		conn.Username, conn.Password = username, password
 		return conn, nil
 	}

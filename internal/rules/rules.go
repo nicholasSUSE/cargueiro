@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -22,6 +23,21 @@ type Chart struct {
 	// Required lists the annotations the chart must carry, without the
 	// catalog.cattle.io/ prefix.
 	Required []string
+}
+
+// annotationPrefix starts every annotation named in the rules file.
+const annotationPrefix = "catalog.cattle.io/"
+
+// Missing returns the required annotations that annotations lacks, in the order
+// the rules file lists them. An annotation with an empty value counts as lacking.
+func (c Chart) Missing(annotations map[string]string) []string {
+	var missing []string
+	for _, name := range c.Required {
+		if strings.TrimSpace(annotations[annotationPrefix+name]) == "" {
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
 
 // Config is the parsed rules file.

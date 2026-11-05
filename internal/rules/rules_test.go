@@ -52,6 +52,70 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestChartMissing(t *testing.T) {
+	chart := Chart{Required: []string{"release-name", "certified", "kube-version"}}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        []string
+	}{
+		{
+			name: "all present",
+			annotations: map[string]string{
+				"catalog.cattle.io/release-name": "fleet",
+				"catalog.cattle.io/certified":    "rancher",
+				"catalog.cattle.io/kube-version": ">= 1.34.0-0",
+			},
+		},
+		{
+			name:        "none present",
+			annotations: map[string]string{},
+			want:        []string{"release-name", "certified", "kube-version"},
+		},
+		{
+			name:        "nil annotations",
+			annotations: nil,
+			want:        []string{"release-name", "certified", "kube-version"},
+		},
+		{
+			name: "one missing",
+			annotations: map[string]string{
+				"catalog.cattle.io/release-name": "fleet",
+				"catalog.cattle.io/kube-version": ">= 1.34.0-0",
+			},
+			want: []string{"certified"},
+		},
+		{
+			name: "empty and blank values count as missing",
+			annotations: map[string]string{
+				"catalog.cattle.io/release-name": "",
+				"catalog.cattle.io/certified":    "  ",
+				"catalog.cattle.io/kube-version": ">= 1.34.0-0",
+			},
+			want: []string{"release-name", "certified"},
+		},
+		{
+			name: "same name under another prefix does not count",
+			annotations: map[string]string{
+				"catalog.rancher.io/release-name": "fleet",
+				"catalog.cattle.io/certified":     "rancher",
+				"catalog.cattle.io/kube-version":  ">= 1.34.0-0",
+			},
+			want: []string{"release-name"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, chart.Missing(tt.annotations))
+		})
+	}
+}
+
+func TestChartMissingNothingRequired(t *testing.T) {
+	require.Empty(t, Chart{}.Missing(map[string]string{"catalog.cattle.io/hidden": "true"}))
+}
+
 func TestLookupUnlistedChart(t *testing.T) {
 	cfg, err := Parse([]byte(valid))
 	require.NoError(t, err)

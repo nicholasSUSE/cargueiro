@@ -78,25 +78,6 @@ func TestFleetThreeWay(t *testing.T) {
 	}
 }
 
-func TestFamilyInOneCall(t *testing.T) {
-	outDir := t.TempDir()
-	args := []string{"package"}
-	for _, chart := range fleetCharts() {
-		args = append(args, harness.FleetSource(t, chart))
-	}
-	args = append(args, "-o", outDir)
-
-	res := harness.Cargueiro(t, t.TempDir(), args...)
-
-	require.Zero(t, res.ExitCode, res.Stderr)
-	lines := strings.Split(strings.TrimSpace(res.Stdout), "\n")
-	require.Len(t, lines, 3)
-	for i, chart := range fleetCharts() {
-		require.Equal(t, filepath.Join(outDir, chart+"-"+fleetVersion+".tgz"), lines[i], "argument order")
-		require.Equal(t, harness.Manifest(t, harness.FleetPublished(t, chart, fleetVersion)), harness.Manifest(t, lines[i]))
-	}
-}
-
 func TestDefaultOutputDirIsAssets(t *testing.T) {
 	workDir := t.TempDir()
 
@@ -139,17 +120,13 @@ func TestFailures(t *testing.T) {
 		require.Contains(t, res.Stderr, "no Chart.yaml found")
 	})
 
-	t.Run("one bad chart does not stop the others", func(t *testing.T) {
-		outDir := t.TempDir()
-
+	t.Run("two charts", func(t *testing.T) {
 		res := harness.Cargueiro(t, t.TempDir(), "package",
-			harness.FleetSource(t, "fleet-crd"), notAChart, harness.FleetSource(t, "fleet-agent"), "-o", outDir)
+			harness.FleetSource(t, "fleet-crd"), harness.FleetSource(t, "fleet-agent"), "-o", t.TempDir())
 
 		require.NotZero(t, res.ExitCode)
-		require.Equal(t,
-			filepath.Join(outDir, "fleet-crd-"+fleetVersion+".tgz")+"\n"+filepath.Join(outDir, "fleet-agent-"+fleetVersion+".tgz")+"\n",
-			res.Stdout)
-		require.Contains(t, res.Stderr, notAChart)
+		require.Empty(t, res.Stdout)
+		require.Contains(t, res.Stderr, "accepts 1 arg(s), received 2")
 	})
 }
 

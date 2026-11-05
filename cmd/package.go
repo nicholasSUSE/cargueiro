@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -19,23 +18,20 @@ func newPackageCmd(opts *rootOptions, pkg packageFunc) (*cobra.Command, error) {
 	var outputDir string
 
 	cmd := &cobra.Command{
-		Use:  "package <chart-dir>...",
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, chartDirs []string) error {
-			var errs []error
-			for _, dir := range chartDirs {
-				opts.log.DebugContext(cmd.Context(), "packaging chart", "chart", dir, "output", outputDir)
+		Use:  "package <chart-dir>",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := args[0]
+			opts.log.DebugContext(cmd.Context(), "packaging chart", "chart", dir, "output", outputDir)
 
-				archive, err := pkg(cmd.Context(), dir, outputDir)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				if _, err := fmt.Fprintln(cmd.OutOrStdout(), archive); err != nil {
-					return fmt.Errorf("write archive path: %w", err)
-				}
+			archive, err := pkg(cmd.Context(), dir, outputDir)
+			if err != nil {
+				return err
 			}
-			return errors.Join(errs...)
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), archive); err != nil {
+				return fmt.Errorf("write archive path: %w", err)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", defaultOutputDir, "directory to write archives to")

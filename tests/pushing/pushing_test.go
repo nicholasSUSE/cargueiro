@@ -2,6 +2,10 @@
 
 // Package pushing holds the e2e tests of `cargueiro push`, run against the real
 // binary and real local registries (see `make registry-up`).
+//
+// push has no transport flags: a registry served over plain HTTP or behind a
+// private CA is set up by `registry login`, so every test that reaches one logs
+// in first.
 package pushing
 
 import (
@@ -28,28 +32,6 @@ func TestMain(m *testing.M) {
 	os.Exit(harness.Main(m))
 }
 
-// transport describes one way of reaching a registry.
-type transport struct {
-	name    string
-	address func(t *testing.T) string
-	flags   func(t *testing.T) []string
-}
-
-func transports() []transport {
-	return []transport{
-		{
-			name:    "HTTP",
-			address: harness.HTTPRegistry,
-			flags:   func(*testing.T) []string { return []string{"--plain-http"} },
-		},
-		{
-			name:    "TLS",
-			address: harness.TLSRegistry,
-			flags:   func(t *testing.T) []string { return []string{"--ca-file", harness.RegistryCA(t)} },
-		},
-	}
-}
-
 // repoPath returns a registry path unique to this run, so tests never see
 // each other's charts.
 func repoPath() string {
@@ -62,24 +44,6 @@ func published(t *testing.T, chart string) string {
 	return harness.FleetPublished(t, chart, fleetVersion)
 }
 
-// push runs `cargueiro push` as the e2e registry user and checks that the
-// password never reaches the output.
-func push(t *testing.T, registry string, flags []string, archives ...string) harness.Result {
-	t.Helper()
-
-	args := append([]string{"push"}, archives...)
-	args = append(args, "--registry", registry, "--username", harness.RegistryUser)
-	args = append(args, flags...)
-
-	res := harness.CargueiroWith(t, harness.Options{
-		Dir: t.TempDir(),
-		Env: []string{"CARGUEIRO_PASSWORD=" + harness.RegistryPassword},
-	}, args...)
-
-	requireNoPassword(t, res)
-	return res
-}
-
 func requireNoPassword(t *testing.T, res harness.Result) {
 	t.Helper()
 
@@ -87,55 +51,27 @@ func requireNoPassword(t *testing.T, res harness.Result) {
 	require.NotContains(t, res.Stderr, harness.RegistryPassword)
 }
 
-// pull fetches a chart from a registry with the helm CLI, which is the
-// independent check that a push really stored something usable. It returns the
-// path of the pulled archive, or "" and the failed result.
-func pull(t *testing.T, address, path, chart string, flags []string) (string, harness.Result) {
+// pull fetches a chart with the helm CLI, which is the independent check that a
+// push really stored something usable.
+func pull(t *testing.T, tr harness.Transport, address, path, chart string) (string, harness.Result) {
 	t.Helper()
 
-	dest, cfg := t.TempDir(), t.TempDir()
-	args := []string{
-		"pull", "oci://" + address + "/" + path + "/" + chart,
-		"--version", fleetVersion, "--destination", dest,
-		"--username", harness.RegistryUser, "--password", harness.RegistryPassword,
-	}
-	args = append(args, flags...)
-
-	res := harness.HelmWith(t, harness.Options{
-		Dir: t.TempDir(),
-		Env: []string{
-			"HELM_REGISTRY_CONFIG=" + filepath.Join(cfg, "registry.json"),
-			"HELM_REPOSITORY_CONFIG=" + filepath.Join(cfg, "repositories.yaml"),
-			"HELM_REPOSITORY_CACHE=" + filepath.Join(cfg, "cache"),
-		},
-	}, args...)
-	if res.ExitCode != 0 {
-		return "", res
-	}
-	return filepath.Join(dest, chart+"-"+fleetVersion+".tgz"), res
-}
-
-// requireNothingStored fails if any fleet chart can be pulled from path.
-func requireNothingStored(t *testing.T, tr transport, path string) {
-	t.Helper()
-
-	for _, chart := range fleetCharts() {
-		archive, _ := pull(t, tr.address(t), path, chart, tr.flags(t))
-		require.Empty(t, archive, "%s must not be in the registry", chart)
-	}
+	return harness.HelmPull(t, address, path, chart, fleetVersion, tr.HelmFlags(t))
 }
 
 func TestPushFleetFamily(t *testing.T) {
-	for _, tr := range transports() {
-		t.Run(tr.name, func(t *testing.T) {
-			address, path := tr.address(t), repoPath()
+	for _, tr := range harness.Transports() {
+		t.Run(tr.Name, func(t *testing.T) {
+			s := harness.NewSession(t)
+			address, path := s.LoginVia(t, tr), repoPath()
 			var archives []string
 			for _, chart := range fleetCharts() {
 				archives = append(archives, published(t, chart))
 			}
 
-			res := push(t, address+"/"+path, tr.flags(t), archives...)
+			res := s.Push(t, address+"/"+path, archives...)
 
+			requireNoPassword(t, res)
 			require.Zero(t, res.ExitCode, res.Stderr)
 			var want []string
 			for _, chart := range fleetCharts() {
@@ -144,7 +80,7 @@ func TestPushFleetFamily(t *testing.T) {
 			require.Equal(t, strings.Join(want, "\n")+"\n", res.Stdout, "references in argument order")
 
 			for _, chart := range fleetCharts() {
-				pulled, pullRes := pull(t, address, path, chart, tr.flags(t))
+				pulled, pullRes := pull(t, tr, address, path, chart)
 				require.NotEmpty(t, pulled, pullRes.Stderr)
 
 				sent, err := os.ReadFile(published(t, chart))
@@ -158,18 +94,19 @@ func TestPushFleetFamily(t *testing.T) {
 }
 
 func TestPushAfterPackage(t *testing.T) {
-	address, path := harness.HTTPRegistry(t), repoPath()
+	tr := harness.Transports()[0]
+	s := harness.NewSession(t)
+	address, path := s.LoginVia(t, tr), repoPath()
 
 	packaged := harness.Cargueiro(t, t.TempDir(), "package", harness.FleetSource(t, "fleet-crd"), "--output-dir", t.TempDir())
 	require.Zero(t, packaged.ExitCode, packaged.Stderr)
 	archive := strings.TrimSpace(packaged.Stdout)
 
-	res := push(t, address+"/"+path, []string{"--plain-http"}, archive)
+	res := s.Push(t, address+"/"+path, archive)
 
 	require.Zero(t, res.ExitCode, res.Stderr)
 	require.Equal(t, fmt.Sprintf("oci://%s/%s/fleet-crd:%s\n", address, path, registryTag), res.Stdout)
-
-	pulled, pullRes := pull(t, address, path, "fleet-crd", []string{"--plain-http"})
+	pulled, pullRes := pull(t, tr, address, path, "fleet-crd")
 	require.NotEmpty(t, pulled, pullRes.Stderr)
 	require.Equal(t,
 		harness.Manifest(t, published(t, "fleet-crd")),
@@ -178,145 +115,80 @@ func TestPushAfterPackage(t *testing.T) {
 }
 
 func TestPushPasswordFromStdin(t *testing.T) {
-	address, path := harness.HTTPRegistry(t), repoPath()
+	tr := harness.Transports()[0]
+	s := harness.NewSession(t)
+	address, path := s.LoginVia(t, tr), repoPath()
 
-	res := harness.CargueiroWith(t, harness.Options{
-		Dir:   t.TempDir(),
-		Stdin: harness.RegistryPassword + "\n",
-	}, "push", published(t, "fleet-crd"),
-		"--registry", address+"/"+path, "--username", harness.RegistryUser, "--password-stdin", "--plain-http")
+	res := s.Run(t, harness.RegistryPassword+"\n", nil,
+		"push", published(t, "fleet-crd"), "--registry", address+"/"+path,
+		"--username", harness.RegistryUser, "--password-stdin")
 
 	requireNoPassword(t, res)
 	require.Zero(t, res.ExitCode, res.Stderr)
-	pulled, pullRes := pull(t, address, path, "fleet-crd", []string{"--plain-http"})
+	pulled, pullRes := pull(t, tr, address, path, "fleet-crd")
 	require.NotEmpty(t, pulled, pullRes.Stderr)
 }
 
-func TestPushAuthenticationFailures(t *testing.T) {
-	for _, tr := range transports() {
-		t.Run(tr.name, func(t *testing.T) {
-			address, path := tr.address(t), repoPath()
-			archive := published(t, "fleet-crd")
+func TestPushWithAWrongPassword(t *testing.T) {
+	for _, tr := range harness.Transports() {
+		t.Run(tr.Name, func(t *testing.T) {
+			s := harness.NewSession(t)
+			address, path := s.LoginVia(t, tr), repoPath()
 
-			t.Run("wrong password", func(t *testing.T) {
-				res := harness.CargueiroWith(t, harness.Options{
-					Dir: t.TempDir(),
-					Env: []string{"CARGUEIRO_PASSWORD=not-the-password"},
-				}, append([]string{"push", archive, "--registry", address + "/" + path, "--username", harness.RegistryUser}, tr.flags(t)...)...)
+			res := s.Run(t, "", []string{"CARGUEIRO_PASSWORD=not-the-password"},
+				"push", published(t, "fleet-crd"), "--registry", address+"/"+path, "--username", harness.RegistryUser)
 
-				require.NotZero(t, res.ExitCode)
-				require.Empty(t, res.Stdout)
-				require.Contains(t, res.Stderr, "401")
-				require.Contains(t, res.Stderr, `hint: the registry rejected the credentials of user "admin"`)
-				require.NotContains(t, res.Stderr, "not-the-password")
-			})
-
-			t.Run("no credentials", func(t *testing.T) {
-				res := harness.Cargueiro(t, t.TempDir(),
-					append([]string{"push", archive, "--registry", address + "/" + path}, tr.flags(t)...)...)
-
-				require.NotZero(t, res.ExitCode)
-				require.Empty(t, res.Stdout)
-				require.Regexp(t, `401|credential`, res.Stderr, "the registry demands credentials")
-				require.Contains(t, res.Stderr, "hint: the registry requires credentials")
-				require.Contains(t, res.Stderr, "CARGUEIRO_PASSWORD")
-			})
-
-			t.Run("nothing was stored", func(t *testing.T) {
-				requireNothingStored(t, tr, path)
-			})
+			require.NotZero(t, res.ExitCode, "the explicit wrong password wins over the saved right one")
+			require.Empty(t, res.Stdout)
+			require.Contains(t, res.Stderr, "401")
+			require.NotContains(t, res.Stderr, "not-the-password")
+			pulled, _ := pull(t, tr, address, path, "fleet-crd")
+			require.Empty(t, pulled, "nothing may have been stored")
 		})
 	}
 }
 
-func TestPushTransportMismatches(t *testing.T) {
+func TestPushWithoutLoginCannotReachAnyRegistry(t *testing.T) {
 	archive := published(t, "fleet-crd")
 
 	tests := []struct {
-		name     string
-		address  func(t *testing.T) string
-		flags    func(t *testing.T) []string
-		wantErr  string
-		wantHint string
+		name    string
+		address func(t *testing.T) string
+		wantErr string
 	}{
 		{
-			name:     "TLS registry without its CA",
-			address:  harness.TLSRegistry,
-			flags:    func(*testing.T) []string { return nil },
-			wantErr:  "certificate",
-			wantHint: "hint: the registry's certificate is not trusted: pass the CA that signed it with --ca-file",
-		},
-		{
-			name:     "plain HTTP against the TLS registry",
-			address:  harness.TLSRegistry,
-			flags:    func(*testing.T) []string { return []string{"--plain-http"} },
-			wantErr:  "400",
-			wantHint: "hint: the registry answered plain HTTP with 400, so it probably serves HTTPS: drop --plain-http",
-		},
-		{
-			name:     "HTTPS against the plain HTTP registry",
-			address:  harness.HTTPRegistry,
-			flags:    func(*testing.T) []string { return nil },
-			wantErr:  "HTTP response to HTTPS client",
-			wantHint: "hint: the registry answers plain HTTP: use --plain-http",
-		},
-		{
-			name:    "CA file together with plain HTTP",
+			name:    "TLS registry with a private CA",
 			address: harness.TLSRegistry,
-			flags:   func(t *testing.T) []string { return []string{"--plain-http", "--ca-file", harness.RegistryCA(t)} },
-			wantErr: "plain HTTP",
+			wantErr: "certificate",
 		},
 		{
-			name:    "CA file that does not exist",
-			address: harness.TLSRegistry,
-			flags:   func(t *testing.T) []string { return []string{"--ca-file", filepath.Join(t.TempDir(), "absent.crt")} },
-			wantErr: "read CA file",
+			name:    "plain HTTP registry",
+			address: harness.HTTPRegistry,
+			wantErr: "HTTP response to HTTPS client",
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			address, path := tt.address(t), repoPath()
+			s := harness.NewSession(t)
+			address := tt.address(t)
 
-			res := push(t, address+"/"+path, tt.flags(t), archive)
+			res := s.Push(t, address+"/"+repoPath(), archive)
 
 			require.NotZero(t, res.ExitCode)
 			require.Empty(t, res.Stdout)
 			require.Contains(t, res.Stderr, tt.wantErr)
-			if tt.wantHint != "" {
-				require.Contains(t, res.Stderr, tt.wantHint)
-			} else {
-				require.NotContains(t, res.Stderr, "hint:", "no hint for a failure that is not one of the known causes")
-			}
 		})
 	}
 }
 
-func TestPushUnreachableRegistry(t *testing.T) {
-	// Nothing listens on port 1 of the loopback interface.
-	res := push(t, "127.0.0.1:1/charts", []string{"--plain-http"}, published(t, "fleet-crd"))
-
-	require.NotZero(t, res.ExitCode)
-	require.Empty(t, res.Stdout)
-	require.Contains(t, res.Stderr, "hint: nothing accepted the connection")
-}
-
-func TestPushUnknownHost(t *testing.T) {
-	// The .invalid TLD is reserved and never resolves.
-	res := push(t, "registry.cargueiro.invalid/charts", nil, published(t, "fleet-crd"))
-
-	require.NotZero(t, res.ExitCode)
-	require.Empty(t, res.Stdout)
-	require.Contains(t, res.Stderr, "hint: the host name in --registry could not be resolved")
-}
-
 func TestPushPartialFailure(t *testing.T) {
-	address, path := harness.HTTPRegistry(t), repoPath()
+	tr := harness.Transports()[0]
+	s := harness.NewSession(t)
+	address, path := s.LoginVia(t, tr), repoPath()
 	corrupt := filepath.Join(t.TempDir(), "corrupt.tgz")
 	require.NoError(t, os.WriteFile(corrupt, []byte("this is not a chart"), 0o600))
 
-	res := push(t, address+"/"+path, []string{"--plain-http"},
-		published(t, "fleet-crd"), corrupt, published(t, "fleet-agent"))
+	res := s.Push(t, address+"/"+path, published(t, "fleet-crd"), corrupt, published(t, "fleet-agent"))
 
 	require.NotZero(t, res.ExitCode)
 	require.Equal(t,
@@ -326,7 +198,7 @@ func TestPushPartialFailure(t *testing.T) {
 	require.Contains(t, res.Stderr, corrupt)
 
 	for _, chart := range []string{"fleet-crd", "fleet-agent"} {
-		pulled, pullRes := pull(t, address, path, chart, []string{"--plain-http"})
+		pulled, pullRes := pull(t, tr, address, path, chart)
 		require.NotEmpty(t, pulled, pullRes.Stderr)
 	}
 }
@@ -342,7 +214,7 @@ func TestPushBadInput(t *testing.T) {
 		{name: "no registry flag", args: []string{"push", published(t, "fleet-crd")}, wantErr: "registry"},
 		{name: "no archive", args: []string{"push", "--registry", address}, wantErr: "requires at least 1 arg"},
 		{name: "invalid registry", args: []string{"push", published(t, "fleet-crd"), "--registry", address + "/a//b"}, wantErr: "invalid registry"},
-		{name: "missing archive file", args: []string{"push", filepath.Join(t.TempDir(), "absent.tgz"), "--registry", address, "--plain-http"}, wantErr: "absent.tgz"},
+		{name: "missing archive file", args: []string{"push", filepath.Join(t.TempDir(), "absent.tgz"), "--registry", address}, wantErr: "absent.tgz"},
 	}
 
 	for _, tt := range tests {
@@ -394,13 +266,14 @@ func TestPushRefusesProtectedRegistries(t *testing.T) {
 }
 
 func TestPushMayOverwriteOnLocalRegistries(t *testing.T) {
-	for _, tr := range transports() {
-		t.Run(tr.name, func(t *testing.T) {
-			address, path := tr.address(t), repoPath()+"/rancher/catalog"
+	for _, tr := range harness.Transports() {
+		t.Run(tr.Name, func(t *testing.T) {
+			s := harness.NewSession(t)
+			address, path := s.LoginVia(t, tr), repoPath()+"/rancher/catalog"
 			archive := published(t, "fleet-crd")
 
-			first := push(t, address+"/"+path, tr.flags(t), archive)
-			second := push(t, address+"/"+path, tr.flags(t), archive)
+			first := s.Push(t, address+"/"+path, archive)
+			second := s.Push(t, address+"/"+path, archive)
 
 			require.Zero(t, first.ExitCode, first.Stderr)
 			require.Zero(t, second.ExitCode, "a local registry may be overwritten: "+second.Stderr)

@@ -179,15 +179,16 @@ func TestCheckPermissions(t *testing.T) {
 
 func TestSaveRejectsABadLogin(t *testing.T) {
 	tests := []struct {
-		name  string
-		login Login
+		name    string
+		login   Login
+		wantErr string
 	}{
-		{name: "empty host", login: Login{Username: "u", Password: "p"}},
-		{name: "empty username", login: Login{Host: "h", Password: "p"}},
-		{name: "empty password", login: Login{Host: "h", Username: "u"}},
-		{name: "CA with plain HTTP", login: Login{Host: "h", Username: "u", Password: "p", PlainHTTP: true, CAPEM: testCA}},
-		{name: "CA that is not PEM", login: Login{Host: "h", Username: "u", Password: "p", CAPEM: "not a certificate"}},
-		{name: "PEM that is not a certificate", login: Login{Host: "h", Username: "u", Password: "p", CAPEM: "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n"}},
+		{name: "empty host", login: Login{Username: "u", Password: "p"}, wantErr: "invalid login: empty registry host"},
+		{name: "empty username", login: Login{Host: "h", Password: "p"}, wantErr: "invalid login: empty username"},
+		{name: "empty password", login: Login{Host: "h", Username: "u"}, wantErr: "invalid login: empty password"},
+		{name: "CA with plain HTTP", login: Login{Host: "h", Username: "u", Password: "p", PlainHTTP: true, CAPEM: testCA}, wantErr: "invalid login: a CA certificate cannot be used with plain HTTP"},
+		{name: "CA that is not PEM", login: Login{Host: "h", Username: "u", Password: "p", CAPEM: "not a certificate"}, wantErr: "invalid login: the CA certificate is not PEM"},
+		{name: "PEM that is not a certificate", login: Login{Host: "h", Username: "u", Password: "p", CAPEM: "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n"}, wantErr: "invalid login: the CA certificate is not PEM"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -195,7 +196,7 @@ func TestSaveRejectsABadLogin(t *testing.T) {
 
 			err := s.Save(tt.login)
 
-			require.ErrorIs(t, err, ErrInvalidLogin)
+			require.EqualError(t, err, tt.wantErr)
 			require.NoFileExists(t, s.Path(), "a rejected login leaves no file behind")
 		})
 	}

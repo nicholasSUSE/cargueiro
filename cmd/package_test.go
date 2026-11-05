@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
 )
 
 type call struct{ src, dest string }
@@ -133,5 +131,5 @@ func TestPackageCmdEndToEnd(t *testing.T) {
 	root, err = NewRootCmd(&out, &errOut)
 	require.NoError(t, err)
 	root.SetArgs([]string{"package", "../internal/chart/testdata/noyaml", "-o", dest})
-	require.ErrorIs(t, root.Execute(), chart.ErrNoChartYaml)
+	require.ErrorContains(t, root.Execute(), "no Chart.yaml found")
 }

@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   static:
-    name: static
+    name: static checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -40,7 +40,7 @@ jobs:
         run: git diff --exit-code
 
   unit:
-    name: unit
+    name: unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -54,7 +54,7 @@ jobs:
         run: make test-unit
 
   e2e:
-    name: e2e
+    name: e2e tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

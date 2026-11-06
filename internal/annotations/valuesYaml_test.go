@@ -15,7 +15,13 @@ func parseValues(t *testing.T, text string) map[string]any {
 	return values
 }
 
-func TestCheckValuesYamlValid(t *testing.T) {
+// valuesProblems returns the problems scanValues finds in values.
+func valuesProblems(values map[string]any) []string {
+	_, problems := scanValues(values)
+	return problems
+}
+
+func TestScanValuesValid(t *testing.T) {
 	tests := []struct {
 		name   string
 		values string
@@ -175,15 +181,15 @@ version:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Empty(t, checkValuesYaml(parseValues(t, tt.values)))
+			require.Empty(t, valuesProblems(parseValues(t, tt.values)))
 		})
 	}
 
-	require.Empty(t, checkValuesYaml(nil))
-	require.Empty(t, checkValuesYaml(map[string]any{}))
+	require.Empty(t, valuesProblems(nil))
+	require.Empty(t, valuesProblems(map[string]any{}))
 }
 
-func TestCheckValuesYamlInvalid(t *testing.T) {
+func TestScanValuesInvalid(t *testing.T) {
 	tests := []struct {
 		name   string
 		values string
@@ -376,7 +382,101 @@ image:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, checkValuesYaml(parseValues(t, tt.values)))
+			require.Equal(t, tt.want, valuesProblems(parseValues(t, tt.values)))
+		})
+	}
+}
+
+func TestScanValuesImages(t *testing.T) {
+	tests := []struct {
+		name   string
+		values string
+		want   []valuesImage
+	}{
+		{
+			name: "fleet",
+			values: `
+image:
+  repository: rancher/fleet
+  tag: v0.16.3
+agentImage:
+  repository: rancher/fleet-agent
+  tag: v0.16.3
+`,
+			want: []valuesImage{
+				{Path: "agentImage", Image: "rancher/fleet-agent:v0.16.3"},
+				{Path: "image", Image: "rancher/fleet:v0.16.3"},
+			},
+		},
+		{
+			name: "optional keys are ignored",
+			values: `
+image:
+  registry: stgregistry.suse.com
+  repository: rancher/a
+  tag: "1"
+  sha: abc
+  hash: def
+  imagePullPolicy: Always
+`,
+			want: []valuesImage{{Path: "image", Image: "rancher/a:1"}},
+		},
+		{
+			name: "paths through maps and lists",
+			values: `
+containers:
+  - image:
+      repository: rancher/a
+      tag: "1"
+  - image:
+      repository: rancher/b
+      tag: "2"
+`,
+			want: []valuesImage{
+				{Path: "containers[0].image", Image: "rancher/a:1"},
+				{Path: "containers[1].image", Image: "rancher/b:2"},
+			},
+		},
+		{
+			name: "the same image twice is found twice",
+			values: `
+a:
+  repository: rancher/x
+  tag: "1"
+b:
+  repository: rancher/x
+  tag: "1"
+`,
+			want: []valuesImage{
+				{Path: "a", Image: "rancher/x:1"},
+				{Path: "b", Image: "rancher/x:1"},
+			},
+		},
+		{
+			name: "blocks with no image configured and broken blocks are not images",
+			values: `
+none:
+  repository: ""
+  tag: ""
+broken:
+  repository: rancher/a
+flat:
+  image: rancher/b:1
+`,
+		},
+		{
+			name: "top level image",
+			values: `
+repository: rancher/a
+tag: "1"
+`,
+			want: []valuesImage{{Path: "", Image: "rancher/a:1"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			images, _ := scanValues(parseValues(t, tt.values))
+			require.Equal(t, tt.want, images)
 		})
 	}
 }

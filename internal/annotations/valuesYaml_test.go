@@ -139,7 +139,28 @@ image:
 `,
 		},
 		{
-			name: "a blank image string means no image",
+			name: "a key called image that holds a string is not an image",
+			values: `
+testReceiver:
+  image: fluent/fluent-bit
+`,
+		},
+		{
+			name: "a flat string with a tag is not an image either",
+			values: `
+image: rancher/a:1
+`,
+		},
+		{
+			name: "a flat string with a registry",
+			values: `
+defaultChannels:
+  base:
+    image: registry.suse.com/rancher/elemental-channel/sl-micro:6.2-base
+`,
+		},
+		{
+			name: "a blank image string",
 			values: `
 image: ""
 `,
@@ -270,40 +291,6 @@ image:
 			want: []string{`values.yaml image: "repository" and "tag" must be strings`},
 		},
 
-		// Flat image strings.
-		{
-			name: "flat image string",
-			values: `
-testReceiver:
-  image: fluent/fluent-bit
-`,
-			want: []string{`values.yaml testReceiver.image: image "fluent/fluent-bit" must be written with "repository" and "tag" keys`},
-		},
-		{
-			name: "flat image string with a tag",
-			values: `
-testReceiver:
-  image: fluent/fluent-bit:1.9
-`,
-			want: []string{`values.yaml testReceiver.image: image "fluent/fluent-bit:1.9" must be written with "repository" and "tag" keys`},
-		},
-		{
-			name: "flat image string with a registry",
-			values: `
-defaultChannels:
-  base:
-    image: registry.suse.com/rancher/elemental-channel/sl-micro:6.2-base
-`,
-			want: []string{`values.yaml defaultChannels.base.image: image "registry.suse.com/rancher/elemental-channel/sl-micro:6.2-base" must be written with "repository" and "tag" keys`},
-		},
-		{
-			name: "flat image string at the top level",
-			values: `
-image: rancher/a:1
-`,
-			want: []string{`values.yaml image: image "rancher/a:1" must be written with "repository" and "tag" keys`},
-		},
-
 		// Where the path points.
 		{
 			name: "problem at the top level",
@@ -356,7 +343,8 @@ sources:
 			name: "several problems",
 			values: `
 zeta:
-  image: rancher/z:1
+  image:
+    repository: rancher/z
 alpha:
   image:
     repository: rancher/a
@@ -368,7 +356,7 @@ middle:
 			want: []string{
 				`values.yaml alpha.image: "repository" is set but "tag" is empty`,
 				`values.yaml middle.image: "tag" is set but "repository" is empty`,
-				`values.yaml zeta.image: image "rancher/z:1" must be written with "repository" and "tag" keys`,
+				`values.yaml zeta.image: "repository" is set but "tag" is empty`,
 			},
 		},
 		{

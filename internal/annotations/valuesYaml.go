@@ -9,7 +9,8 @@ import (
 // checkValuesYaml reports the images in values.yaml that are not written with
 // a repository and a tag. An image is a map with a "repository" key. A map
 // with an empty repository and an empty tag has no image configured and is
-// skipped.
+// skipped. Other keys, including one called "image" that holds a string, are
+// not images and are ignored.
 func checkValuesYaml(values map[string]any) []string {
 	return valuesProblems(values, "")
 }
@@ -46,10 +47,6 @@ func mapProblems(m map[string]any, path string) []string {
 		childPath := key
 		if path != "" {
 			childPath = path + "." + key
-		}
-
-		if flat, isString := m[key].(string); isString && key == "image" && strings.TrimSpace(flat) != "" {
-			problems = append(problems, valuesProblem(childPath, `image %q must be written with "repository" and "tag" keys`, flat))
 		}
 		problems = append(problems, valuesProblems(m[key], childPath)...)
 	}

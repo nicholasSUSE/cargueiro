@@ -197,11 +197,19 @@ func run(t *testing.T, opts Options, name string, args ...string) Result {
 	return res
 }
 
+// ChartSource returns the source directory of a chart in tests/data/charts.
+// dataDir is the folder that holds the chart: "fleet" for fleet-agent.
+func ChartSource(t *testing.T, dataDir, chart string) string {
+	t.Helper()
+
+	return filepath.Join(RepoRoot(t), "tests", "data", "charts", dataDir, "src", chart)
+}
+
 // FleetSource returns the directory of a fleet chart's source.
 func FleetSource(t *testing.T, chart string) string {
 	t.Helper()
 
-	return filepath.Join(RepoRoot(t), "tests", "data", "charts", "fleet", "src", chart)
+	return ChartSource(t, "fleet", chart)
 }
 
 // FleetPublished returns the path of a fleet chart's published archive.

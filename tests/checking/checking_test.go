@@ -195,6 +195,38 @@ func TestRancherChartsBreakTheRules(t *testing.T) {
 	}
 }
 
+// TestNoErrorHIP15 checks that --no-error-hip-15 changes the exit code of a
+// chart whose only errors are HIP-15 ones, and nothing that is printed on
+// stdout.
+func TestNoErrorHIP15(t *testing.T) {
+	t.Run("HIP-15 errors only", func(t *testing.T) {
+		dir := harness.ChartSource(t, "system-upgrade-controller", "system-upgrade-controller")
+
+		failing := harness.Cargueiro(t, t.TempDir(), "check", "chart", dir, "--output", "json")
+		require.Equal(t, 1, failing.ExitCode)
+
+		res := harness.Cargueiro(t, t.TempDir(), "check", "chart", dir, "--output", "json", "--no-error-hip-15")
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Equal(t, failing.Stdout, res.Stdout)
+		require.Equal(t, "chart is not valid (HIP-15 errors ignored by --no-error-hip-15)\n", res.Stderr)
+
+		var got check.Result
+		require.NoError(t, json.Unmarshal([]byte(res.Stdout), &got))
+		require.False(t, got.Valid)
+		require.True(t, got.Annotations.Valid)
+		require.False(t, got.HIP15Annotations.Valid)
+	})
+
+	t.Run("annotation errors still fail", func(t *testing.T) {
+		dir := harness.ChartSource(t, "longhorn", "longhorn")
+
+		res := harness.Cargueiro(t, t.TempDir(), "check", "chart", dir, "--output", "json", "--no-error-hip-15")
+		require.Equal(t, 1, res.ExitCode)
+		require.Contains(t, res.Stderr, "chart is not valid")
+		require.NotContains(t, res.Stderr, "ignored")
+	})
+}
+
 func TestTextOutput(t *testing.T) {
 	t.Run("valid chart", func(t *testing.T) {
 		res := harness.Cargueiro(t, t.TempDir(), "check", "chart", harness.FleetSource(t, "fleet"))

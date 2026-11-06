@@ -32,15 +32,21 @@ func TestParse(t *testing.T) {
 		{
 			name: "elemental",
 			want: Chart{
-				Name: "elemental", Kind: "main", Family: "elemental",
-				ReleaseName: "elemental-operator", Required: []string{"release-name", "kube-version"},
+				Name:        "elemental",
+				Kind:        "main",
+				Family:      "elemental",
+				ReleaseName: "elemental-operator",
+				Required:    []string{"release-name", "kube-version"},
 			},
 		},
 		{
 			name: "elemental-crd",
 			want: Chart{
-				Name: "elemental-crd", Kind: "crd", Family: "elemental",
-				ReleaseName: "elemental-crd", Required: []string{"hidden"},
+				Name:        "elemental-crd",
+				Kind:        "crd",
+				Family:      "elemental",
+				ReleaseName: "elemental-crd",
+				Required:    []string{"hidden"},
 			},
 		},
 	}
@@ -61,9 +67,18 @@ func TestFindUnlistedChart(t *testing.T) {
 		name  string
 		chart string
 	}{
-		{name: "a chart that is not in the file", chart: "epinio"},
-		{name: "different case", chart: "Elemental"},
-		{name: "empty name", chart: ""},
+		{
+			name:  "a chart that is not in the file",
+			chart: "epinio",
+		},
+		{
+			name:  "different case",
+			chart: "Elemental",
+		},
+		{
+			name:  "empty name",
+			chart: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,59 +95,146 @@ func TestParseRejects(t *testing.T) {
 		in      string
 		wantErr string
 	}{
-		{name: "empty file", in: "", wantErr: "empty file"},
-		{name: "not yaml", in: "kinds: [", wantErr: "did not find expected node content"},
-		{name: "unknown top-level key", in: "kind: {}\n", wantErr: "field kind not found"},
 		{
-			name:    "unknown chart key",
-			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n    charts:\n      - {name: a, kind: main, colour: red}\n",
+			name:    "empty file",
+			in:      "",
+			wantErr: "empty file",
+		},
+		{
+			name:    "not yaml",
+			in:      "kinds: [",
+			wantErr: "did not find expected node content",
+		},
+		{
+			name: "unknown top-level key",
+			in: `
+kind: {}
+`,
+			wantErr: "field kind not found",
+		},
+		{
+			name: "unknown chart key",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, colour: red}
+`,
 			wantErr: "field colour not found",
 		},
-		{name: "unknown kind", in: "kinds: {other: {}}\n", wantErr: `unknown kind "other"`},
-		{name: "no charts at all", in: "kinds: {main: {}}\n", wantErr: "no charts listed"},
 		{
-			name:    "family without a name",
-			in:      "kinds: {main: {}}\nfamilies:\n  - charts:\n      - {name: a, kind: main}\n",
+			name: "unknown kind",
+			in: `
+kinds: {other: {}}
+`,
+			wantErr: `unknown kind "other"`,
+		},
+		{
+			name: "no charts at all",
+			in: `
+kinds: {main: {}}
+`,
+			wantErr: "no charts listed",
+		},
+		{
+			name: "family without a name",
+			in: `
+kinds: {main: {}}
+families:
+  - charts:
+      - {name: a, kind: main}
+`,
 			wantErr: "a family has no name",
 		},
 		{
-			name:    "family without charts",
-			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n",
+			name: "family without charts",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+`,
 			wantErr: `family "a" has no charts`,
 		},
 		{
-			name:    "chart without a name",
-			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n    charts:\n      - {kind: main}\n",
+			name: "chart without a name",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {kind: main}
+`,
 			wantErr: `family "a" has a chart with no name`,
 		},
 		{
-			name:    "undefined kind",
-			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n    charts:\n      - {name: a, kind: other}\n",
+			name: "undefined kind",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: other}
+`,
 			wantErr: `chart "a" has undefined kind "other"`,
 		},
 		{
-			name:    "chart without a kind",
-			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n    charts:\n      - {name: a}\n",
+			name: "chart without a kind",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a}
+`,
 			wantErr: `chart "a" has no kind`,
 		},
 		{
-			name:    "chart listed twice in one family",
-			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n    charts:\n      - {name: a, kind: main}\n      - {name: a, kind: main}\n",
+			name: "chart listed twice in one family",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main}
+      - {name: a, kind: main}
+`,
 			wantErr: `chart "a" is listed twice`,
 		},
 		{
-			name:    "chart listed in two families",
-			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n    charts:\n      - {name: x, kind: main}\n  - family: b\n    charts:\n      - {name: x, kind: main}\n",
+			name: "chart listed in two families",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: x, kind: main}
+  - family: b
+    charts:
+      - {name: x, kind: main}
+`,
 			wantErr: `chart "x" is listed twice`,
 		},
 		{
-			name:    "empty annotation name",
-			in:      "kinds: {main: {required: ['']}}\nfamilies:\n  - family: a\n    charts:\n      - {name: a, kind: main}\n",
+			name: "empty annotation name",
+			in: `
+kinds: {main: {required: ['']}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main}
+`,
 			wantErr: `kind "main": empty annotation name`,
 		},
 		{
-			name:    "annotation required twice",
-			in:      "kinds: {main: {required: [hidden, hidden]}}\nfamilies:\n  - family: a\n    charts:\n      - {name: a, kind: main}\n",
+			name: "annotation required twice",
+			in: `
+kinds: {main: {required: [hidden, hidden]}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main}
+`,
 			wantErr: `kind "main": annotation "hidden" is required twice`,
 		},
 	}
@@ -163,7 +265,12 @@ func TestRepositoryConfig(t *testing.T) {
 // TestParseReportsTheSameKindEveryTime keeps the error stable when several
 // kinds are wrong: Go ranges over a map in random order.
 func TestParseReportsTheSameKindEveryTime(t *testing.T) {
-	const in = "kinds:\n  zeta: {}\n  alpha: {}\n  middle: {}\n"
+	const in = `
+kinds:
+  zeta: {}
+  alpha: {}
+  middle: {}
+`
 
 	for range 20 {
 		cfg, err := Parse([]byte(in))
@@ -175,7 +282,18 @@ func TestParseReportsTheSameKindEveryTime(t *testing.T) {
 // TestChartsOfAKindDoNotShareRequired makes sure that a caller who changes the
 // Required list of one chart does not change it for the others.
 func TestChartsOfAKindDoNotShareRequired(t *testing.T) {
-	cfg, err := Parse([]byte("kinds:\n  main:\n    required: [release-name]\nfamilies:\n  - family: a\n    charts:\n      - {name: a, kind: main}\n      - {name: b, kind: main}\n"))
+	const in = `
+kinds:
+  main:
+    required: [release-name]
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main}
+      - {name: b, kind: main}
+`
+
+	cfg, err := Parse([]byte(in))
 	require.NoError(t, err)
 	a, err := cfg.Find("a")
 	require.NoError(t, err)

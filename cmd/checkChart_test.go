@@ -277,3 +277,42 @@ func TestCheckChartFailsWithoutPrinting(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckChartNoErrorHIP15 checks that the flag changes the exit code and
+// nothing in what is printed on stdout.
+func TestCheckChartNoErrorHIP15(t *testing.T) {
+	const ignored = "chart is not valid (HIP-15 errors ignored by --no-error-hip-15)\n"
+
+	onlyHIP15 := writeChartDir(t, validChartYAML, imagesValuesYAML)
+	annotationsToo := writeChartDir(t, noCertifiedChartYAML, imagesValuesYAML)
+	valid := writeChartDir(t, validChartYAML, "a: 1\n")
+
+	for _, format := range []string{"text", "json"} {
+		t.Run("only HIP-15 errors, "+format, func(t *testing.T) {
+			withoutFlag, _, err := runCheck(t, onlyHIP15, "--output", format)
+			require.ErrorContains(t, err, "chart is not valid")
+
+			stdout, stderr, err := runCheck(t, onlyHIP15, "--output", format, "--no-error-hip-15")
+			require.NoError(t, err)
+			require.Equal(t, withoutFlag, stdout)
+			require.Equal(t, ignored, stderr)
+		})
+
+		t.Run("annotation errors still fail, "+format, func(t *testing.T) {
+			withoutFlag, _, err := runCheck(t, annotationsToo, "--output", format)
+			require.ErrorContains(t, err, "chart is not valid")
+
+			stdout, stderr, err := runCheck(t, annotationsToo, "--output", format, "--no-error-hip-15")
+			require.ErrorContains(t, err, "chart is not valid")
+			require.Equal(t, withoutFlag, stdout)
+			require.Empty(t, stderr)
+		})
+
+		t.Run("valid chart prints no message, "+format, func(t *testing.T) {
+			stdout, stderr, err := runCheck(t, valid, "--output", format, "--no-error-hip-15")
+			require.NoError(t, err)
+			require.NotEmpty(t, stdout)
+			require.Empty(t, stderr)
+		})
+	}
+}

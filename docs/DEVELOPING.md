@@ -146,6 +146,7 @@ Each kind has one function in `internal/annotations` (`ValidateMainChart`, `Vali
 |---------|--------|--------|------|
 | Valid chart | the result | | 0 |
 | Violations | the result | `chart is not valid` | 1 |
+| Only `helm.sh/images` violations, with `--no-error-hip-15` | the result, unchanged | `chart is not valid (HIP-15 errors ignored by --no-error-hip-15)` | 0 |
 | Unreadable directory or file, bad YAML, chart not in `rules.yaml`, unknown `--output` | | the error | 1 |
 
 The result has the same fields as text and as JSON (`--output json`): the chart, its kind and family, `valid`, a few `Chart.yaml` fields, and two sections, `annotations` and `hip15-annotations`, each with its own `valid` and an `errors` list. Both sections always run. Annotation values are never printed, except `kubeVersion` in the metadata, which is the `catalog.cattle.io/kube-version` annotation and not Helm's own `kubeVersion` field. In `internal/check`, `Result` carries the JSON tags, and `Metadata` is its own struct so that the loader's type does not decide the output.

@@ -22,15 +22,17 @@ const (
 
 func newCheckChartCmd(opts *rootOptions) (*cobra.Command, error) {
 	var output string
+	var noErrorHIP15 bool
 
 	cmd := &cobra.Command{
 		Use:  "chart <chart-dir>",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkChart(cmd, opts, args[0], output)
+			return checkChart(cmd, opts, args[0], output, noErrorHIP15)
 		},
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", outputText, "output format: text or json")
+	cmd.Flags().BoolVar(&noErrorHIP15, "no-error-hip-15", false, "do not fail because of helm.sh/images (HIP-15) errors")
 	if err := applyDoc(cmd, "check-chart"); err != nil {
 		return nil, err
 	}
@@ -40,7 +42,9 @@ func newCheckChartCmd(opts *rootOptions) (*cobra.Command, error) {
 
 // checkChart checks the chart in dir and prints the result. A chart that breaks
 // the rules is printed and then reported as an error, so the exit code is 1.
-func checkChart(cmd *cobra.Command, opts *rootOptions, dir, output string) error {
+// With noErrorHIP15, a chart whose only errors are HIP-15 ones is printed the
+// same way, and the exit code is 0.
+func checkChart(cmd *cobra.Command, opts *rootOptions, dir, output string, noErrorHIP15 bool) error {
 	if output != outputText && output != outputJSON {
 		return fmt.Errorf("unknown output format %q, want %s or %s", output, outputText, outputJSON)
 	}
@@ -62,8 +66,12 @@ func checkChart(cmd *cobra.Command, opts *rootOptions, dir, output string) error
 	if err := printResult(cmd.OutOrStdout(), result, output); err != nil {
 		return fmt.Errorf("write result: %w", err)
 	}
-	if !result.Valid {
+	if result.Fails(noErrorHIP15) {
 		return errors.New("chart is not valid")
+	}
+	if !result.Valid {
+		_, err := fmt.Fprintln(cmd.ErrOrStderr(), "chart is not valid (HIP-15 errors ignored by --no-error-hip-15)")
+		return err
 	}
 	return nil
 }

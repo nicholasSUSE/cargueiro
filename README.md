@@ -16,6 +16,7 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 <!-- COMMANDS:START -->
 | Command | Description |
 |---------|-------------|
+| [`check`](cmd/docs/check.md) | Check that a chart follows the Rancher chart rules. |
 | [`package`](cmd/docs/package.md) | Package a Helm chart into a .tgz archive. |
 | [`push`](cmd/docs/push.md) | Push a packaged Helm chart to an OCI registry. |
 | [`registry`](cmd/docs/registry.md) | Manage the registry login cargueiro saves. |

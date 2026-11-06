@@ -83,7 +83,11 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd)
+	checkCmd, err := newCheckCmd()
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd)
 
 	return root, nil
 }

@@ -4,20 +4,12 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 // checkKubeVersion reports a kube-version annotation that is not a bounded range of
 // Kubernetes versions. An absent or blank one is left to checkMissing.
 func checkKubeVersion(annotations map[string]string) []string {
-	value := annotations[prefix+"kube-version"]
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	if err := kubeVersion(value); err != nil {
-		return []string{fmt.Sprintf("%skube-version %q: %v", prefix, value, err)}
-	}
-	return nil
+	return checkValue(annotations, "kube-version", kubeVersion)
 }
 
 // kubeVersionRange matches a range with both bounds: ">= 1.34.0-0 < 1.37.0-0". The
@@ -28,7 +20,7 @@ var kubeVersionRange = regexp.MustCompile(`^>=\s*(\d+)\.(\d+)\.(\d+)-0\s*<\s*(\d
 // kubeVersion returns an error unless value is a range with a lower and
 // an upper bound, the lower below the upper.
 func kubeVersion(value string) error {
-	m := kubeVersionRange.FindStringSubmatch(strings.TrimSpace(value))
+	m := kubeVersionRange.FindStringSubmatch(value)
 	if m == nil {
 		return fmt.Errorf("must look like %q", ">= 1.34.0-0 < 1.37.0-0")
 	}

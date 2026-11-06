@@ -20,7 +20,7 @@ func TestCheckHidden(t *testing.T) {
 		{name: "false", value: "false", want: []string{`catalog.cattle.io/hidden "false": must be "true"`}},
 		{name: "yes", value: "yes", want: []string{`catalog.cattle.io/hidden "yes": must be "true"`}},
 		{name: "different case", value: "True", want: []string{`catalog.cattle.io/hidden "True": must be "true"`}},
-		{name: "surrounding space", value: " true", want: []string{`catalog.cattle.io/hidden " true": must be "true"`}},
+		{name: "surrounding space is ignored", value: " true  "},
 		{name: "number", value: "1", want: []string{`catalog.cattle.io/hidden "1": must be "true"`}},
 	}
 	for _, tt := range tests {

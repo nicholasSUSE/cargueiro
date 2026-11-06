@@ -1,21 +1,21 @@
 # CI
 
-GitHub Actions checks every pull request and every push to `main`. The workflow is `.github/workflows/ci.yml`. It runs the same `make` targets as a developer, so a failure in CI can be reproduced locally with the command named in the failing step.
+GitHub Actions checks every pull request and every push to `main`. The workflow lives in `.github/workflows`. It runs the same `make` targets as a developer, so a failure in CI can be reproduced locally with the command named in the failing step.
 
 ## What runs
 
-Three jobs run in parallel on `ubuntu-latest`. Linux is the only platform checked.
+The checks run as separate jobs, in parallel, on a Linux runner. Linux is the only platform checked.
 
-| Job | Step | Command | Fails when |
-|-----|------|---------|------------|
-| `static` | Format | `make fmt`, then `git diff --exit-code` | formatting changed any file |
-| `static` | Lint | `make lint` | golangci-lint reports a finding |
-| `static` | Vet | `make vet` | `go vet` reports a finding (with the `e2e` tag) |
-| `static` | Docs | `make docs`, then `git diff --exit-code` | the README commands table is stale |
-| `unit` | Unit tests | `make test-unit` | a test fails (race detector on) |
-| `e2e` | E2E tests | `make test-e2e` | an e2e test fails |
+| Step | Command | Fails when |
+|------|---------|------------|
+| Format | `make fmt`, then `git diff --exit-code` | formatting changed any file |
+| Lint | `make lint` | golangci-lint reports a finding |
+| Vet | `make vet` | `go vet` reports a finding (with the `e2e` tag) |
+| Docs | `make docs`, then `git diff --exit-code` | the README commands table is stale |
+| Unit tests | `make test-unit` | a test fails (race detector on) |
+| E2E tests | `make test-e2e` | an e2e test fails |
 
-The unit tests start nothing, so they have a job of their own and finish while the e2e tests are still running. `make test-e2e` builds the binary and starts the two local `registry:2` registries with the Docker on the runner. It stops them again, even when a test fails.
+The unit tests start nothing, so they run in a job of their own and do not wait for the e2e tests. `make test-e2e` builds the binary and starts the local registries with the Docker on the runner. It stops them again, even when a test fails.
 
 ## Tool versions
 
@@ -50,4 +50,6 @@ Start from a clean tree, so that `git diff` shows only what the commands changed
 
 ## Branch protection
 
-CI reports a result; it does not stop a merge. To require it, mark the `static`, `unit` and `e2e` checks as required in the repository's branch protection rules for `main`. That is a repository setting, not part of the workflow.
+CI reports a result; it does not stop a merge. To require it, mark the workflow's checks as required in the repository's rules for `main`. That is a repository setting, not part of the workflow.
+
+A required check is matched by the name of its job. Renaming a job in the workflow means updating the rule, or the old name stays required and no pull request can merge.

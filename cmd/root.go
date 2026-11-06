@@ -83,7 +83,7 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	checkCmd, err := newCheckCmd()
+	checkCmd, err := newCheckCmd(opts)
 	if err != nil {
 		return nil, err
 	}

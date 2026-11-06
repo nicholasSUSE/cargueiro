@@ -8,6 +8,9 @@ import "strings"
 //   - every well-formed annotation entry that is not in values.yaml must name
 //     the subchart it belongs to in "dependency".
 //
+// Both rules are Rancher policy. HIP-15 says nothing about values.yaml and
+// keeps dependency optional.
+//
 // An annotation that cannot be read is left to
 // checkDependenciesAnnotationStandard, which reports it.
 func checkDependenciesMatch(annotations map[string]string, images []valuesImage) []string {

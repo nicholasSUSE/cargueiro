@@ -1,5 +1,6 @@
 // Package annotations checks the catalog annotations of a chart against the
-// rules of its kind.
+// rules of its kind. The helm.sh/images checks follow Helm HIP-15 and add
+// Rancher policy where the comments say so.
 package annotations
 
 import (

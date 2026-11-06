@@ -26,6 +26,10 @@ func ValidateHelmImages(annotations map[string]string, values map[string]any) []
 // checkDependenciesAnnotationStandard reports an annotation that is not a list of entries
 // with a unique name and an image written repository:tag. An absent or blank
 // annotation is left to checkDependenciesMatch, which compares it with values.yaml.
+//
+// HIP-15 asks for a list of entries with a name and an image. Rancher policy
+// adds that names are unique (HIP-15 allows repeats, as in its Kafka example)
+// and that every image has a tag (HIP-15 only says "a location").
 func checkDependenciesAnnotationStandard(annotations map[string]string) []string {
 	value := annotations[imageDependenciesAnnotation]
 	if strings.TrimSpace(value) == "" {
@@ -48,6 +52,7 @@ func checkDependenciesAnnotationStandard(annotations map[string]string) []string
 		case name == "":
 			problems = append(problems, entryProblem(n, "name must be a non-empty string"))
 		case nameUsed:
+			// Rancher policy: HIP-15 allows the same name more than once.
 			problems = append(problems, entryProblem(n, "name %q is already used by entry %d", name, first))
 		default:
 			firstUse[name] = n
@@ -96,7 +101,7 @@ func parseHelmImages(value string) ([]helmImageEntry, error) {
 }
 
 // helmImage returns an error unless image is written repository:tag, with a
-// tag. The registry is not looked at.
+// tag. The registry is not looked at. Requiring the tag is Rancher policy.
 func helmImage(image string) error {
 	if strings.ContainsAny(image, " \t\r\n") {
 		return fmt.Errorf(`must look like "repository:tag" without spaces`)

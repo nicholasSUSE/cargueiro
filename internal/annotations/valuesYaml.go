@@ -19,6 +19,9 @@ type valuesImage struct {
 // key. A map with an empty repository and an empty tag has no image configured
 // and is skipped. Other keys, including one called "image" that holds a
 // string, are not images and are ignored.
+//
+// HIP-15 says nothing about values.yaml: reading images from it is Rancher
+// policy.
 func scanValues(values map[string]any) ([]valuesImage, []string) {
 	var scan valuesScan
 	scan.walk(values, "")

@@ -45,9 +45,9 @@ func checkDependenciesAnnotationStandard(annotations map[string]string) []string
 		first, nameUsed := firstUse[name]
 		switch {
 		case name == "":
-			problems = append(problems, fmt.Sprintf("%s entry %d: name must be a non-empty string", imageDependenciesAnnotation, n))
+			problems = append(problems, entryProblem(n, "name must be a non-empty string"))
 		case nameUsed:
-			problems = append(problems, fmt.Sprintf("%s entry %d: name %q is already used by entry %d", imageDependenciesAnnotation, n, name, first))
+			problems = append(problems, entryProblem(n, "name %q is already used by entry %d", name, first))
 		default:
 			firstUse[name] = n
 		}
@@ -55,19 +55,25 @@ func checkDependenciesAnnotationStandard(annotations map[string]string) []string
 		imageErr := helmImage(image)
 		switch {
 		case image == "":
-			problems = append(problems, fmt.Sprintf("%s entry %d: image must be a non-empty string", imageDependenciesAnnotation, n))
+			problems = append(problems, entryProblem(n, "image must be a non-empty string"))
 		case imageErr != nil:
-			problems = append(problems, fmt.Sprintf("%s entry %d: image %q %v", imageDependenciesAnnotation, n, image, imageErr))
+			problems = append(problems, entryProblem(n, "image %q %v", image, imageErr))
 		}
 	}
 	return problems
 }
 
+// entryProblem describes a problem with entry number n of the annotation.
+func entryProblem(n int, format string, args ...any) string {
+	return fmt.Sprintf("%s entry %d: %s", imageDependenciesAnnotation, n, fmt.Sprintf(format, args...))
+}
+
 // helmImageEntry is one element of the helm.sh/images list. Other properties
 // are allowed by HIP-15 and ignored here.
 type helmImageEntry struct {
-	Name  string `yaml:"name"`
-	Image string `yaml:"image"`
+	Name       string `yaml:"name"`
+	Image      string `yaml:"image"`
+	Dependency string `yaml:"dependency"`
 }
 
 // parseHelmImages reads the annotation value as a list of entries.

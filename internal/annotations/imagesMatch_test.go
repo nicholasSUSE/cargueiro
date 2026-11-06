@@ -100,7 +100,7 @@ func TestCheckDependenciesMatch(t *testing.T) {
 			},
 		},
 		{
-			name:       "the listed image keeps its entry when the registry differs",
+			name:       "a registry on the annotation image makes it a different image",
 			annotation: "- name: a\n  image: registry.suse.com/rancher/a:1\n",
 			values:     "image:\n  repository: rancher/a\n  tag: \"1\"\n",
 			want: []string{

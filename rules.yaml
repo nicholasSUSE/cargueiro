@@ -1,7 +1,7 @@
-# DRAFT - for review, not wired to any code yet.
-#
-# Which charts exist and what kind each one is. `check` looks the chart name up
-# here and applies the rules of its kind. A chart that is not listed is an error.
+# Which charts cargueiro checks, the kind of each, and the annotations each kind
+# requires. internal/rules parses this file and internal/annotations applies it.
+# A chart that is not listed is an error. See "Chart annotation rules" in
+# docs/DEVELOPING.md.
 #
 # Data source: latest Chart.yaml of every chart in rancher/charts release-v2.15
 # (be246f515, 2026-10-29).

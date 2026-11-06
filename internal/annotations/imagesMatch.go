@@ -13,7 +13,9 @@ import "strings"
 // keeps dependency optional.
 //
 // An annotation that cannot be read is left to
-// checkDependenciesAnnotationStandard, which reports it.
+// checkDependenciesAnnotationStandard, which reports it. The images in
+// values.yaml are then not compared at all, so more problems can appear once
+// the annotation is fixed.
 func checkDependenciesMatch(annotations map[string]string, images []valuesImage) []string {
 	var entries []helmImageEntry
 	if value := annotations[imageDependenciesAnnotation]; strings.TrimSpace(value) != "" {

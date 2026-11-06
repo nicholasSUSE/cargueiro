@@ -124,7 +124,7 @@ Later features reuse these and only add their own pieces:
 | `crd` | a CRD chart | `release-name`, `certified`, `hidden` |
 | `extra` | a companion or add-on of a product chart | `certified`, `rancher-version`, `kube-version`, `permits-os` |
 
-`namespace` is optional for every kind. Besides being present, a value must be well formed:
+`namespace` is optional for every kind. Space around a value is ignored. Besides being present, a value must be well formed:
 
 | Annotation | Valid value | Kinds |
 |------------|-------------|-------|
@@ -134,11 +134,11 @@ Later features reuse these and only add their own pieces:
 | `kube-version`, `rancher-version` | both bounds, written `>= X.Y.Z-0 < X.Y.Z-0`, lower below upper | `main`, `extra` |
 | `permits-os` | `linux`, optionally with `windows`, comma separated | `main`, `extra` |
 
-Each kind has one function in `internal/annotations` (`ValidateMainChart`, `ValidateCRD`, `ValidateExtraChart`) that lists its checks. Each annotation has its own file with a `check<Name>` function that reads the annotation and a function that validates the value. To change a rule, edit that file; to add one to a kind, add a line to its function.
+Each kind has one function in `internal/annotations` (`ValidateMainChart`, `ValidateCRD`, `ValidateExtraChart`) that lists its checks. Each annotation has its own file with a `check<Name>` function that reads the annotation and a function that validates the value. To change a rule, edit that file. To require another annotation of a kind, list it under that kind in `rules.yaml`; to also check its value, add a line to the kind's function.
 
 ### helm.sh/images
 
-The `helm.sh/images` annotation follows [Helm HIP-15](https://github.com/helm/community/blob/main/hips/hip-0015.md), a draft, and adds Rancher policy on top. It runs for every kind. A chart whose `values.yaml` has no images needs no annotation.
+The `helm.sh/images` annotation follows [Helm HIP-15](https://github.com/helm/community/blob/main/hips/hip-0015.md), a draft, and adds Rancher policy on top. `ValidateHelmImages(annotations, values)` is meant to run for every kind, next to the kind's own validator, and takes the parsed `Chart.yaml` annotations and `values.yaml`. A chart whose `values.yaml` has no images needs no annotation.
 
 | Rule | Source |
 |------|--------|
@@ -146,12 +146,14 @@ The `helm.sh/images` annotation follows [Helm HIP-15](https://github.com/helm/co
 | `dependency` is optional and names the subchart an image belongs to | HIP-15 |
 | `name` is unique in the list | Rancher policy (HIP-15 allows repeats) |
 | `image` is written `repository:tag` | Rancher policy (HIP-15 only says "a location") |
-| An image in `values.yaml` is a map with a `repository` key. It needs a non-empty string `repository` and `tag`; both empty means no image | Rancher policy |
-| A key called `image` that holds a string is not an image and is ignored | Rancher policy |
-| Every image in `values.yaml` is listed in the annotation, compared as `repository:tag` without the registry | Rancher policy |
+| An image in `values.yaml` is a map with a `repository` key. It needs a non-empty string `repository` and `tag` (quote a numeric tag: `tag: 1.10` is rejected); both empty means no image | Rancher policy |
+| A string value under any key, including one called `image`, is not an image and is ignored | Rancher policy |
+| Every image in `values.yaml` is listed in the annotation, compared as `repository:tag` | Rancher policy |
 | An entry that is not in `values.yaml` has a non-empty `dependency`, whose value is not checked | Rancher policy |
 
-The registry is never part of a comparison, because the release process switches it between registries.
+The `registry` key beside a `repository` in `values.yaml` is never part of a comparison, because the release process switches it between registries. An annotation image is compared as written, so `registry.suse.com/rancher/a:1` does not match `repository: rancher/a` with `tag: "1"`.
+
+Known limits: a chart repository URL under a `repository` key is read as an image, `repo@sha256:...` passes the image format, and a null item in the annotation list is skipped by the YAML decoder, so entry numbers can shift.
 
 ## Linting
 

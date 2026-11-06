@@ -11,11 +11,13 @@ import (
 // imageDependenciesAnnotation is the annotation Helm HIP-15 defines for the images a chart uses.
 const imageDependenciesAnnotation = "helm.sh/images"
 
-// ValidateHelmImages checks the helm.sh/images annotation of a chart, which
-// every chart kind runs.
-func ValidateHelmImages(annotations map[string]string) []string {
+// ValidateHelmImages checks the helm.sh/images annotation of a chart and the
+// images in its values.yaml, which every chart kind runs. values is the parsed
+// values.yaml.
+func ValidateHelmImages(annotations map[string]string, values map[string]any) []string {
 	return collect(
 		checkDependenciesAnnotationStandard(annotations),
+		checkValuesYaml(values),
 	)
 }
 

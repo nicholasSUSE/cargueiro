@@ -72,6 +72,25 @@ func TestValidate(t *testing.T) {
 		{name: "extra bad certified", chart: extra, annotations: map[string]string{
 			"catalog.cattle.io/certified": "partner",
 		}, want: []string{`catalog.cattle.io/certified "partner": must be "rancher"`}},
+		{name: "crd bad hidden", chart: crd, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet-crd",
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/hidden":       "yes",
+		}, want: []string{`catalog.cattle.io/hidden "yes": must be "true"`}},
+		{name: "crd hidden false", chart: crd, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet-crd",
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/hidden":       "false",
+		}, want: []string{`catalog.cattle.io/hidden "false": must be "true"`}},
+		{name: "main does not check hidden", chart: main, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet",
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/hidden":       "yes",
+		}},
+		{name: "extra does not check hidden", chart: extra, annotations: map[string]string{
+			"catalog.cattle.io/certified": "rancher",
+			"catalog.cattle.io/hidden":    "yes",
+		}},
 		{name: "crd does not check rancher-version", chart: crd, annotations: map[string]string{
 			"catalog.cattle.io/release-name":    "fleet-crd",
 			"catalog.cattle.io/certified":       "rancher",

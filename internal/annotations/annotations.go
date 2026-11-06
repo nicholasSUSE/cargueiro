@@ -44,6 +44,7 @@ func ValidateCRD(chart rules.Chart, annotations map[string]string) []string {
 		checkMissing(chart, annotations),
 		checkReleaseName(chart, annotations),
 		checkCertified(annotations),
+		checkHidden(annotations),
 	)
 }
 

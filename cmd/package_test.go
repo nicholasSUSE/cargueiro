@@ -120,7 +120,7 @@ func TestPackageCmdEndToEnd(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "out")
 
 	var out, errOut bytes.Buffer
-	root, err := NewRootCmd(&out, &errOut)
+	root, err := NewRootCmd(&out, &errOut, nil)
 	require.NoError(t, err)
 	root.SetArgs([]string{"package", "../internal/chart/testdata/valid", "-o", dest})
 
@@ -128,7 +128,7 @@ func TestPackageCmdEndToEnd(t *testing.T) {
 	require.Equal(t, filepath.Join(dest, "valid-0.1.0.tgz")+"\n", out.String())
 
 	// The real packager rejects a directory that is not a chart.
-	root, err = NewRootCmd(&out, &errOut)
+	root, err = NewRootCmd(&out, &errOut, nil)
 	require.NoError(t, err)
 	root.SetArgs([]string{"package", "../internal/chart/testdata/noyaml", "-o", dest})
 	require.ErrorContains(t, root.Execute(), "no Chart.yaml found")

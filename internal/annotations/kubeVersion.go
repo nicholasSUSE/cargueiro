@@ -6,6 +6,12 @@ import (
 	"strconv"
 )
 
+// KubeVersionAnnotation returns the kube-version annotation, without
+// surrounding space, or "" when there is none.
+func KubeVersionAnnotation(annotations map[string]string) string {
+	return annotationValue(annotations, "kube-version")
+}
+
 // checkKubeVersion reports a kube-version annotation that is not a bounded range of
 // Kubernetes versions. An absent or blank one is left to checkMissing.
 func checkKubeVersion(annotations map[string]string) []string {

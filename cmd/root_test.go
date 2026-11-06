@@ -23,7 +23,7 @@ func TestRootCmd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			root, err := NewRootCmd(&stdout, &stderr)
+			root, err := NewRootCmd(&stdout, &stderr, nil)
 			require.NoError(t, err)
 			root.SetArgs(tt.args)
 

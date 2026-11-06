@@ -118,6 +118,8 @@ Later features reuse these and only add their own pieces:
 
 `rules.yaml` at the repository root lists every chart cargueiro checks, the kind of each, and the annotations each kind requires. `internal/rules` parses it and `internal/annotations` validates a chart's annotations against it. A chart the file does not list is an error. The validators take parsed data and do no file I/O.
 
+The file is compiled into the binary: `main.go` embeds it with `//go:embed` and hands the bytes to `cmd`. Changing a rule means rebuilding and releasing cargueiro. `cargueiro check chart` is what runs the rules.
+
 | Kind | Chart | Required annotations (under `catalog.cattle.io/`) |
 |------|-------|---------------------------------------------------|
 | `main` | a product chart, with or without a `-crd` sibling | `release-name`, `certified`, `rancher-version`, `kube-version`, `permits-os` |
@@ -135,6 +137,19 @@ Later features reuse these and only add their own pieces:
 | `permits-os` | `linux`, optionally with `windows`, comma separated | `main`, `extra` |
 
 Each kind has one function in `internal/annotations` (`ValidateMainChart`, `ValidateCRD`, `ValidateExtraChart`) that lists its checks. Each annotation has its own file with a `check<Name>` function that reads the annotation and a function that validates the value. To change a rule, edit that file. To require another annotation of a kind, list it under that kind in `rules.yaml`; to also check its value, add a line to the kind's function.
+
+### check chart
+
+`cargueiro check chart <chart-dir>` ties the pieces together: `internal/chart` reads `Chart.yaml` and `values.yaml` into memory (nothing else in the directory is read), `internal/check` finds the chart in the rules and runs the annotation checks and the `helm.sh/images` checks, and `cmd` prints the result.
+
+| Outcome | stdout | stderr | Exit |
+|---------|--------|--------|------|
+| Valid chart | the result | | 0 |
+| Violations | the result | `chart is not valid` | 1 |
+| Only `helm.sh/images` violations, with `--no-error-hip-15` | the result, unchanged | `chart is not valid (HIP-15 errors ignored by --no-error-hip-15)` | 0 |
+| Unreadable directory or file, bad YAML, chart not in `rules.yaml`, unknown `--output` | | the error | 1 |
+
+The result has the same fields as text and as JSON (`--output json`): `valid`, two sections, `annotations` and `hip15-annotations`, each with its own `valid` and an `errors` list, and then the chart, its kind and family, and a few `Chart.yaml` fields. Both sections always run. Annotation values are never printed, except `kubeVersion` in the metadata, which is the `catalog.cattle.io/kube-version` annotation and not Helm's own `kubeVersion` field. In `internal/check`, `Result` carries the JSON tags, and `Metadata` is its own struct so that the loader's type does not decide the output.
 
 ### helm.sh/images
 
@@ -234,11 +249,18 @@ After changing a doc, run `make docs` to refresh the README table. `make test` f
 ```json
 {
   "go.buildTags": "e2e",
-  "go.lintTool": "golangci-lint-v2"
+  "go.lintTool": "golangci-lint-v2",
+  "go.testEnvVars": {
+    "PATH": "<home>/.local/share/mise/shims:${env:PATH}"
+  }
 }
 ```
 
-Without `go.buildTags`, running an e2e test from the editor fails with `build constraints exclude all Go files`, because the e2e files carry the `e2e` build tag. E2E tests also need the pinned `helm` on `PATH`, so start VSCode from a shell where mise is activated (for example `code .`).
+Without `go.buildTags`, running an e2e test from the editor fails with `build constraints exclude all Go files`, because the e2e files carry the `e2e` build tag.
+
+E2E tests also need the pinned `helm` on `PATH`. If another `helm` comes first (a Homebrew one, for example), the test fails with `helm CLI on PATH differs from the helm SDK in go.mod`. `go.testEnvVars` puts the mise shims first for the tests run from the editor, so replace `<home>` with your home directory. Starting VSCode from a shell where mise is activated (for example `code .`) works too.
+
+The tests in `tests/pushing` and `tests/login` also need the local registries: run `make registry-up` before running them from the editor, and `make registry-down` after.
 
 ## Debugging (VSCode)
 
@@ -295,7 +317,9 @@ E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`
 
 `tests/login` logs in and out of the local registries over HTTP and TLS and checks what `push` does with what was saved: a second login is refused until logout, explicit credentials win, a wrong password saves nothing, logout forgets everything, and the file is private.
 
-Test data is committed by hand, never fetched by a script. See `tests/data/charts/fleet/PROVENANCE.md` for where it came from. Nothing under `tests/` is embedded in the binary.
+`tests/checking` runs `check chart` on real SUSE charts and checks the exact output. The fleet charts pass. `rancher-monitoring` (the largest `values.yaml`), `rancher-monitoring-crd`, `longhorn`, `rancher-webhook` and `system-upgrade-controller` fail, because they carry no `helm.sh/images` annotation, and `longhorn` and `rancher-webhook` also have a `kube-version` without both bounds. Their fixtures keep only `Chart.yaml` and `values.yaml`, the two files `check` reads. It also covers the text output and every case that prints nothing on stdout.
+
+Test data is committed by hand, never fetched by a script. See the `PROVENANCE.md` next to each chart in `tests/data/charts/` for where it came from. Nothing under `tests/` is embedded in the binary.
 
 ## Local registries
 

@@ -39,7 +39,7 @@ func documented(root *cobra.Command) map[string]*cobra.Command {
 }
 
 func TestEveryCommandHasADocAndViceVersa(t *testing.T) {
-	root, err := NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{})
+	root, err := NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{}, nil)
 	require.NoError(t, err)
 
 	var commands []string
@@ -54,7 +54,7 @@ func TestEveryCommandHasADocAndViceVersa(t *testing.T) {
 }
 
 func TestEveryLocalFlagIsDocumented(t *testing.T) {
-	root, err := NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{})
+	root, err := NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{}, nil)
 	require.NoError(t, err)
 
 	for name, c := range documented(root) {
@@ -75,7 +75,7 @@ func TestEveryLocalFlagIsDocumented(t *testing.T) {
 
 func TestHelpComesFromEmbeddedDocs(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	root, err := NewRootCmd(&stdout, &stderr)
+	root, err := NewRootCmd(&stdout, &stderr, nil)
 	require.NoError(t, err)
 	root.SetArgs([]string{"package", "--help"})
 

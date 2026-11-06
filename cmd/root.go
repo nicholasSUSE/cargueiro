@@ -24,6 +24,8 @@ type rootOptions struct {
 	openStore func() (*auth.Store, error)
 	// prompt asks the user for input.
 	prompt prompter
+	// rules is the content of rules.yaml, which says what each chart must be.
+	rules []byte
 }
 
 // dependencies are the collaborators commands call, replaced in tests.
@@ -34,13 +36,14 @@ type dependencies struct {
 }
 
 // NewRootCmd builds the root command. Output streams are injected so
-// commands stay testable.
-func NewRootCmd(stdout, stderr io.Writer) (*cobra.Command, error) {
+// commands stay testable. rules is the content of rules.yaml.
+func NewRootCmd(stdout, stderr io.Writer, rules []byte) (*cobra.Command, error) {
 	opts := &rootOptions{
 		stderr:    stderr,
 		getenv:    os.Getenv,
 		openStore: defaultStore,
 		prompt:    newTerminalPrompter(os.Stdin, stderr),
+		rules:     rules,
 	}
 	return newRootCmd(stdout, stderr, opts, dependencies{
 		pkg:         chart.Package,
@@ -80,7 +83,11 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd)
+	checkCmd, err := newCheckCmd(opts)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd)
 
 	return root, nil
 }

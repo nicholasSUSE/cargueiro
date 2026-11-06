@@ -34,16 +34,32 @@ func rancherVersion(value string) error {
 		return fmt.Errorf("must look like %q", ">= 2.15.0-0 < 2.16.0-0")
 	}
 
-	var lower, upper [3]int
-	for i := range lower {
-		lower[i], _ = strconv.Atoi(m[1+i])
-		upper[i], _ = strconv.Atoi(m[4+i])
+	lower, err := rancherVersionNumbers(m[1:4])
+	if err != nil {
+		return err
+	}
+	upper, err := rancherVersionNumbers(m[4:7])
+	if err != nil {
+		return err
 	}
 	if !rancherLess(lower, upper) {
 		return fmt.Errorf("lower bound %d.%d.%d-0 must be below upper bound %d.%d.%d-0",
 			lower[0], lower[1], lower[2], upper[0], upper[1], upper[2])
 	}
 	return nil
+}
+
+// rancherVersionNumbers reads the major, minor and patch numbers of a version.
+func rancherVersionNumbers(parts []string) ([3]int, error) {
+	var numbers [3]int
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return numbers, fmt.Errorf("version number %q is too large", part)
+		}
+		numbers[i] = n
+	}
+	return numbers, nil
 }
 
 // rancherLess reports whether Rancher version a is below b. Versions are

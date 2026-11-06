@@ -110,7 +110,8 @@ func parseHelmImages(value string) ([]helmImageEntry, error) {
 }
 
 // helmImage returns an error unless image is written repository:tag, with a
-// tag. The registry is not looked at. Requiring the tag is Rancher policy.
+// tag and no empty part between slashes in the repository. The registry is
+// not looked at. Requiring the tag is Rancher policy.
 func helmImage(image string) error {
 	if strings.ContainsAny(image, " \t\r\n") {
 		return fmt.Errorf(`must look like "repository:tag" without spaces`)
@@ -118,6 +119,11 @@ func helmImage(image string) error {
 	colon := strings.LastIndex(image, ":")
 	if colon <= 0 || colon < strings.LastIndex(image, "/") || colon == len(image)-1 {
 		return fmt.Errorf(`must look like "repository:tag"`)
+	}
+
+	repository := image[:colon]
+	if strings.HasPrefix(repository, "/") || strings.HasSuffix(repository, "/") || strings.Contains(repository, "//") {
+		return fmt.Errorf(`must look like "repository:tag" with no empty part in the repository`)
 	}
 	return nil
 }

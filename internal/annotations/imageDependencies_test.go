@@ -158,7 +158,7 @@ func TestCheckDependenciesAnnotationStandardInvalid(t *testing.T) {
 		noName   = key + " entry %d: name must be a non-empty string"
 		noImage  = key + " entry %d: image must be a non-empty string"
 	)
-	entryProblem := func(format string, n int) string { return fmt.Sprintf(format, n) }
+	formatted := func(format string, n int) string { return fmt.Sprintf(format, n) }
 
 	tests := []struct {
 		name  string
@@ -216,22 +216,22 @@ func TestCheckDependenciesAnnotationStandardInvalid(t *testing.T) {
 		{
 			name:  "name missing",
 			value: "- image: rancher/a:1\n",
-			want:  []string{entryProblem(noName, 1)},
+			want:  []string{formatted(noName, 1)},
 		},
 		{
 			name:  "name empty",
 			value: "- name: \"\"\n  image: rancher/a:1\n",
-			want:  []string{entryProblem(noName, 1)},
+			want:  []string{formatted(noName, 1)},
 		},
 		{
 			name:  "name blank",
 			value: "- name: \"   \"\n  image: rancher/a:1\n",
-			want:  []string{entryProblem(noName, 1)},
+			want:  []string{formatted(noName, 1)},
 		},
 		{
 			name:  "name null",
 			value: "- name: null\n  image: rancher/a:1\n",
-			want:  []string{entryProblem(noName, 1)},
+			want:  []string{formatted(noName, 1)},
 		},
 		{
 			name:  "name used twice",
@@ -256,22 +256,22 @@ func TestCheckDependenciesAnnotationStandardInvalid(t *testing.T) {
 		{
 			name:  "image missing",
 			value: "- name: a\n",
-			want:  []string{entryProblem(noImage, 1)},
+			want:  []string{formatted(noImage, 1)},
 		},
 		{
 			name:  "image empty",
 			value: "- name: a\n  image: \"\"\n",
-			want:  []string{entryProblem(noImage, 1)},
+			want:  []string{formatted(noImage, 1)},
 		},
 		{
 			name:  "image blank",
 			value: "- name: a\n  image: \"  \"\n",
-			want:  []string{entryProblem(noImage, 1)},
+			want:  []string{formatted(noImage, 1)},
 		},
 		{
 			name:  "image null",
 			value: "- name: a\n  image: null\n",
-			want:  []string{entryProblem(noImage, 1)},
+			want:  []string{formatted(noImage, 1)},
 		},
 		{
 			name:  "image without a tag",
@@ -299,6 +299,26 @@ func TestCheckDependenciesAnnotationStandardInvalid(t *testing.T) {
 			want:  []string{key + ` entry 1: image "rancher/a/" must look like "repository:tag"`},
 		},
 		{
+			name:  "image whose repository starts with a slash",
+			value: "- name: a\n  image: \"/rancher/a:1\"\n",
+			want:  []string{key + ` entry 1: image "/rancher/a:1" must look like "repository:tag" with no empty part in the repository`},
+		},
+		{
+			name:  "image whose repository ends with a slash",
+			value: "- name: a\n  image: \"rancher/:1\"\n",
+			want:  []string{key + ` entry 1: image "rancher/:1" must look like "repository:tag" with no empty part in the repository`},
+		},
+		{
+			name:  "image with a double slash",
+			value: "- name: a\n  image: \"rancher//a:1\"\n",
+			want:  []string{key + ` entry 1: image "rancher//a:1" must look like "repository:tag" with no empty part in the repository`},
+		},
+		{
+			name:  "image that is only a slash and a tag",
+			value: "- name: a\n  image: \"/:1\"\n",
+			want:  []string{key + ` entry 1: image "/:1" must look like "repository:tag" with no empty part in the repository`},
+		},
+		{
 			name:  "image with a space",
 			value: "- name: a\n  image: \"rancher/a: 1\"\n",
 			want:  []string{key + ` entry 1: image "rancher/a: 1" must look like "repository:tag" without spaces`},
@@ -313,14 +333,14 @@ func TestCheckDependenciesAnnotationStandardInvalid(t *testing.T) {
 		{
 			name:  "nothing in the entry",
 			value: "- foo: bar\n",
-			want:  []string{entryProblem(noName, 1), entryProblem(noImage, 1)},
+			want:  []string{formatted(noName, 1), formatted(noImage, 1)},
 		},
 		{
 			name:  "problems in different entries",
 			value: "- name: a\n  image: rancher/a\n- image: rancher/b:1\n- name: a\n  image: rancher/c:1\n",
 			want: []string{
 				key + ` entry 1: image "rancher/a" must look like "repository:tag"`,
-				entryProblem(noName, 2),
+				formatted(noName, 2),
 				key + ` entry 3: name "a" is already used by entry 1`,
 			},
 		},

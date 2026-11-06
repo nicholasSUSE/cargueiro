@@ -38,11 +38,24 @@ func (s *valuesScan) walk(node any, path string) {
 	switch n := node.(type) {
 	case map[string]any:
 		s.walkMap(n, path)
+	case map[any]any:
+		// The YAML decoder returns this for a mapping with a key that is not
+		// text, such as a port number.
+		s.walkMap(textKeys(n), path)
 	case []any:
 		for i, item := range n {
 			s.walk(item, fmt.Sprintf("%s[%d]", path, i))
 		}
 	}
+}
+
+// textKeys returns m with its keys written as text.
+func textKeys(m map[any]any) map[string]any {
+	keys := make(map[string]any, len(m))
+	for key, value := range m {
+		keys[fmt.Sprint(key)] = value
+	}
+	return keys
 }
 
 func (s *valuesScan) walkMap(m map[string]any, path string) {

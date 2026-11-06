@@ -297,6 +297,28 @@ image:
 			want: []string{`values.yaml image: "repository" and "tag" must be strings`},
 		},
 
+		// Mappings with a key that is not text.
+		{
+			name: "image beside a numeric key",
+			values: `
+sidecars:
+  200: x
+  image:
+    repository: rancher/a
+`,
+			want: []string{`values.yaml sidecars.image: "repository" is set but "tag" is empty`},
+		},
+		{
+			name: "image under a numeric key",
+			values: `
+ports:
+  8080:
+    image:
+      repository: rancher/a
+`,
+			want: []string{`values.yaml ports.8080.image: "repository" is set but "tag" is empty`},
+		},
+
 		// Where the path points.
 		{
 			name: "problem at the top level",
@@ -463,6 +485,25 @@ broken:
 flat:
   image: rancher/b:1
 `,
+		},
+		{
+			name: "images beside and under numeric keys",
+			values: `
+sidecars:
+  200: x
+  image:
+    repository: rancher/a
+    tag: "1"
+ports:
+  8080:
+    image:
+      repository: rancher/b
+      tag: "2"
+`,
+			want: []valuesImage{
+				{Path: "ports.8080.image", Image: "rancher/b:2"},
+				{Path: "sidecars.image", Image: "rancher/a:1"},
+			},
 		},
 		{
 			name: "top level image",

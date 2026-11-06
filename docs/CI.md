@@ -4,7 +4,7 @@ GitHub Actions checks every pull request and every push to `main`. The workflow 
 
 ## What runs
 
-Two jobs run in parallel on `ubuntu-latest`. Linux is the only platform checked.
+Three jobs run in parallel on `ubuntu-latest`. Linux is the only platform checked.
 
 | Job | Step | Command | Fails when |
 |-----|------|---------|------------|
@@ -12,10 +12,10 @@ Two jobs run in parallel on `ubuntu-latest`. Linux is the only platform checked.
 | `static` | Lint | `make lint` | golangci-lint reports a finding |
 | `static` | Vet | `make vet` | `go vet` reports a finding (with the `e2e` tag) |
 | `static` | Docs | `make docs`, then `git diff --exit-code` | the README commands table is stale |
-| `test` | Unit tests | `make test-unit` | a test fails (race detector on) |
-| `test` | E2E tests | `make test-e2e` | an e2e test fails |
+| `unit` | Unit tests | `make test-unit` | a test fails (race detector on) |
+| `e2e` | E2E tests | `make test-e2e` | an e2e test fails |
 
-`make test-e2e` builds the binary and starts the two local `registry:2` registries with the Docker on the runner. It stops them again, even when a test fails.
+The unit tests start nothing, so they have a job of their own and finish while the e2e tests are still running. `make test-e2e` builds the binary and starts the two local `registry:2` registries with the Docker on the runner. It stops them again, even when a test fails.
 
 ## Tool versions
 
@@ -50,4 +50,4 @@ Start from a clean tree, so that `git diff` shows only what the commands changed
 
 ## Branch protection
 
-CI reports a result; it does not stop a merge. To require it, mark the `static` and `test` checks as required in the repository's branch protection rules for `main`. That is a repository setting, not part of the workflow.
+CI reports a result; it does not stop a merge. To require it, mark the `static`, `unit` and `e2e` checks as required in the repository's branch protection rules for `main`. That is a repository setting, not part of the workflow.

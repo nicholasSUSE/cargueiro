@@ -186,6 +186,11 @@ func TestCheckDependenciesMatch(t *testing.T) {
 			values:     "replicas: 2\n",
 		},
 		{
+			name:       "a null item is not reported again",
+			annotation: "- \n- name: a\n  image: rancher/a:1\n  dependency: x\n",
+			values:     "replicas: 2\n",
+		},
+		{
 			name:       "an entry without a name still lists its image for values",
 			annotation: "- image: rancher/a:1\n",
 			values:     "image:\n  repository: rancher/a\n  tag: \"1\"\n",

@@ -77,10 +77,6 @@ func TestCheckDependenciesAnnotationStandardValid(t *testing.T) {
 			value: "- name: A\n  image: rancher/a:1\n- name: a\n  image: rancher/b:1\n",
 		},
 		{
-			name:  "a null entry is skipped by the YAML decoder",
-			value: "- \n- name: a\n  image: rancher/a:1\n",
-		},
-		{
 			name:  "name with spaces inside",
 			value: "- name: my image\n  image: rancher/a:1\n",
 		},
@@ -327,6 +323,39 @@ func TestCheckDependenciesAnnotationStandardInvalid(t *testing.T) {
 			name:  "image with a tab",
 			value: "- name: a\n  image: \"rancher/a:\\t1\"\n",
 			want:  []string{key + " entry 1: image \"rancher/a:\\t1\" must look like \"repository:tag\" without spaces"},
+		},
+
+		// A list item with nothing in it.
+		{
+			name:  "a null item",
+			value: "- \n",
+			want:  []string{key + " entry 1: must be a map with a name and an image"},
+		},
+		{
+			name:  "a null item before a good entry",
+			value: "- \n- name: a\n  image: rancher/a:1\n",
+			want:  []string{key + " entry 1: must be a map with a name and an image"},
+		},
+		{
+			name:  "entry numbers count the null items",
+			value: "- \n- name: a\n  image: \"\"\n",
+			want: []string{
+				key + " entry 1: must be a map with a name and an image",
+				formatted(noImage, 2),
+			},
+		},
+		{
+			name:  "a null item written with a tilde",
+			value: "- ~\n- name: a\n  image: rancher/a:1\n",
+			want:  []string{key + " entry 1: must be a map with a name and an image"},
+		},
+		{
+			name:  "an empty map",
+			value: "- {}\n",
+			want: []string{
+				formatted(noName, 1),
+				formatted(noImage, 1),
+			},
 		},
 
 		// Several problems at once, each reported once and in order.

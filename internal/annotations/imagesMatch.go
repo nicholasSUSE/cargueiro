@@ -17,7 +17,7 @@ import "strings"
 // values.yaml are then not compared at all, so more problems can appear once
 // the annotation is fixed.
 func checkDependenciesMatch(annotations map[string]string, images []valuesImage) []string {
-	var entries []helmImageEntry
+	var entries []*helmImageEntry
 	if value := annotations[imageDependenciesAnnotation]; strings.TrimSpace(value) != "" {
 		var err error
 		if entries, err = parseHelmImages(value); err != nil {
@@ -27,7 +27,9 @@ func checkDependenciesMatch(annotations map[string]string, images []valuesImage)
 
 	listed := make(map[string]bool, len(entries))
 	for _, entry := range entries {
-		listed[strings.TrimSpace(entry.Image)] = true
+		if entry != nil {
+			listed[strings.TrimSpace(entry.Image)] = true
+		}
 	}
 	inValues := make(map[string]bool, len(images))
 	for _, image := range images {
@@ -47,8 +49,11 @@ func checkDependenciesMatch(annotations map[string]string, images []valuesImage)
 
 	_, malformed := checkEntries(entries)
 	for i, entry := range entries {
+		if malformed[i] {
+			continue
+		}
 		image := strings.TrimSpace(entry.Image)
-		if malformed[i] || inValues[image] || strings.TrimSpace(entry.Dependency) != "" {
+		if inValues[image] || strings.TrimSpace(entry.Dependency) != "" {
 			continue
 		}
 		problems = append(problems, entryProblem(i+1, "image %q is not in values.yaml and has no dependency", image))

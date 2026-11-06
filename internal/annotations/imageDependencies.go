@@ -45,12 +45,19 @@ func checkDependenciesAnnotationStandard(annotations map[string]string) []string
 	return problems
 }
 
-// checkEntries reports the problems in entries and which entries have one.
-func checkEntries(entries []helmImageEntry) (problems []string, malformed []bool) {
+// checkEntries reports the problems in entries and which entries have one. An
+// entry is nil when the list item has nothing in it.
+func checkEntries(entries []*helmImageEntry) (problems []string, malformed []bool) {
 	malformed = make([]bool, len(entries))
 	firstUse := make(map[string]int)
 	for i, entry := range entries {
 		n := i + 1
+		if entry == nil {
+			problems = append(problems, entryProblem(n, "must be a map with a name and an image"))
+			malformed[i] = true
+			continue
+		}
+
 		problemsBefore := len(problems)
 		name, image := strings.TrimSpace(entry.Name), strings.TrimSpace(entry.Image)
 
@@ -91,11 +98,13 @@ type helmImageEntry struct {
 	Dependency string `yaml:"dependency"`
 }
 
-// parseHelmImages reads the annotation value as a list of entries.
-func parseHelmImages(value string) ([]helmImageEntry, error) {
+// parseHelmImages reads the annotation value as a list of entries. The entries
+// are pointers so that a list item with nothing in it stays in its place, as
+// nil, and the entry numbers match the list.
+func parseHelmImages(value string) ([]*helmImageEntry, error) {
 	errNotAList := errors.New("must be a YAML list of entries with a name and an image")
 
-	var entries []helmImageEntry
+	var entries []*helmImageEntry
 	if err := yaml.Unmarshal([]byte(value), &entries); err != nil {
 		var typeErr *yaml.TypeError
 		if errors.As(err, &typeErr) {

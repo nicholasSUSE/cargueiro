@@ -153,7 +153,7 @@ The `helm.sh/images` annotation follows [Helm HIP-15](https://github.com/helm/co
 
 The `registry` key beside a `repository` in `values.yaml` is never part of a comparison, because the release process switches it between registries. An annotation image is compared as written, so `registry.suse.com/rancher/a:1` does not match `repository: rancher/a` with `tag: "1"`.
 
-Known limits: a chart repository URL under a `repository` key is read as an image, `repo@sha256:...` passes the image format, and a null item in the annotation list is skipped by the YAML decoder, so entry numbers can shift.
+Known limits: a chart repository URL under a `repository` key is read as an image, and `repo@sha256:...` passes the image format.
 
 ## Linting
 

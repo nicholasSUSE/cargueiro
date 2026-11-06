@@ -248,11 +248,18 @@ After changing a doc, run `make docs` to refresh the README table. `make test` f
 ```json
 {
   "go.buildTags": "e2e",
-  "go.lintTool": "golangci-lint-v2"
+  "go.lintTool": "golangci-lint-v2",
+  "go.testEnvVars": {
+    "PATH": "<home>/.local/share/mise/shims:${env:PATH}"
+  }
 }
 ```
 
-Without `go.buildTags`, running an e2e test from the editor fails with `build constraints exclude all Go files`, because the e2e files carry the `e2e` build tag. E2E tests also need the pinned `helm` on `PATH`, so start VSCode from a shell where mise is activated (for example `code .`).
+Without `go.buildTags`, running an e2e test from the editor fails with `build constraints exclude all Go files`, because the e2e files carry the `e2e` build tag.
+
+E2E tests also need the pinned `helm` on `PATH`. If another `helm` comes first (a Homebrew one, for example), the test fails with `helm CLI on PATH differs from the helm SDK in go.mod`. `go.testEnvVars` puts the mise shims first for the tests run from the editor, so replace `<home>` with your home directory. Starting VSCode from a shell where mise is activated (for example `code .`) works too.
+
+The tests in `tests/pushing` and `tests/login` also need the local registries: run `make registry-up` before running them from the editor, and `make registry-down` after.
 
 ## Debugging (VSCode)
 

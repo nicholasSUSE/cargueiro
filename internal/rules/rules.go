@@ -73,26 +73,52 @@ type chartItem struct {
 // chart listed twice or without a defined kind, and an empty or repeated
 // annotation name in a kind.
 func Parse(data []byte) (*Config, error) {
+	f, err := decode(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkKinds(f.Kinds); err != nil {
+		return nil, err
+	}
+
+	charts, err := indexCharts(f)
+	if err != nil {
+		return nil, err
+	}
+	return &Config{charts: charts}, nil
+}
+
+// decode reads the YAML, rejecting unknown keys.
+func decode(data []byte) (file, error) {
 	var f file
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&f); err != nil {
 		if errors.Is(err, io.EOF) {
-			return nil, errors.New("parse rules: empty file")
+			return file{}, errors.New("parse rules: empty file")
 		}
-		return nil, fmt.Errorf("parse rules: %w", err)
+		return file{}, fmt.Errorf("parse rules: %w", err)
 	}
+	return f, nil
+}
 
-	// Sorted, so the same file always reports the same error.
-	for _, kind := range slices.Sorted(maps.Keys(f.Kinds)) {
+// checkKinds rejects a kind that has no validation function and a bad list of
+// required annotations. The kinds are taken in order, so the same file always
+// reports the same error.
+func checkKinds(kinds map[string]kindRule) error {
+	for _, kind := range slices.Sorted(maps.Keys(kinds)) {
 		if kind != KindMain && kind != KindCRD && kind != KindExtra {
-			return nil, fmt.Errorf("parse rules: unknown kind %q", kind)
+			return fmt.Errorf("parse rules: unknown kind %q", kind)
 		}
-		if err := checkRequired(f.Kinds[kind]); err != nil {
-			return nil, fmt.Errorf("parse rules: kind %q: %w", kind, err)
+		if err := checkRequired(kinds[kind]); err != nil {
+			return fmt.Errorf("parse rules: kind %q: %w", kind, err)
 		}
 	}
+	return nil
+}
 
+// indexCharts lists every chart of every family by name.
+func indexCharts(f file) (map[string]Chart, error) {
 	charts := make(map[string]Chart)
 	for _, fam := range f.Families {
 		if fam.Family == "" {
@@ -103,38 +129,47 @@ func Parse(data []byte) (*Config, error) {
 		}
 
 		for _, item := range fam.Charts {
-			if item.Name == "" {
-				return nil, fmt.Errorf("parse rules: family %q has a chart with no name", fam.Family)
+			chart, err := newChart(fam.Family, item, f.Kinds)
+			if err != nil {
+				return nil, err
 			}
-			if _, dup := charts[item.Name]; dup {
-				return nil, fmt.Errorf("parse rules: chart %q is listed twice", item.Name)
+			if _, dup := charts[chart.Name]; dup {
+				return nil, fmt.Errorf("parse rules: chart %q is listed twice", chart.Name)
 			}
-			rule, ok := f.Kinds[item.Kind]
-			switch {
-			case item.Kind == "":
-				return nil, fmt.Errorf("parse rules: chart %q has no kind", item.Name)
-			case !ok:
-				return nil, fmt.Errorf("parse rules: chart %q has undefined kind %q", item.Name, item.Kind)
-			}
-
-			releaseName := item.ReleaseName
-			if releaseName == "" {
-				releaseName = item.Name
-			}
-			charts[item.Name] = Chart{
-				Name:        item.Name,
-				Kind:        item.Kind,
-				Family:      fam.Family,
-				ReleaseName: releaseName,
-				Required:    slices.Clone(rule.Required),
-			}
+			charts[chart.Name] = chart
 		}
 	}
 	if len(charts) == 0 {
 		return nil, errors.New("parse rules: no charts listed")
 	}
+	return charts, nil
+}
 
-	return &Config{charts: charts}, nil
+// newChart builds the chart described by item, with the rules of its kind.
+func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, error) {
+	if item.Name == "" {
+		return Chart{}, fmt.Errorf("parse rules: family %q has a chart with no name", family)
+	}
+
+	rule, defined := kinds[item.Kind]
+	switch {
+	case item.Kind == "":
+		return Chart{}, fmt.Errorf("parse rules: chart %q has no kind", item.Name)
+	case !defined:
+		return Chart{}, fmt.Errorf("parse rules: chart %q has undefined kind %q", item.Name, item.Kind)
+	}
+
+	releaseName := item.ReleaseName
+	if releaseName == "" {
+		releaseName = item.Name
+	}
+	return Chart{
+		Name:        item.Name,
+		Kind:        item.Kind,
+		Family:      family,
+		ReleaseName: releaseName,
+		Required:    slices.Clone(rule.Required),
+	}, nil
 }
 
 // checkRequired rejects an empty or repeated annotation name in a kind.

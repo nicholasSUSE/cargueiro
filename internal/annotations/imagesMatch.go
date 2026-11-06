@@ -5,8 +5,9 @@ import "strings"
 // checkDependenciesMatch compares the images in values.yaml with the helm.sh/images
 // annotation:
 //   - every image in values.yaml must be listed in the annotation;
-//   - every well-formed annotation entry that is not in values.yaml must name
-//     the subchart it belongs to in "dependency".
+//   - every annotation entry that is not in values.yaml must name the subchart
+//     it belongs to in "dependency". An entry with a problem the format check
+//     already reported is skipped, so each fault is reported once.
 //
 // Both rules are Rancher policy. HIP-15 says nothing about values.yaml and
 // keeps dependency optional.
@@ -42,9 +43,10 @@ func checkDependenciesMatch(annotations map[string]string, images []valuesImage)
 		problems = append(problems, valuesProblem(image.Path, "image %q is not listed in %s", image.Image, imageDependenciesAnnotation))
 	}
 
+	_, malformed := checkEntries(entries)
 	for i, entry := range entries {
 		image := strings.TrimSpace(entry.Image)
-		if helmImage(image) != nil || inValues[image] || strings.TrimSpace(entry.Dependency) != "" {
+		if malformed[i] || inValues[image] || strings.TrimSpace(entry.Dependency) != "" {
 			continue
 		}
 		problems = append(problems, entryProblem(i+1, "image %q is not in values.yaml and has no dependency", image))

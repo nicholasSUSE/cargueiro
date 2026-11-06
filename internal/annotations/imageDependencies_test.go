@@ -433,6 +433,12 @@ func TestValidateHelmImages(t *testing.T) {
 			name: "nothing to check",
 		},
 		{
+			name:       "an entry without a name is reported once",
+			annotation: "- image: rancher/a:1\n",
+			values:     noImages,
+			want:       []string{"helm.sh/images entry 1: name must be a non-empty string"},
+		},
+		{
 			name:       "an image listed in the annotation",
 			annotation: listed,
 			values:     withTag,

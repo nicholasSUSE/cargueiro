@@ -41,10 +41,17 @@ func checkDependenciesAnnotationStandard(annotations map[string]string) []string
 		return []string{fmt.Sprintf("%s: %v", imageDependenciesAnnotation, err)}
 	}
 
-	var problems []string
+	problems, _ := checkEntries(entries)
+	return problems
+}
+
+// checkEntries reports the problems in entries and which entries have one.
+func checkEntries(entries []helmImageEntry) (problems []string, malformed []bool) {
+	malformed = make([]bool, len(entries))
 	firstUse := make(map[string]int)
 	for i, entry := range entries {
 		n := i + 1
+		problemsBefore := len(problems)
 		name, image := strings.TrimSpace(entry.Name), strings.TrimSpace(entry.Image)
 
 		first, nameUsed := firstUse[name]
@@ -65,8 +72,10 @@ func checkDependenciesAnnotationStandard(annotations map[string]string) []string
 		case imageErr != nil:
 			problems = append(problems, entryProblem(n, "image %q %v", image, imageErr))
 		}
+
+		malformed[i] = len(problems) > problemsBefore
 	}
-	return problems
+	return problems, malformed
 }
 
 // entryProblem describes a problem with entry number n of the annotation.

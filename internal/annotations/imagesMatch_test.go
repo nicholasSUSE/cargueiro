@@ -176,6 +176,21 @@ func TestCheckDependenciesMatch(t *testing.T) {
 
 		// Badly formed entries are left to the format check.
 		{
+			name:       "an entry without a name is not reported again",
+			annotation: "- image: rancher/a:1\n",
+			values:     "replicas: 2\n",
+		},
+		{
+			name:       "an entry whose name is already used is not reported again",
+			annotation: "- name: a\n  image: rancher/a:1\n  dependency: x\n- name: a\n  image: rancher/b:2\n",
+			values:     "replicas: 2\n",
+		},
+		{
+			name:       "an entry without a name still lists its image for values",
+			annotation: "- image: rancher/a:1\n",
+			values:     "image:\n  repository: rancher/a\n  tag: \"1\"\n",
+		},
+		{
 			name:       "an entry without a tag is not reported again",
 			annotation: "- name: a\n  image: rancher/a\n",
 			values:     "replicas: 2\n",

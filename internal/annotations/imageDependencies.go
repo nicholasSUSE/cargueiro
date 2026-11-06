@@ -15,16 +15,17 @@ const imageDependenciesAnnotation = "helm.sh/images"
 // images in its values.yaml, which every chart kind runs. values is the parsed
 // values.yaml.
 func ValidateHelmImages(annotations map[string]string, values map[string]any) []string {
-	_, valuesProblems := scanValues(values)
+	images, valuesProblems := scanValues(values)
 	return collect(
 		checkDependenciesAnnotationStandard(annotations),
 		valuesProblems,
+		checkDependenciesMatch(annotations, images),
 	)
 }
 
 // checkDependenciesAnnotationStandard reports an annotation that is not a list of entries
 // with a unique name and an image written repository:tag. An absent or blank
-// annotation is left to the check that compares it with values.yaml.
+// annotation is left to checkDependenciesMatch, which compares it with values.yaml.
 func checkDependenciesAnnotationStandard(annotations map[string]string) []string {
 	value := annotations[imageDependenciesAnnotation]
 	if strings.TrimSpace(value) == "" {

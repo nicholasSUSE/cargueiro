@@ -416,48 +416,75 @@ func TestCheckDependenciesAnnotationStandardOtherKeys(t *testing.T) {
 }
 
 func TestValidateHelmImages(t *testing.T) {
-	const valid = "- name: a\n  image: rancher/a:1\n"
+	const (
+		listed   = "- name: a\n  image: rancher/a:1\n"
+		withTag  = "image:\n  repository: rancher/a\n  tag: \"1\"\n"
+		noTag    = "image:\n  repository: rancher/a\n"
+		noImages = "replicas: 2\n"
+	)
 
 	tests := []struct {
-		name        string
-		annotations map[string]string
-		values      map[string]any
-		want        []string
+		name       string
+		annotation string
+		values     string
+		want       []string
 	}{
 		{
 			name: "nothing to check",
 		},
 		{
-			name:        "valid annotation and values",
-			annotations: map[string]string{"helm.sh/images": valid},
-			values:      map[string]any{"image": map[string]any{"repository": "rancher/a", "tag": "1"}},
+			name:       "an image listed in the annotation",
+			annotation: listed,
+			values:     withTag,
 		},
 		{
-			name:        "problem in the annotation",
-			annotations: map[string]string{"helm.sh/images": "- name: a\n"},
-			want:        []string{"helm.sh/images entry 1: image must be a non-empty string"},
+			name:   "an image missing from the annotation",
+			values: withTag,
+			want:   []string{`values.yaml image: image "rancher/a:1" is not listed in helm.sh/images`},
 		},
 		{
-			name:        "problem in values",
-			annotations: map[string]string{"helm.sh/images": valid},
-			values:      map[string]any{"image": map[string]any{"repository": "rancher/a"}},
-			want:        []string{`values.yaml image: "repository" is set but "tag" is empty`},
+			name:   "no images in values and no annotation",
+			values: noImages,
 		},
 		{
-			name:        "problems in both, the annotation first",
-			annotations: map[string]string{"helm.sh/images": "- name: a\n"},
-			values:      map[string]any{"image": map[string]any{"repository": "rancher/a"}},
+			name:       "problem in the annotation",
+			annotation: "- name: a\n",
+			values:     withTag,
 			want: []string{
 				"helm.sh/images entry 1: image must be a non-empty string",
+				`values.yaml image: image "rancher/a:1" is not listed in helm.sh/images`,
+			},
+		},
+		{
+			name:       "problem in values",
+			annotation: listed,
+			values:     noTag,
+			want: []string{
+				`values.yaml image: "repository" is set but "tag" is empty`,
+				`helm.sh/images entry 1: image "rancher/a:1" is not in values.yaml and has no dependency`,
+			},
+		},
+		{
+			name:       "problems in the annotation, in values and between them, in that order",
+			annotation: "- name: a\n  image: rancher/a\n",
+			values:     noTag,
+			want: []string{
+				`helm.sh/images entry 1: image "rancher/a" must look like "repository:tag"`,
 				`values.yaml image: "repository" is set but "tag" is empty`,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ValidateHelmImages(tt.annotations, tt.values))
+			annotations := map[string]string{}
+			if tt.annotation != "" {
+				annotations["helm.sh/images"] = tt.annotation
+			}
+			require.Equal(t, tt.want, ValidateHelmImages(annotations, parseValues(t, tt.values)))
 		})
 	}
+
+	require.Empty(t, ValidateHelmImages(nil, nil))
 }
 
 func manyEntries(n int) string {

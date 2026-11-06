@@ -1,0 +1,92 @@
+# DRAFT - for review, not wired to any code yet.
+#
+# Which charts exist and what kind each one is. `check` looks the chart name up
+# here and applies the rules of its kind. A chart that is not listed is an error.
+#
+# Data source: latest Chart.yaml of every chart in rancher/charts release-v2.15
+# (be246f515, 2026-10-29).
+
+# Annotation names are under catalog.cattle.io/ .
+# namespace is optional for every kind.
+kinds:
+  main:   # a product chart, with or without a -crd sibling
+    required: [release-name, certified, rancher-version, kube-version, permits-os]
+  crd:    # CRDs only; always hidden
+    required: [release-name, certified, hidden]
+  extra:  # companions and add-ons that are not a product chart on their own
+    required: [certified, rancher-version, kube-version, permits-os]
+
+# release-name is the chart name unless given here.
+families:
+  - family: elemental
+    charts:
+      - { name: elemental, kind: main, release-name: elemental-operator }
+      - { name: elemental-crd, kind: crd, release-name: elemental-operator-crds }
+  - family: fleet
+    charts:
+      - { name: fleet, kind: main }
+      - { name: fleet-agent, kind: extra }
+      - { name: fleet-crd, kind: crd }
+  - family: harvester-rbac
+    charts:
+      - { name: harvester-rbac, kind: main }
+  - family: longhorn
+    charts:
+      - { name: longhorn, kind: main }
+      - { name: longhorn-crd, kind: crd }
+  - family: neuvector
+    charts:
+      - { name: neuvector, kind: main }
+      - { name: neuvector-crd, kind: crd }
+      - { name: neuvector-monitor, kind: extra }
+  - family: prometheus-federator
+    charts:
+      - { name: prometheus-federator, kind: main }
+  - family: rancher-aks-operator
+    charts:
+      - { name: rancher-aks-operator, kind: main }
+      - { name: rancher-aks-operator-crd, kind: crd }
+  - family: rancher-backup
+    charts:
+      - { name: rancher-backup, kind: main }
+      - { name: rancher-backup-crd, kind: crd }
+  - family: rancher-compliance
+    charts:
+      - { name: rancher-compliance, kind: main }
+      - { name: rancher-compliance-crd, kind: crd }
+  - family: rancher-eks-operator
+    charts:
+      - { name: rancher-eks-operator, kind: main }
+      - { name: rancher-eks-operator-crd, kind: crd }
+  - family: rancher-gke-operator
+    charts:
+      - { name: rancher-gke-operator, kind: main }
+      - { name: rancher-gke-operator-crd, kind: crd }
+  - family: rancher-logging
+    charts:
+      - { name: rancher-logging, kind: main }
+      - { name: rancher-logging-crd, kind: crd }
+  - family: rancher-monitoring
+    charts:
+      - { name: rancher-monitoring, kind: main }
+      - { name: rancher-monitoring-crd, kind: crd }
+  - family: rancher-monitoring-dashboards
+    charts:
+      - { name: rancher-monitoring-dashboards, kind: main }
+  - family: rancher-supportability-review
+    charts:
+      - { name: rancher-supportability-review, kind: main }
+      - { name: rancher-supportability-review-crd, kind: crd }
+  - family: rancher-turtles
+    charts:
+      - { name: rancher-turtles, kind: main }
+  - family: rancher-webhook
+    charts:
+      - { name: rancher-webhook, kind: main }
+  - family: remotedialer-proxy
+    charts:
+      - { name: remotedialer-proxy, kind: main }  # known violation: no kube-version, fix upstream
+  - family: system-upgrade-controller
+    charts:
+      - { name: system-upgrade-controller, kind: main }
+

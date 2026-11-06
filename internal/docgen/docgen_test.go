@@ -114,7 +114,7 @@ func TestReplace(t *testing.T) {
 // TestReadmeIsUpToDate fails when the README commands table no longer matches
 // the command docs. Fix it with `make docs`.
 func TestReadmeIsUpToDate(t *testing.T) {
-	root, err := cmd.NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{})
+	root, err := cmd.NewRootCmd(&bytes.Buffer{}, &bytes.Buffer{}, nil)
 	require.NoError(t, err)
 
 	readme, err := os.ReadFile("../../README.md")

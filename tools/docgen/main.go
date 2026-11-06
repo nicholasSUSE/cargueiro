@@ -18,7 +18,7 @@ func main() {
 }
 
 func run(readmePath string) error {
-	root, err := cmd.NewRootCmd(io.Discard, io.Discard)
+	root, err := cmd.NewRootCmd(io.Discard, io.Discard, nil)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,6 +11,11 @@ import (
 
 	"github.com/nicholasSUSE/cargueiro/cmd"
 )
+
+// rulesYAML is rules.yaml, compiled into the binary.
+//
+//go:embed rules.yaml
+var rulesYAML []byte
 
 func main() {
 	if err := run(); err != nil {
@@ -22,7 +28,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	root, err := cmd.NewRootCmd(os.Stdout, os.Stderr)
+	root, err := cmd.NewRootCmd(os.Stdout, os.Stderr, rulesYAML)
 	if err != nil {
 		return err
 	}

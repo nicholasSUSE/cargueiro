@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -66,8 +68,10 @@ type chartItem struct {
 	ReleaseName string `yaml:"release-name"`
 }
 
-// Parse reads a rules file. It rejects unknown keys, a chart listed twice,
-// and a chart whose kind is not defined.
+// Parse reads a rules file. It rejects malformed input: unknown keys, an
+// unknown kind, a family or chart without a name, a family without charts, a
+// chart listed twice or without a defined kind, and an empty or repeated
+// annotation name in a kind.
 func Parse(data []byte) (*Config, error) {
 	var f file
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -79,11 +83,12 @@ func Parse(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("parse rules: %w", err)
 	}
 
-	for kind, rule := range f.Kinds {
+	// Sorted, so the same file always reports the same error.
+	for _, kind := range slices.Sorted(maps.Keys(f.Kinds)) {
 		if kind != KindMain && kind != KindCRD && kind != KindExtra {
 			return nil, fmt.Errorf("parse rules: unknown kind %q", kind)
 		}
-		if err := checkRule(rule); err != nil {
+		if err := checkRequired(f.Kinds[kind]); err != nil {
 			return nil, fmt.Errorf("parse rules: kind %q: %w", kind, err)
 		}
 	}
@@ -105,7 +110,10 @@ func Parse(data []byte) (*Config, error) {
 				return nil, fmt.Errorf("parse rules: chart %q is listed twice", item.Name)
 			}
 			rule, ok := f.Kinds[item.Kind]
-			if !ok {
+			switch {
+			case item.Kind == "":
+				return nil, fmt.Errorf("parse rules: chart %q has no kind", item.Name)
+			case !ok:
 				return nil, fmt.Errorf("parse rules: chart %q has undefined kind %q", item.Name, item.Kind)
 			}
 
@@ -118,7 +126,7 @@ func Parse(data []byte) (*Config, error) {
 				Kind:        item.Kind,
 				Family:      fam.Family,
 				ReleaseName: releaseName,
-				Required:    rule.Required,
+				Required:    slices.Clone(rule.Required),
 			}
 		}
 	}
@@ -129,7 +137,8 @@ func Parse(data []byte) (*Config, error) {
 	return &Config{charts: charts}, nil
 }
 
-func checkRule(rule kindRule) error {
+// checkRequired rejects an empty or repeated annotation name in a kind.
+func checkRequired(rule kindRule) error {
 	seen := make(map[string]bool, len(rule.Required))
 	for _, name := range rule.Required {
 		if name == "" {

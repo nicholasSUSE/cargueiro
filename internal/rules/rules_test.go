@@ -68,7 +68,7 @@ func TestFindUnlistedChart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := cfg.Find(tt.chart)
-			require.EqualError(t, err, fmt.Sprintf("chart %q is not listed in the rules file (rules.yaml)", tt.chart))
+			require.ErrorContains(t, err, fmt.Sprintf("chart %q is not listed", tt.chart))
 			require.Equal(t, Chart{}, got)
 		})
 	}
@@ -81,7 +81,7 @@ func TestParseRejects(t *testing.T) {
 		wantErr string
 	}{
 		{name: "empty file", in: "", wantErr: "empty file"},
-		{name: "not yaml", in: "kinds: [", wantErr: "parse rules"},
+		{name: "not yaml", in: "kinds: [", wantErr: "did not find expected node content"},
 		{name: "unknown top-level key", in: "kind: {}\n", wantErr: "field kind not found"},
 		{
 			name:    "unknown chart key",
@@ -113,7 +113,7 @@ func TestParseRejects(t *testing.T) {
 		{
 			name:    "chart without a kind",
 			in:      "kinds: {main: {}}\nfamilies:\n  - family: a\n    charts:\n      - {name: a}\n",
-			wantErr: `chart "a" has undefined kind ""`,
+			wantErr: `chart "a" has no kind`,
 		},
 		{
 			name:    "chart listed twice in one family",
@@ -158,4 +158,30 @@ func TestRepositoryConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "crd", chart.Kind)
 	require.Equal(t, "rancher-backup", chart.Family)
+}
+
+// TestParseReportsTheSameKindEveryTime keeps the error stable when several
+// kinds are wrong: Go ranges over a map in random order.
+func TestParseReportsTheSameKindEveryTime(t *testing.T) {
+	const in = "kinds:\n  zeta: {}\n  alpha: {}\n  middle: {}\n"
+
+	for range 20 {
+		cfg, err := Parse([]byte(in))
+		require.ErrorContains(t, err, `unknown kind "alpha"`)
+		require.Nil(t, cfg)
+	}
+}
+
+// TestChartsOfAKindDoNotShareRequired makes sure that a caller who changes the
+// Required list of one chart does not change it for the others.
+func TestChartsOfAKindDoNotShareRequired(t *testing.T) {
+	cfg, err := Parse([]byte("kinds:\n  main:\n    required: [release-name]\nfamilies:\n  - family: a\n    charts:\n      - {name: a, kind: main}\n      - {name: b, kind: main}\n"))
+	require.NoError(t, err)
+	a, err := cfg.Find("a")
+	require.NoError(t, err)
+	b, err := cfg.Find("b")
+	require.NoError(t, err)
+
+	a.Required[0] = "changed"
+	require.Equal(t, []string{"release-name"}, b.Required)
 }

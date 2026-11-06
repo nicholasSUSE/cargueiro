@@ -33,19 +33,37 @@ func kubeVersion(value string) error {
 		return fmt.Errorf("must look like %q", ">= 1.34.0-0 < 1.37.0-0")
 	}
 
-	var lower, upper [3]int
-	for i := range lower {
-		lower[i], _ = strconv.Atoi(m[1+i])
-		upper[i], _ = strconv.Atoi(m[4+i])
+	lower, err := kubeVersionNumbers(m[1:4])
+	if err != nil {
+		return err
 	}
-	if !less(lower, upper) {
+	upper, err := kubeVersionNumbers(m[4:7])
+	if err != nil {
+		return err
+	}
+	if !kubeLess(lower, upper) {
 		return fmt.Errorf("lower bound %d.%d.%d-0 must be below upper bound %d.%d.%d-0",
 			lower[0], lower[1], lower[2], upper[0], upper[1], upper[2])
 	}
 	return nil
 }
 
-func less(a, b [3]int) bool {
+// kubeVersionNumbers reads the major, minor and patch numbers of a version.
+func kubeVersionNumbers(parts []string) ([3]int, error) {
+	var numbers [3]int
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return numbers, fmt.Errorf("version number %q is too large", part)
+		}
+		numbers[i] = n
+	}
+	return numbers, nil
+}
+
+// kubeLess reports whether Kubernetes version a is below b. Versions are
+// {major, minor, patch}.
+func kubeLess(a, b [3]int) bool {
 	for i := range a {
 		if a[i] != b[i] {
 			return a[i] < b[i]

@@ -16,7 +16,6 @@ type Metadata struct {
 	AppVersion  string `yaml:"appVersion"`
 	Icon        string `yaml:"icon"`
 	Description string `yaml:"description"`
-	KubeVersion string `yaml:"kubeVersion"`
 }
 
 // Files holds Chart.yaml and values.yaml of a chart directory, read into memory.

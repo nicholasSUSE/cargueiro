@@ -99,7 +99,7 @@ func TestChart(t *testing.T) {
 			require.Equal(t, "fleet", got.Chart)
 			require.Equal(t, "main", got.Kind)
 			require.Equal(t, "fleet", got.Family)
-			require.Equal(t, Metadata(tt.files.Metadata), got.Metadata)
+			require.Equal(t, "fleet", got.Metadata.Name)
 			require.Equal(t, tt.wantValid, got.Valid)
 			require.Equal(t, tt.wantAnnotations, got.Annotations.Errors)
 			require.Equal(t, len(tt.wantAnnotations) == 0, got.Annotations.Valid)
@@ -161,6 +161,47 @@ func TestResultJSON(t *testing.T) {
 		"annotations": {"valid": true, "errors": []},
 		"hip15-annotations": {"valid": true, "errors": []}
 	}`, string(data))
+}
+
+// TestChartKubeVersion makes sure the result reports the kube-version
+// annotation, and not Helm's kubeVersion field, which Chart.yaml may lack.
+func TestChartKubeVersion(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        string
+	}{
+		{
+			name: "the annotation",
+			annotations: map[string]string{
+				"catalog.cattle.io/kube-version": ">= 1.34.0-0 < 1.37.0-0",
+			},
+			want: ">= 1.34.0-0 < 1.37.0-0",
+		},
+		{
+			name: "space around the annotation is ignored",
+			annotations: map[string]string{
+				"catalog.cattle.io/kube-version": "  >= 1.34.0-0 < 1.37.0-0 ",
+			},
+			want: ">= 1.34.0-0 < 1.37.0-0",
+		},
+		{
+			name:        "no annotation",
+			annotations: map[string]string{},
+			want:        "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := &chart.Files{
+				Metadata:    chart.Metadata{Name: "fleet"},
+				Annotations: tt.annotations,
+			}
+			got, err := Chart(parseRules(t), files)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got.Metadata.KubeVersion)
+		})
+	}
 }
 
 func TestResultFails(t *testing.T) {

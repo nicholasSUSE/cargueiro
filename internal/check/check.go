@@ -20,7 +20,9 @@ type Result struct {
 	HIP15Annotations Section  `json:"hip15-annotations"`
 }
 
-// Metadata is the part of Chart.yaml that the result reports.
+// Metadata is the part of Chart.yaml that the result reports. KubeVersion is
+// the catalog.cattle.io/kube-version annotation, the value the rules check, not
+// Helm's own kubeVersion field.
 type Metadata struct {
 	Name        string `json:"name"`
 	Version     string `json:"version"`
@@ -47,10 +49,17 @@ func Chart(cfg *rules.Config, files *chart.Files) (*Result, error) {
 	}
 
 	result := &Result{
-		Chart:            rule.Name,
-		Kind:             rule.Kind,
-		Family:           rule.Family,
-		Metadata:         Metadata(files.Metadata),
+		Chart:  rule.Name,
+		Kind:   rule.Kind,
+		Family: rule.Family,
+		Metadata: Metadata{
+			Name:        files.Metadata.Name,
+			Version:     files.Metadata.Version,
+			AppVersion:  files.Metadata.AppVersion,
+			Icon:        files.Metadata.Icon,
+			Description: files.Metadata.Description,
+			KubeVersion: annotations.KubeVersionAnnotation(files.Annotations),
+		},
 		Annotations:      section(annotations.Validate(rule, files.Annotations)),
 		HIP15Annotations: section(annotations.ValidateHelmImages(files.Annotations, files.Values)),
 	}

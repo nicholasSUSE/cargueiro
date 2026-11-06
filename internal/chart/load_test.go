@@ -29,7 +29,6 @@ version: 110.0.0
 appVersion: 0.13.0
 icon: https://example.com/icon.png
 description: Fleet
-kubeVersion: ">= 1.30.0-0 < 1.35.0-0"
 dependencies:
   - name: sub
 annotations:
@@ -51,7 +50,6 @@ image:
 			AppVersion:  "0.13.0",
 			Icon:        "https://example.com/icon.png",
 			Description: "Fleet",
-			KubeVersion: ">= 1.30.0-0 < 1.35.0-0",
 		},
 		Annotations: map[string]string{
 			"catalog.cattle.io/certified": "rancher",

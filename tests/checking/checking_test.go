@@ -43,20 +43,25 @@ func checkJSON(t *testing.T, dir string) (check.Result, harness.Result) {
 // annotation: nothing is reported and the exit code is 0.
 func TestFleetIsValid(t *testing.T) {
 	tests := []struct {
-		chart string
-		kind  string
+		chart       string
+		kind        string
+		kubeVersion string
 	}{
 		{
-			chart: "fleet",
-			kind:  "main",
+			chart:       "fleet",
+			kind:        "main",
+			kubeVersion: ">= 1.34.0-0 < 1.37.0-0",
 		},
 		{
-			chart: "fleet-crd",
-			kind:  "crd",
+			// A crd chart does not carry the annotation.
+			chart:       "fleet-crd",
+			kind:        "crd",
+			kubeVersion: "",
 		},
 		{
-			chart: "fleet-agent",
-			kind:  "extra",
+			chart:       "fleet-agent",
+			kind:        "extra",
+			kubeVersion: ">= 1.34.0-0 < 1.37.0-0",
 		},
 	}
 	for _, tt := range tests {
@@ -69,6 +74,7 @@ func TestFleetIsValid(t *testing.T) {
 			require.Equal(t, tt.kind, got.Kind)
 			require.Equal(t, "fleet", got.Family)
 			require.Equal(t, "110.0.3+up0.16.3", got.Metadata.Version)
+			require.Equal(t, tt.kubeVersion, got.Metadata.KubeVersion)
 			require.True(t, got.Valid)
 			require.Equal(t, check.Section{Valid: true, Errors: []string{}}, got.Annotations)
 			require.Equal(t, check.Section{Valid: true, Errors: []string{}}, got.HIP15Annotations)
@@ -202,6 +208,7 @@ metadata:
   name: fleet
   version: 110.0.3+up0.16.3
 `), res.Stdout)
+		require.Contains(t, res.Stdout, "  kubeVersion: >= 1.34.0-0 < 1.37.0-0\n")
 		require.Contains(t, res.Stdout, "annotations: valid\nhip15-annotations: valid\n")
 	})
 

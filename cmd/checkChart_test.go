@@ -25,9 +25,9 @@ version: 110.0.3
 appVersion: 0.16.3
 icon: https://example.com/icon.png
 description: Fleet
-kubeVersion: ">= 1.30.0-0 < 1.35.0-0"
 annotations:
   catalog.cattle.io/certified: rancher
+  catalog.cattle.io/kube-version: ">= 1.30.0-0 < 1.35.0-0"
 `
 
 const unlistedChartYAML = `

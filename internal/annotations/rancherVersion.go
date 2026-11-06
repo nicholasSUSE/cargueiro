@@ -4,21 +4,13 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 // checkRancherVersion reports a rancher-version annotation that is not a
 // bounded range of Rancher versions. An absent or blank one is left to
 // checkMissing.
 func checkRancherVersion(annotations map[string]string) []string {
-	value := annotations[prefix+"rancher-version"]
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	if err := rancherVersion(value); err != nil {
-		return []string{fmt.Sprintf("%srancher-version %q: %v", prefix, value, err)}
-	}
-	return nil
+	return checkValue(annotations, "rancher-version", rancherVersion)
 }
 
 // rancherVersionRange matches a range with both bounds: ">= 2.15.0-0 < 2.16.0-0".
@@ -29,7 +21,7 @@ var rancherVersionRange = regexp.MustCompile(`^>=\s*(\d+)\.(\d+)\.(\d+)-0\s*<\s*
 // rancherVersion returns an error unless value is a range with a lower and an
 // upper bound, the lower below the upper.
 func rancherVersion(value string) error {
-	m := rancherVersionRange.FindStringSubmatch(strings.TrimSpace(value))
+	m := rancherVersionRange.FindStringSubmatch(value)
 	if m == nil {
 		return fmt.Errorf("must look like %q", ">= 2.15.0-0 < 2.16.0-0")
 	}

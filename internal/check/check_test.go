@@ -162,3 +162,70 @@ func TestResultJSON(t *testing.T) {
 		"hip15-annotations": {"valid": true, "errors": []}
 	}`, string(data))
 }
+
+func TestResultFails(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations bool
+		hip15       bool
+		ignoreHIP15 bool
+		wantFails   bool
+	}{
+		{
+			name:        "valid",
+			annotations: true,
+			hip15:       true,
+			wantFails:   false,
+		},
+		{
+			name:        "valid, HIP-15 ignored",
+			annotations: true,
+			hip15:       true,
+			ignoreHIP15: true,
+			wantFails:   false,
+		},
+		{
+			name:        "annotation errors",
+			annotations: false,
+			hip15:       true,
+			wantFails:   true,
+		},
+		{
+			name:        "annotation errors, HIP-15 ignored",
+			annotations: false,
+			hip15:       true,
+			ignoreHIP15: true,
+			wantFails:   true,
+		},
+		{
+			name:        "HIP-15 errors",
+			annotations: true,
+			hip15:       false,
+			wantFails:   true,
+		},
+		{
+			name:        "HIP-15 errors, HIP-15 ignored",
+			annotations: true,
+			hip15:       false,
+			ignoreHIP15: true,
+			wantFails:   false,
+		},
+		{
+			name:        "both, HIP-15 ignored",
+			annotations: false,
+			hip15:       false,
+			ignoreHIP15: true,
+			wantFails:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := &Result{
+				Valid:            tt.annotations && tt.hip15,
+				Annotations:      Section{Valid: tt.annotations},
+				HIP15Annotations: Section{Valid: tt.hip15},
+			}
+			require.Equal(t, tt.wantFails, result.Fails(tt.ignoreHIP15))
+		})
+	}
+}

@@ -58,6 +58,15 @@ func Chart(cfg *rules.Config, files *chart.Files) (*Result, error) {
 	return result, nil
 }
 
+// Fails reports whether the command that printed the result must fail. HIP-15
+// errors are left out when ignoreHIP15 is set; they stay in the result.
+func (r *Result) Fails(ignoreHIP15 bool) bool {
+	if ignoreHIP15 {
+		return !r.Annotations.Valid
+	}
+	return !r.Valid
+}
+
 func section(problems []string) Section {
 	if problems == nil {
 		problems = []string{}

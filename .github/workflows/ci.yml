@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Tool versions come from mise.toml; the version of mise itself is pinned
+      # here so a new release of mise cannot change a run.
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          version: 2026.10.8
+          install: true
+          cache: true
+      - name: Format
+        run: make fmt
+      - name: Format changed nothing
+        run: git diff --exit-code
+      - name: Lint
+        run: make lint
+      - name: Vet
+        run: make vet
+      - name: Docs
+        run: make docs
+      - name: Docs changed nothing
+        run: git diff --exit-code
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          version: 2026.10.8
+          install: true
+          cache: true
+      - name: Unit tests
+        run: make test-unit
+      # Starts the local registries with the Docker on the runner, and stops
+      # them again.
+      - name: E2E tests
+        run: make test-e2e

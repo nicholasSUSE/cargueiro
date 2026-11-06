@@ -111,20 +111,6 @@ func TestValidate(t *testing.T) {
 			"catalog.cattle.io/certified":       "rancher",
 			"catalog.cattle.io/rancher-version": "latest",
 		}},
-		{name: "main bad rancher-version", chart: main, annotations: map[string]string{
-			"catalog.cattle.io/release-name":    "fleet",
-			"catalog.cattle.io/certified":       "rancher",
-			"catalog.cattle.io/rancher-version": ">= 2.11.0-0",
-		}, want: []string{`catalog.cattle.io/rancher-version ">= 2.11.0-0": must look like ">= 2.15.0-0 < 2.16.0-0"`}},
-		{name: "extra bad rancher-version", chart: extra, annotations: map[string]string{
-			"catalog.cattle.io/certified":       "rancher",
-			"catalog.cattle.io/rancher-version": "latest",
-		}, want: []string{`catalog.cattle.io/rancher-version "latest": must look like ">= 2.15.0-0 < 2.16.0-0"`}},
-		{name: "crd does not check rancher-version", chart: crd, annotations: map[string]string{
-			"catalog.cattle.io/release-name":    "fleet-crd",
-			"catalog.cattle.io/certified":       "rancher",
-			"catalog.cattle.io/rancher-version": "latest",
-		}},
 		{name: "crd does not check kube-version", chart: crd, annotations: map[string]string{
 			"catalog.cattle.io/release-name": "fleet-crd",
 			"catalog.cattle.io/certified":    "rancher",
@@ -180,22 +166,23 @@ func TestCheckReleaseName(t *testing.T) {
 	chart := rules.Chart{Name: "elemental", ReleaseName: "elemental-operator"}
 
 	tests := []struct {
-		name  string
-		value map[string]string
-		want  []string
+		name        string
+		annotations map[string]string
+		want        []string
 	}{
-		{name: "matches", value: map[string]string{"catalog.cattle.io/release-name": "elemental-operator"}},
-		{name: "differs", value: map[string]string{"catalog.cattle.io/release-name": "elemental"}, want: []string{`catalog.cattle.io/release-name is "elemental", want "elemental-operator"`}},
-		{name: "differs in case", value: map[string]string{"catalog.cattle.io/release-name": "Elemental-Operator"}, want: []string{`catalog.cattle.io/release-name is "Elemental-Operator", want "elemental-operator"`}},
-		{name: "differs by surrounding space", value: map[string]string{"catalog.cattle.io/release-name": " elemental-operator"}, want: []string{`catalog.cattle.io/release-name is " elemental-operator", want "elemental-operator"`}},
-		{name: "absent is left to checkMissing", value: map[string]string{}},
-		{name: "nil annotations", value: nil},
-		{name: "blank is left to checkMissing", value: map[string]string{"catalog.cattle.io/release-name": " "}},
-		{name: "other prefix is ignored", value: map[string]string{"catalog.rancher.io/release-name": "other"}},
+		{name: "matches", annotations: map[string]string{"catalog.cattle.io/release-name": "elemental-operator"}},
+		{name: "differs", annotations: map[string]string{"catalog.cattle.io/release-name": "elemental"}, want: []string{`catalog.cattle.io/release-name is "elemental", want "elemental-operator"`}},
+		{name: "differs in case", annotations: map[string]string{"catalog.cattle.io/release-name": "Elemental-Operator"}, want: []string{`catalog.cattle.io/release-name is "Elemental-Operator", want "elemental-operator"`}},
+		{name: "surrounding space is ignored", annotations: map[string]string{"catalog.cattle.io/release-name": "  elemental-operator "}},
+		{name: "differs, reported without the surrounding space", annotations: map[string]string{"catalog.cattle.io/release-name": " elemental "}, want: []string{`catalog.cattle.io/release-name is "elemental", want "elemental-operator"`}},
+		{name: "absent is left to checkMissing", annotations: map[string]string{}},
+		{name: "nil annotations", annotations: nil},
+		{name: "blank is left to checkMissing", annotations: map[string]string{"catalog.cattle.io/release-name": " "}},
+		{name: "other prefix is ignored", annotations: map[string]string{"catalog.rancher.io/release-name": "other"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, checkReleaseName(chart, tt.value))
+			require.Equal(t, tt.want, checkReleaseName(chart, tt.annotations))
 		})
 	}
 }

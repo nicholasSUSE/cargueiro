@@ -70,12 +70,32 @@ func collect(checks ...[]string) []string {
 	return problems
 }
 
+// annotationValue returns the annotation called name, without surrounding
+// space. Every check reads annotations through it, so space around a value
+// never matters.
+func annotationValue(annotations map[string]string, name string) string {
+	return strings.TrimSpace(annotations[prefix+name])
+}
+
+// checkValue reads the annotation called name and returns the problem validate
+// finds in its value. An absent or blank annotation is left to checkMissing.
+func checkValue(annotations map[string]string, name string, validate func(value string) error) []string {
+	value := annotationValue(annotations, name)
+	if value == "" {
+		return nil
+	}
+	if err := validate(value); err != nil {
+		return []string{fmt.Sprintf("%s%s %q: %v", prefix, name, value, err)}
+	}
+	return nil
+}
+
 // checkMissing reports each annotation the chart requires and lacks, in the order
 // the rules file lists them. A blank value counts as lacking.
 func checkMissing(chart rules.Chart, annotations map[string]string) []string {
 	var problems []string
 	for _, name := range chart.Required {
-		if strings.TrimSpace(annotations[prefix+name]) == "" {
+		if annotationValue(annotations, name) == "" {
 			problems = append(problems, fmt.Sprintf("missing annotation %s%s", prefix, name))
 		}
 	}
@@ -85,8 +105,8 @@ func checkMissing(chart rules.Chart, annotations map[string]string) []string {
 // checkReleaseName reports a release-name annotation that differs from the one the
 // rules file expects. An absent or blank one is left to checkMissing.
 func checkReleaseName(chart rules.Chart, annotations map[string]string) []string {
-	got := annotations[prefix+"release-name"]
-	if strings.TrimSpace(got) == "" || got == chart.ReleaseName {
+	got := annotationValue(annotations, "release-name")
+	if got == "" || got == chart.ReleaseName {
 		return nil
 	}
 	return []string{fmt.Sprintf("%srelease-name is %q, want %q", prefix, got, chart.ReleaseName)}

@@ -61,6 +61,17 @@ func TestValidate(t *testing.T) {
 			"catalog.cattle.io/certified":       "rancher",
 			"catalog.cattle.io/rancher-version": "latest",
 		}, want: []string{`catalog.cattle.io/rancher-version "latest": must look like ">= 2.15.0-0 < 2.16.0-0"`}},
+		{name: "main bad certified", chart: main, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet",
+			"catalog.cattle.io/certified":    "partner",
+		}, want: []string{`catalog.cattle.io/certified "partner": must be "rancher"`}},
+		{name: "crd bad certified", chart: crd, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet-crd",
+			"catalog.cattle.io/certified":    "partner",
+		}, want: []string{`catalog.cattle.io/certified "partner": must be "rancher"`}},
+		{name: "extra bad certified", chart: extra, annotations: map[string]string{
+			"catalog.cattle.io/certified": "partner",
+		}, want: []string{`catalog.cattle.io/certified "partner": must be "rancher"`}},
 		{name: "crd does not check rancher-version", chart: crd, annotations: map[string]string{
 			"catalog.cattle.io/release-name":    "fleet-crd",
 			"catalog.cattle.io/certified":       "rancher",

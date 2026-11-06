@@ -32,6 +32,7 @@ func ValidateMainChart(chart rules.Chart, annotations map[string]string) []strin
 	return collect(
 		checkMissing(chart, annotations),
 		checkReleaseName(chart, annotations),
+		checkCertified(annotations),
 		checkKubeVersion(annotations),
 		checkRancherVersion(annotations),
 	)
@@ -42,6 +43,7 @@ func ValidateCRD(chart rules.Chart, annotations map[string]string) []string {
 	return collect(
 		checkMissing(chart, annotations),
 		checkReleaseName(chart, annotations),
+		checkCertified(annotations),
 	)
 }
 
@@ -49,6 +51,7 @@ func ValidateCRD(chart rules.Chart, annotations map[string]string) []string {
 func ValidateExtraChart(chart rules.Chart, annotations map[string]string) []string {
 	return collect(
 		checkMissing(chart, annotations),
+		checkCertified(annotations),
 		checkKubeVersion(annotations),
 		checkRancherVersion(annotations),
 	)

@@ -14,7 +14,7 @@ kinds:
   crd:    # CRDs only; always hidden
     required: [release-name, certified, hidden]
   extra:  # companions and add-ons that are not a product chart on their own
-    required: [certified, rancher-version, kube-version]
+    required: [certified, rancher-version, kube-version, permits-os]
 
 # release-name is the chart name unless given here.
 families:

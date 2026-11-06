@@ -35,6 +35,7 @@ func ValidateMainChart(chart rules.Chart, annotations map[string]string) []strin
 		checkCertified(annotations),
 		checkKubeVersion(annotations),
 		checkRancherVersion(annotations),
+		checkPermitsOS(annotations),
 	)
 }
 
@@ -55,6 +56,7 @@ func ValidateExtraChart(chart rules.Chart, annotations map[string]string) []stri
 		checkCertified(annotations),
 		checkKubeVersion(annotations),
 		checkRancherVersion(annotations),
+		checkPermitsOS(annotations),
 	)
 }
 

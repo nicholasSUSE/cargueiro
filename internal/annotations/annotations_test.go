@@ -72,6 +72,21 @@ func TestValidate(t *testing.T) {
 		{name: "extra bad certified", chart: extra, annotations: map[string]string{
 			"catalog.cattle.io/certified": "partner",
 		}, want: []string{`catalog.cattle.io/certified "partner": must be "rancher"`}},
+		{name: "main bad permits-os", chart: main, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet",
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/permits-os":   "windows",
+		}, want: []string{`catalog.cattle.io/permits-os "windows": must include "linux"`}},
+		{name: "extra bad permits-os", chart: extra, annotations: map[string]string{
+			"catalog.cattle.io/certified":  "rancher",
+			"catalog.cattle.io/permits-os": "linux,darwin",
+		}, want: []string{`catalog.cattle.io/permits-os "linux,darwin": must list "linux", and optionally "windows", separated by commas`}},
+		{name: "crd does not check permits-os", chart: crd, annotations: map[string]string{
+			"catalog.cattle.io/release-name": "fleet-crd",
+			"catalog.cattle.io/certified":    "rancher",
+			"catalog.cattle.io/hidden":       "true",
+			"catalog.cattle.io/permits-os":   "windows",
+		}},
 		{name: "crd bad hidden", chart: crd, annotations: map[string]string{
 			"catalog.cattle.io/release-name": "fleet-crd",
 			"catalog.cattle.io/certified":    "rancher",

@@ -100,10 +100,12 @@ func resultText(result *check.Result) string {
 		b.WriteString("\n")
 	}
 
+	line("", "valid", fmt.Sprint(result.Valid))
+	sectionText(&b, "annotations", result.Annotations)
+	sectionText(&b, "hip15-annotations", result.HIP15Annotations)
 	line("", "chart", result.Chart)
 	line("", "kind", result.Kind)
 	line("", "family", result.Family)
-	line("", "valid", fmt.Sprint(result.Valid))
 	line("", "metadata", "")
 	line("  ", "name", result.Metadata.Name)
 	line("  ", "version", result.Metadata.Version)
@@ -111,8 +113,6 @@ func resultText(result *check.Result) string {
 	line("  ", "icon", result.Metadata.Icon)
 	line("  ", "description", result.Metadata.Description)
 	line("  ", "kubeVersion", result.Metadata.KubeVersion)
-	sectionText(&b, "annotations", result.Annotations)
-	sectionText(&b, "hip15-annotations", result.HIP15Annotations)
 	return b.String()
 }
 

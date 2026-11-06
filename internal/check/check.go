@@ -9,15 +9,19 @@ import (
 
 // Result is the outcome of checking one chart. The tags are the JSON the check
 // command prints.
+//
+// The verdict comes first, then the chart: the order of the fields is the order
+// of the JSON.
 type Result struct {
-	Chart  string `json:"chart"`
-	Kind   string `json:"kind"`
-	Family string `json:"family"`
 	// Valid is true when every section is valid.
-	Valid            bool     `json:"valid"`
-	Metadata         Metadata `json:"metadata"`
-	Annotations      Section  `json:"annotations"`
-	HIP15Annotations Section  `json:"hip15-annotations"`
+	Valid            bool    `json:"valid"`
+	Annotations      Section `json:"annotations"`
+	HIP15Annotations Section `json:"hip15-annotations"`
+
+	Chart    string   `json:"chart"`
+	Kind     string   `json:"kind"`
+	Family   string   `json:"family"`
+	Metadata Metadata `json:"metadata"`
 }
 
 // Metadata is the part of Chart.yaml that the result reports. KubeVersion is

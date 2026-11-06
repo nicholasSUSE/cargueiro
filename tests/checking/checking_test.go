@@ -232,16 +232,17 @@ func TestTextOutput(t *testing.T) {
 		res := harness.Cargueiro(t, t.TempDir(), "check", "chart", harness.FleetSource(t, "fleet"))
 
 		require.Zero(t, res.ExitCode, res.Stderr)
-		require.True(t, strings.HasPrefix(res.Stdout, `chart: fleet
+		require.True(t, strings.HasPrefix(res.Stdout, `valid: true
+annotations: valid
+hip15-annotations: valid
+chart: fleet
 kind: main
 family: fleet
-valid: true
 metadata:
   name: fleet
   version: 110.0.3+up0.16.3
 `), res.Stdout)
 		require.Contains(t, res.Stdout, "  kubeVersion: >= 1.34.0-0 < 1.37.0-0\n")
-		require.Contains(t, res.Stdout, "annotations: valid\nhip15-annotations: valid\n")
 	})
 
 	t.Run("invalid chart", func(t *testing.T) {
@@ -249,10 +250,9 @@ metadata:
 
 		require.Equal(t, 1, res.ExitCode)
 		require.Contains(t, res.Stderr, "chart is not valid")
-		require.Contains(t, res.Stdout, "valid: false\n")
-		require.Contains(t, res.Stdout, "annotations: valid\nhip15-annotations: invalid\n")
+		require.True(t, strings.HasPrefix(res.Stdout, "valid: false\nannotations: valid\nhip15-annotations: invalid\n"), res.Stdout)
 		require.Contains(t, res.Stdout, "  - "+unlisted("kubectl.image", "rancher/kuberlr-kubectl:v8.1.1")+"\n")
-		require.Contains(t, res.Stdout, "  - "+unlisted("systemUpgradeController.image", "rancher/system-upgrade-controller:v0.20.1")+"\n")
+		require.Contains(t, res.Stdout, "  - "+unlisted("systemUpgradeController.image", "rancher/system-upgrade-controller:v0.20.1")+"\nchart: system-upgrade-controller\n")
 	})
 }
 

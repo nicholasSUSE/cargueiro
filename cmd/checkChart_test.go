@@ -91,10 +91,12 @@ func TestCheckChartValid(t *testing.T) {
 		{
 			name: "text is the default",
 			args: []string{dir},
-			want: `chart: fleet
+			want: `valid: true
+annotations: valid
+hip15-annotations: valid
+chart: fleet
 kind: main
 family: fleet
-valid: true
 metadata:
   name: fleet
   version: 110.0.3
@@ -102,26 +104,13 @@ metadata:
   icon: https://example.com/icon.png
   description: Fleet
   kubeVersion: >= 1.30.0-0 < 1.35.0-0
-annotations: valid
-hip15-annotations: valid
 `,
 		},
 		{
 			name: "json",
 			args: []string{dir, "-o", "json"},
 			want: `{
-  "chart": "fleet",
-  "kind": "main",
-  "family": "fleet",
   "valid": true,
-  "metadata": {
-    "name": "fleet",
-    "version": "110.0.3",
-    "appVersion": "0.16.3",
-    "icon": "https://example.com/icon.png",
-    "description": "Fleet",
-    "kubeVersion": ">= 1.30.0-0 < 1.35.0-0"
-  },
   "annotations": {
     "valid": true,
     "errors": []
@@ -129,6 +118,17 @@ hip15-annotations: valid
   "hip15-annotations": {
     "valid": true,
     "errors": []
+  },
+  "chart": "fleet",
+  "kind": "main",
+  "family": "fleet",
+  "metadata": {
+    "name": "fleet",
+    "version": "110.0.3",
+    "appVersion": "0.16.3",
+    "icon": "https://example.com/icon.png",
+    "description": "Fleet",
+    "kubeVersion": ">= 1.30.0-0 < 1.35.0-0"
   }
 }
 `,
@@ -155,10 +155,14 @@ func TestCheckChartPrintsViolationsAndFails(t *testing.T) {
 		{
 			name: "text",
 			args: []string{dir},
-			want: `chart: fleet
+			want: `valid: false
+annotations: invalid
+  - missing annotation catalog.cattle.io/certified
+hip15-annotations: invalid
+  - values.yaml image: image "rancher/fleet:v0.16.3" is not listed in helm.sh/images
+chart: fleet
 kind: main
 family: fleet
-valid: false
 metadata:
   name: fleet
   version: 110.0.3
@@ -166,28 +170,13 @@ metadata:
   icon:
   description:
   kubeVersion:
-annotations: invalid
-  - missing annotation catalog.cattle.io/certified
-hip15-annotations: invalid
-  - values.yaml image: image "rancher/fleet:v0.16.3" is not listed in helm.sh/images
 `,
 		},
 		{
 			name: "json",
 			args: []string{dir, "--output", "json"},
 			want: `{
-  "chart": "fleet",
-  "kind": "main",
-  "family": "fleet",
   "valid": false,
-  "metadata": {
-    "name": "fleet",
-    "version": "110.0.3",
-    "appVersion": "",
-    "icon": "",
-    "description": "",
-    "kubeVersion": ""
-  },
   "annotations": {
     "valid": false,
     "errors": [
@@ -199,6 +188,17 @@ hip15-annotations: invalid
     "errors": [
       "values.yaml image: image \"rancher/fleet:v0.16.3\" is not listed in helm.sh/images"
     ]
+  },
+  "chart": "fleet",
+  "kind": "main",
+  "family": "fleet",
+  "metadata": {
+    "name": "fleet",
+    "version": "110.0.3",
+    "appVersion": "",
+    "icon": "",
+    "description": "",
+    "kubeVersion": ""
   }
 }
 `,

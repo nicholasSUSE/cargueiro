@@ -19,6 +19,10 @@ func TestCheckRancherVersion(t *testing.T) {
 		{name: "valid without space after the operator", value: ">=2.15.0-0 < 2.16.0-0"},
 		{name: "valid with surrounding space", value: "  >= 2.15.0-0 < 2.16.0-0 "},
 		{name: "numeric comparison, not text", value: ">= 2.9.0-0 < 2.10.0-0"},
+		{name: "patch decides when major and minor are equal", value: ">= 2.15.1-0 < 2.15.2-0"},
+		{name: "patch decides against the range", value: ">= 2.15.2-0 < 2.15.1-0", want: []string{`catalog.cattle.io/rancher-version ">= 2.15.2-0 < 2.15.1-0": lower bound 2.15.2-0 must be below upper bound 2.15.1-0`}},
+		{name: "a number too large for an integer", value: ">= 2.99999999999999999999.0-0 < 2.16.0-0", want: []string{`catalog.cattle.io/rancher-version ">= 2.99999999999999999999.0-0 < 2.16.0-0": version number "99999999999999999999" is too large`}},
+		{name: "an upper bound too large for an integer", value: ">= 2.15.0-0 < 2.16.99999999999999999999-0", want: []string{`catalog.cattle.io/rancher-version ">= 2.15.0-0 < 2.16.99999999999999999999-0": version number "99999999999999999999" is too large`}},
 
 		{name: "absent is left to checkMissing", value: ""},
 		{name: "blank is left to checkMissing", value: "  "},

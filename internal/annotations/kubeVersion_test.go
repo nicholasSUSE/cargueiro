@@ -37,6 +37,10 @@ func TestCheckKubeVersion(t *testing.T) {
 		{name: "lower above upper", value: ">= 1.37.0-0 < 1.34.0-0", want: []string{`catalog.cattle.io/kube-version ">= 1.37.0-0 < 1.34.0-0": lower bound 1.37.0-0 must be below upper bound 1.34.0-0`}},
 		{name: "lower equals upper", value: ">= 1.34.0-0 < 1.34.0-0", want: []string{`catalog.cattle.io/kube-version ">= 1.34.0-0 < 1.34.0-0": lower bound 1.34.0-0 must be below upper bound 1.34.0-0`}},
 		{name: "numeric comparison, not text", value: ">= 1.9.0-0 < 1.10.0-0"},
+		{name: "patch decides when major and minor are equal", value: ">= 1.34.1-0 < 1.34.2-0"},
+		{name: "patch decides against the range", value: ">= 1.34.2-0 < 1.34.1-0", want: []string{`catalog.cattle.io/kube-version ">= 1.34.2-0 < 1.34.1-0": lower bound 1.34.2-0 must be below upper bound 1.34.1-0`}},
+		{name: "a number too large for an integer", value: ">= 1.99999999999999999999.0-0 < 1.37.0-0", want: []string{`catalog.cattle.io/kube-version ">= 1.99999999999999999999.0-0 < 1.37.0-0": version number "99999999999999999999" is too large`}},
+		{name: "an upper bound too large for an integer", value: ">= 1.34.0-0 < 1.37.99999999999999999999-0", want: []string{`catalog.cattle.io/kube-version ">= 1.34.0-0 < 1.37.99999999999999999999-0": version number "99999999999999999999" is too large`}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

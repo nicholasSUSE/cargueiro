@@ -19,7 +19,7 @@ func TestCheckCertified(t *testing.T) {
 
 		{name: "another value", value: "partner", want: []string{`catalog.cattle.io/certified "partner": must be "rancher"`}},
 		{name: "different case", value: "Rancher", want: []string{`catalog.cattle.io/certified "Rancher": must be "rancher"`}},
-		{name: "surrounding space", value: " rancher", want: []string{`catalog.cattle.io/certified " rancher": must be "rancher"`}},
+		{name: "surrounding space is ignored", value: "  rancher "},
 		{name: "boolean", value: "true", want: []string{`catalog.cattle.io/certified "true": must be "rancher"`}},
 	}
 	for _, tt := range tests {

@@ -17,6 +17,7 @@ func TestCheckPermitsOS(t *testing.T) {
 		{name: "linux", value: "linux"},
 		{name: "linux and windows", value: "linux,windows"},
 		{name: "windows and linux", value: "windows,linux"},
+		{name: "surrounding space is ignored", value: "  linux,windows "},
 
 		{name: "absent is left to checkMissing", value: ""},
 		{name: "blank is left to checkMissing", value: "  "},

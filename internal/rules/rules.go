@@ -36,10 +36,14 @@ type Config struct {
 	charts map[string]Chart
 }
 
-// Lookup returns the chart called name, and whether the file lists it.
-func (c *Config) Lookup(name string) (Chart, bool) {
+// Find returns the chart called name. It fails when the rules file does not
+// list the chart, because then nothing says which rules apply to it.
+func (c *Config) Find(name string) (Chart, error) {
 	chart, ok := c.charts[name]
-	return chart, ok
+	if !ok {
+		return Chart{}, fmt.Errorf("chart %q is not listed in the rules file (rules.yaml)", name)
+	}
+	return chart, nil
 }
 
 type file struct {

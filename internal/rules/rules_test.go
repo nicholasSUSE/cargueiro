@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -45,19 +46,32 @@ func TestParse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := cfg.Lookup(tt.name)
-			require.True(t, ok)
+			got, err := cfg.Find(tt.name)
+			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestLookupUnlistedChart(t *testing.T) {
+func TestFindUnlistedChart(t *testing.T) {
 	cfg, err := Parse([]byte(valid))
 	require.NoError(t, err)
 
-	_, ok := cfg.Lookup("epinio")
-	require.False(t, ok)
+	tests := []struct {
+		name  string
+		chart string
+	}{
+		{name: "a chart that is not in the file", chart: "epinio"},
+		{name: "different case", chart: "Elemental"},
+		{name: "empty name", chart: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cfg.Find(tt.chart)
+			require.EqualError(t, err, fmt.Sprintf("chart %q is not listed in the rules file (rules.yaml)", tt.chart))
+			require.Equal(t, Chart{}, got)
+		})
+	}
 }
 
 func TestParseRejects(t *testing.T) {
@@ -140,8 +154,8 @@ func TestRepositoryConfig(t *testing.T) {
 	cfg, err := Parse(data)
 	require.NoError(t, err)
 
-	chart, ok := cfg.Lookup("rancher-backup-crd")
-	require.True(t, ok)
+	chart, err := cfg.Find("rancher-backup-crd")
+	require.NoError(t, err)
 	require.Equal(t, "crd", chart.Kind)
 	require.Equal(t, "rancher-backup", chart.Family)
 }

@@ -178,7 +178,7 @@ Known limits: a chart repository URL under a `repository` key is read as an imag
 |--------|-----|
 | Local | `make lint` / `make fmt` |
 | Editor (VSCode) | `go.lintTool: golangci-lint-v2`, picks up `.golangci.yml` |
-| Agent hook | `scripts/lint-hook.sh`, runs after every `.go` edit |
+| Agent hook | `tools/scripts/lint-hook.sh`, runs after every `.go` edit |
 | CI (GHA) | `jdx/mise-action`, reads the same `mise.toml` |
 
 ### Version pinning
@@ -195,7 +195,7 @@ Suppress a finding only with a reason: `//nolint:gochecknoglobals // set via ldf
 
 ### Agent hook
 
-A `PostToolUse` hook on `Edit|Write|MultiEdit` runs `scripts/lint-hook.sh`:
+A `PostToolUse` hook on `Edit|Write|MultiEdit` runs `tools/scripts/lint-hook.sh`:
 
 1. Reads the edited path from the hook's stdin JSON and skips non-`.go` files.
 2. Runs `make fmt`, then lints only the edited package (`./<dir>`).
@@ -209,7 +209,7 @@ The script is committed. The hook registration lives in `.claude/settings.json`,
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
-        "hooks": [{ "type": "command", "command": "scripts/lint-hook.sh" }]
+        "hooks": [{ "type": "command", "command": "tools/scripts/lint-hook.sh" }]
       }
     ]
   }

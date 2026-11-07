@@ -334,8 +334,9 @@ E2E tests for `push` use two throwaway `registry:2` containers, both bound to `1
 Credentials: `admin` / `cargueiro-test`. They are test-only; the htpasswd file is `tests/data/registry/htpasswd`.
 
 ```
-make registry-up     # start both (needs a running Docker daemon)
-make registry-down   # stop and remove both
+make registry-up       # start both (needs a running Docker daemon)
+make registry-down     # stop and remove both
+make registry-status   # are they up? prints the credentials and the login commands
 ```
 
 `make test-e2e` starts them and stops them again, even when tests fail. Run `make registry-up` yourself to run a single e2e test from the editor or with `go test -tags e2e`; the tests fail with a hint if the registries are not reachable.

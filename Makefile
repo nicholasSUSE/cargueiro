@@ -15,13 +15,16 @@ REGISTRY_TLS_PORT ?= 5051
 CERTS_DIR         := $(CURDIR)/.tmp/registry/certs
 
 .DEFAULT_GOAL := help
-.PHONY: help build test test-unit test-e2e registry-up registry-down vet lint fmt docs clean
+.PHONY: help build release-build test test-unit test-e2e registry-up registry-down vet lint fmt docs clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build bin/cargueiro
 	go build -ldflags "$(LDFLAGS)" -o $(BIN) .
+
+release-build: ## Build for every release target into bin/
+	go run ./tools/build -version $(VERSION) -commit $(COMMIT)
 
 test: test-unit test-e2e ## Run all tests
 

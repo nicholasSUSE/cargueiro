@@ -10,12 +10,19 @@ The checks run as separate jobs, in parallel, on a Linux runner. Linux is the on
 |------|---------|------------|
 | Format | `make fmt`, then `git diff --exit-code` | formatting changed any file |
 | Lint | `make lint` | golangci-lint reports a finding |
-| Vet | `make vet` | `go vet` reports a finding (with the `e2e` tag) |
+| Vet | `make vet` | `go vet` reports a finding (with the build tags of the e2e and release tests) |
 | Docs | `make docs`, then `git diff --exit-code` | the README commands table is stale |
 | Unit tests | `make test-unit` | a test fails (race detector on) |
 | E2E tests | `make test-e2e` | an e2e test fails |
+| Release binaries | `make test-release` | a release target does not build, or a binary has the wrong format or architecture, or does not carry the version |
 
 The unit tests start nothing, so they run in a job of their own and do not wait for the e2e tests. `make test-e2e` builds the binary and starts the local registries with the Docker on the runner. It stops them again, even when a test fails.
+
+## Release binaries
+
+`make release-build` builds cargueiro for every release target into `bin/`, next to the `bin/cargueiro` that `make build` writes for the host. `make build` stays a fast build for the host only. The build is a Go program in `tools/build`, which is also the one place that lists the targets. It uses plain `go build` without cgo, with `-trimpath` and a stripped binary, and stamps the version and commit with the same `VERSION` and `COMMIT` as `make build`. The targets build in parallel, and one that fails does not stop the others.
+
+`make test-release` builds them and then checks each binary from its header: the format and the architecture of its operating system, and that the version and commit reached the one binary the runner can run. The test has a build tag of its own, so `make test` and the e2e tests do not pay for a cross-build. CI builds and checks the binaries on every pull request, in a job of its own. Nothing is published: that is the release pipeline.
 
 ## Tool versions
 
@@ -44,6 +51,7 @@ make vet
 make docs && git diff --exit-code
 make test-unit
 make test-e2e
+make test-release
 ```
 
 Start from a clean tree, so that `git diff` shows only what the commands changed. `make test-e2e` needs Docker, and the pinned `helm` first on `PATH` (see "Editor (VSCode)" in [DEVELOPING.md](DEVELOPING.md) if another Helm shadows it).

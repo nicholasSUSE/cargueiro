@@ -308,6 +308,7 @@ Open `cargueiro/` as the workspace root. Change `args` to debug other commands. 
 | `make test-unit` | Unit tests (`go test -race ./...`), no external tools |
 | `make test-e2e` | E2E tests under `tests/` (`-tags e2e`), against the real binary |
 | `make test` | Both |
+| `make test-release` | Builds every release target (`make release-build`), then checks the binaries (`-tags release`). Not part of `make test`, because a cross-build is slow |
 
 E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`) and run it as a black box.
 

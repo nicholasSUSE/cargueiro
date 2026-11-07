@@ -178,7 +178,7 @@ Known limits: a chart repository URL under a `repository` key is read as an imag
 |--------|-----|
 | Local | `make lint` / `make fmt` |
 | Editor (VSCode) | `go.lintTool: golangci-lint-v2`, picks up `.golangci.yml` |
-| Agent hook | `scripts/lint-hook.sh`, runs after every `.go` edit |
+| Agent hook | `tools/scripts/lint-hook.sh`, runs after every `.go` edit |
 | CI (GHA) | `jdx/mise-action`, reads the same `mise.toml` |
 
 ### Version pinning
@@ -195,7 +195,7 @@ Suppress a finding only with a reason: `//nolint:gochecknoglobals // set via ldf
 
 ### Agent hook
 
-A `PostToolUse` hook on `Edit|Write|MultiEdit` runs `scripts/lint-hook.sh`:
+A `PostToolUse` hook on `Edit|Write|MultiEdit` runs `tools/scripts/lint-hook.sh`:
 
 1. Reads the edited path from the hook's stdin JSON and skips non-`.go` files.
 2. Runs `make fmt`, then lints only the edited package (`./<dir>`).
@@ -209,7 +209,7 @@ The script is committed. The hook registration lives in `.claude/settings.json`,
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
-        "hooks": [{ "type": "command", "command": "scripts/lint-hook.sh" }]
+        "hooks": [{ "type": "command", "command": "tools/scripts/lint-hook.sh" }]
       }
     ]
   }
@@ -252,6 +252,9 @@ After changing a doc, run `make docs` to refresh the README table. `make test` f
   "go.lintTool": "golangci-lint-v2",
   "go.testEnvVars": {
     "PATH": "<home>/.local/share/mise/shims:${env:PATH}"
+  },
+  "go.toolsEnvVars": {
+    "PATH": "<home>/.local/share/mise/shims:${env:PATH}"
   }
 }
 ```
@@ -259,6 +262,8 @@ After changing a doc, run `make docs` to refresh the README table. `make test` f
 Without `go.buildTags`, running an e2e test from the editor fails with `build constraints exclude all Go files`, because the e2e files carry the `e2e` build tag.
 
 E2E tests also need the pinned `helm` on `PATH`. If another `helm` comes first (a Homebrew one, for example), the test fails with `helm CLI on PATH differs from the helm SDK in go.mod`. `go.testEnvVars` puts the mise shims first for the tests run from the editor, so replace `<home>` with your home directory. Starting VSCode from a shell where mise is activated (for example `code .`) works too.
+
+The same goes for the tools the editor runs. The Go extension installs its own tools into Go's bin directory, and an old `golangci-lint` there can come first on `PATH`. It rejects the repository's configuration, and the editor shows only a package header with the `go-golangci-lint-v2` source. `go.toolsEnvVars` puts the mise shims first for those tools too, so the pinned `golangci-lint` is the one that runs. Reload the window after changing it.
 
 The tests in `tests/pushing` and `tests/login` also need the local registries: run `make registry-up` before running them from the editor, and `make registry-down` after.
 
@@ -308,6 +313,7 @@ Open `cargueiro/` as the workspace root. Change `args` to debug other commands. 
 | `make test-unit` | Unit tests (`go test -race ./...`), no external tools |
 | `make test-e2e` | E2E tests under `tests/` (`-tags e2e`), against the real binary |
 | `make test` | Both |
+| `make test-release` | Builds every release target (`make release-build`), then checks the binaries (`-tags release`). Not part of `make test`, because a cross-build is slow |
 
 E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`) and run it as a black box.
 
@@ -333,8 +339,9 @@ E2E tests for `push` use two throwaway `registry:2` containers, both bound to `1
 Credentials: `admin` / `cargueiro-test`. They are test-only; the htpasswd file is `tests/data/registry/htpasswd`.
 
 ```
-make registry-up     # start both (needs a running Docker daemon)
-make registry-down   # stop and remove both
+make registry-up       # start both (needs a running Docker daemon)
+make registry-down     # stop and remove both
+make registry-status   # are they up? prints the credentials and the login commands
 ```
 
 `make test-e2e` starts them and stops them again, even when tests fail. Run `make registry-up` yourself to run a single e2e test from the editor or with `go test -tags e2e`; the tests fail with a hint if the registries are not reachable.

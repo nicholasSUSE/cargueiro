@@ -13,15 +13,21 @@ REGISTRY_IMAGE    ?= registry:2.8.3
 REGISTRY_PORT     ?= 5050
 REGISTRY_TLS_PORT ?= 5051
 CERTS_DIR         := $(CURDIR)/.tmp/registry/certs
+# Test-only credentials of both registries. They match tests/data/registry/htpasswd.
+REGISTRY_USER     := admin
+REGISTRY_PASSWORD := cargueiro-test
 
 .DEFAULT_GOAL := help
-.PHONY: help build test test-unit test-e2e registry-up registry-down vet lint fmt docs clean
+.PHONY: help build release-build test test-unit test-e2e test-release registry-up registry-down registry-status vet lint fmt docs clean
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build bin/cargueiro
 	go build -ldflags "$(LDFLAGS)" -o $(BIN) .
+
+release-build: ## Build for every release target into bin/
+	go run ./tools/build -version $(VERSION) -commit $(COMMIT)
 
 test: test-unit test-e2e ## Run all tests
 
@@ -31,6 +37,9 @@ test-unit: ## Run unit tests with the race detector
 test-e2e: build ## Run e2e tests; starts and stops the local registries (needs Docker and helm)
 	@$(MAKE) -s registry-up
 	@go test -tags e2e -count=1 ./tests/...; rc=$$?; $(MAKE) -s registry-down; exit $$rc
+
+test-release: release-build ## Check the release binaries (builds them first)
+	go test -tags release -count=1 ./tests/building
 
 registry-up: registry-down ## Start local registries: HTTP+auth on 5050, TLS+auth on 5051
 	@go run ./tests/gencerts $(CERTS_DIR)
@@ -46,13 +55,34 @@ registry-up: registry-down ## Start local registries: HTTP+auth on 5050, TLS+aut
 		$(REGISTRY_IMAGE) >/dev/null
 	@for i in $$(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:$(REGISTRY_PORT)/v2/ && break; sleep 1; done
 	@for i in $$(seq 1 30); do curl -s -o /dev/null --cacert $(CERTS_DIR)/ca.crt https://127.0.0.1:$(REGISTRY_TLS_PORT)/v2/ && break; sleep 1; done
-	@echo "registries up (admin/cargueiro-test): http://127.0.0.1:$(REGISTRY_PORT), https://127.0.0.1:$(REGISTRY_TLS_PORT) (CA: $(CERTS_DIR)/ca.crt)"
+	@echo "registries up ($(REGISTRY_USER)/$(REGISTRY_PASSWORD)): http://127.0.0.1:$(REGISTRY_PORT), https://127.0.0.1:$(REGISTRY_TLS_PORT) (CA: $(CERTS_DIR)/ca.crt)"
 
 registry-down: ## Stop and remove the local registries
 	@docker rm -f cargueiro-registry cargueiro-registry-tls cargueiro-registry-auth >/dev/null 2>&1 || true
 
+registry-status: ## Show whether the local registries are up, and how to log in to them
+	@running() { [ "$$(docker inspect -f '{{.State.Running}}' "$$1" 2>/dev/null)" = true ]; }; \
+	if running cargueiro-registry && running cargueiro-registry-tls; then \
+		echo "registries are up"; \
+		echo "  http   127.0.0.1:$(REGISTRY_PORT)  (cargueiro-registry)"; \
+		echo "  https  127.0.0.1:$(REGISTRY_TLS_PORT)  (cargueiro-registry-tls)"; \
+		echo "username: $(REGISTRY_USER)"; \
+		echo "password: $(REGISTRY_PASSWORD)"; \
+		echo "log in over HTTP:"; \
+		echo "  echo $(REGISTRY_PASSWORD) | cargueiro registry login 127.0.0.1:$(REGISTRY_PORT) --username $(REGISTRY_USER) --password-stdin --plain-http"; \
+		echo "log in over TLS:"; \
+		echo "  echo $(REGISTRY_PASSWORD) | cargueiro registry login 127.0.0.1:$(REGISTRY_TLS_PORT) --username $(REGISTRY_USER) --password-stdin --ca-file $(CERTS_DIR)/ca.crt"; \
+	else \
+		echo "the registries are not both up:"; \
+		for name in cargueiro-registry cargueiro-registry-tls; do \
+			if running $$name; then state=up; else state=down; fi; \
+			printf "  %-24s %s\n" $$name $$state; \
+		done; \
+		echo "run make registry-up to start them"; \
+	fi
+
 vet: ## Run go vet
-	go vet -tags e2e ./...
+	go vet -tags e2e,release ./...
 
 lint: ## Run golangci-lint (PKG=./path to scope)
 	golangci-lint run $(PKG)

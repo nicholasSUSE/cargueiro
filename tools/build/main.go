@@ -46,12 +46,14 @@ type config struct {
 }
 
 // command is the go build of t. It has no cgo, so the binary does not depend on
-// the host it was built on.
+// the host it was built on, and it asks for no VCS stamp and trims the build
+// path, so the bytes depend on the source only.
 func (c config) command(ctx context.Context, t target) *exec.Cmd {
 	ldflags := fmt.Sprintf("-s -w -X %s/internal/version.version=%s", module, c.version)
 
 	cmd := exec.CommandContext(ctx, "go", "build",
 		"-trimpath",
+		"-buildvcs=false",
 		"-ldflags", ldflags,
 		"-o", filepath.Join(c.outDir, t.binary()),
 		".",

@@ -5,6 +5,7 @@
 package building
 
 import (
+	"debug/buildinfo"
 	"debug/elf"
 	"debug/macho"
 	"os"
@@ -94,4 +95,32 @@ func TestLinuxBuildIsStamped(t *testing.T) {
 		want = "dev"
 	}
 	require.Equal(t, want, strings.TrimSpace(string(out)))
+}
+
+// TestBuildSettings checks that the flags that make the binaries reproducible
+// reached every one of them: no cgo, the build path trimmed and no VCS stamp.
+func TestBuildSettings(t *testing.T) {
+	names := []string{
+		"cargueiro_linux_amd64",
+		"cargueiro_darwin_amd64",
+		"cargueiro_darwin_arm64",
+		"cargueiro_freebsd_amd64",
+	}
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			info, err := buildinfo.ReadFile(binary(t, name))
+			require.NoError(t, err)
+
+			settings := make(map[string]string, len(info.Settings))
+			for _, s := range info.Settings {
+				settings[s.Key] = s.Value
+			}
+
+			require.Equal(t, "0", settings["CGO_ENABLED"])
+			require.Equal(t, "true", settings["-trimpath"])
+			for key := range settings {
+				require.False(t, strings.HasPrefix(key, "vcs"), "%s is stamped: the binary depends on the git state", key)
+			}
+		})
+	}
 }

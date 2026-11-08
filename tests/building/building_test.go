@@ -5,12 +5,12 @@
 package building
 
 import (
+	"debug/buildinfo"
 	"debug/elf"
 	"debug/macho"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -80,8 +80,8 @@ func TestDarwinBuilds(t *testing.T) {
 }
 
 // TestLinuxBuildIsStamped runs the one build the host can run, and checks that
-// the version and the commit reached it. The unstamped default is "dev" with
-// commit "none".
+// it prints exactly the version it was built with: VERSION when make was given
+// one, "dev" otherwise.
 func TestLinuxBuildIsStamped(t *testing.T) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		t.Skip("the linux/amd64 build can only run on linux/amd64")
@@ -90,7 +90,37 @@ func TestLinuxBuildIsStamped(t *testing.T) {
 	out, err := exec.Command(binary(t, "cargueiro_linux_amd64"), "version").Output()
 	require.NoError(t, err)
 
-	got := strings.TrimSpace(string(out))
-	require.Regexp(t, regexp.MustCompile(`^\S+ \(commit \S+\)$`), got)
-	require.NotContains(t, got, "commit none", "the commit was not stamped")
+	want := os.Getenv("VERSION")
+	if want == "" {
+		want = "dev"
+	}
+	require.Equal(t, want, strings.TrimSpace(string(out)))
+}
+
+// TestBuildSettings checks that the flags that make the binaries reproducible
+// reached every one of them: no cgo, the build path trimmed and no VCS stamp.
+func TestBuildSettings(t *testing.T) {
+	names := []string{
+		"cargueiro_linux_amd64",
+		"cargueiro_darwin_amd64",
+		"cargueiro_darwin_arm64",
+		"cargueiro_freebsd_amd64",
+	}
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			info, err := buildinfo.ReadFile(binary(t, name))
+			require.NoError(t, err)
+
+			settings := make(map[string]string, len(info.Settings))
+			for _, s := range info.Settings {
+				settings[s.Key] = s.Value
+			}
+
+			require.Equal(t, "0", settings["CGO_ENABLED"])
+			require.Equal(t, "true", settings["-trimpath"])
+			for key := range settings {
+				require.False(t, strings.HasPrefix(key, "vcs"), "%s is stamped: the binary depends on the git state", key)
+			}
+		})
+	}
 }

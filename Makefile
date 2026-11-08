@@ -1,8 +1,6 @@
 BIN     := bin/cargueiro
 VERSION ?= dev
-COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
-LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSION) \
-           -X github.com/nicholasSUSE/cargueiro/internal/version.commit=$(COMMIT)
+LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSION)
 
 PKG     ?= ./...
 
@@ -27,7 +25,7 @@ build: ## Build bin/cargueiro
 	go build -ldflags "$(LDFLAGS)" -o $(BIN) .
 
 release-build: ## Build for every release target into bin/
-	go run ./tools/build -version $(VERSION) -commit $(COMMIT)
+	go run ./tools/build -version $(VERSION)
 
 test: test-unit test-e2e ## Run all tests
 

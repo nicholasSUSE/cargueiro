@@ -24,7 +24,6 @@ func TestTargets(t *testing.T) {
 func TestCommand(t *testing.T) {
 	cfg := config{
 		version: "v0.1.0",
-		commit:  "abc1234",
 		outDir:  "out",
 	}
 
@@ -33,7 +32,8 @@ func TestCommand(t *testing.T) {
 	require.Equal(t, []string{
 		"go", "build",
 		"-trimpath",
-		"-ldflags", "-s -w -X github.com/nicholasSUSE/cargueiro/internal/version.version=v0.1.0 -X github.com/nicholasSUSE/cargueiro/internal/version.commit=abc1234",
+		"-buildvcs=false",
+		"-ldflags", "-s -w -X github.com/nicholasSUSE/cargueiro/internal/version.version=v0.1.0",
 		"-o", filepath.Join("out", "cargueiro_darwin_arm64"),
 		".",
 	}, cmd.Args)
@@ -67,7 +67,6 @@ func (r *recorder) run(cmd *exec.Cmd) error {
 func TestBuildAll(t *testing.T) {
 	cfg := config{
 		version: "dev",
-		commit:  "none",
 		outDir:  filepath.Join(t.TempDir(), "bin"),
 	}
 	rec := &recorder{}
@@ -89,7 +88,6 @@ func TestBuildAll(t *testing.T) {
 func TestBuildAllReportsEveryFailure(t *testing.T) {
 	cfg := config{
 		version: "dev",
-		commit:  "none",
 		outDir:  t.TempDir(),
 	}
 	rec := &recorder{failing: map[string]error{

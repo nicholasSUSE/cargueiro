@@ -1,0 +1,114 @@
+name: Release
+
+run-name: Release ${{ inputs.version }}
+
+# Started by a person, who types the version. The workflow creates the tag
+# itself, and only after every check passed, so a tag never exists for a commit
+# that failed.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example v0.0.1 or v0.0.1-rc.1
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Two releases never run at the same time, and a running one is never cancelled.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The input reaches the script as an environment variable, never pasted
+      # into it.
+      - name: Check the branch and the version
+        env:
+          VERSION: ${{ inputs.version }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::a release is made from main, not from $REF"
+            exit 1
+          fi
+
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "::error::the version must look like v1.2.3 or v1.2.3-rc.1, not '$VERSION'"
+            exit 1
+          fi
+
+          # Exit code 2 means that no tag matches. Any other failure also stops
+          # the release.
+          set +e
+          git ls-remote --exit-code --tags "https://github.com/${REPO}" "refs/tags/${VERSION}" > /dev/null
+          status=$?
+          set -e
+          case "$status" in
+            2) ;;
+            0)
+              echo "::error::the tag $VERSION already exists"
+              exit 1
+              ;;
+            *)
+              echo "::error::could not look up the tag $VERSION"
+              exit 1
+              ;;
+          esac
+
+  ci:
+    name: ci
+    needs: guard
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: publish
+    needs: [guard, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          version: 2026.10.8
+          install: true
+          cache: true
+      # One build: it is checked here, and these are the files that are published.
+      - name: Build and check the binaries
+        run: make test-release VERSION="$VERSION"
+      - name: Write the checksums
+        run: cd bin && sha256sum cargueiro_* > checksums.txt
+      # The release is a draft until every file is attached: immutable releases
+      # cannot be changed once published. The tag is created when it is
+      # published, on the commit that was checked.
+      - name: Create the draft release
+        id: create
+        run: |
+          flags=()
+          if [[ "$VERSION" == *-rc.* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$VERSION" --draft --target "$GITHUB_SHA" --generate-notes "${flags[@]}"
+      - name: Attach the files
+        run: gh release upload "$VERSION" bin/cargueiro_* bin/checksums.txt
+      - name: Publish
+        run: gh release edit "$VERSION" --draft=false
+      # Leaves nothing half-published: only a draft this run created is removed.
+      - name: Remove the draft after a failure
+        if: failure() && steps.create.outcome == 'success'
+        run: |
+          if [ "$(gh release view "$VERSION" --json isDraft --jq .isDraft)" = "true" ]; then
+            gh release delete "$VERSION" --yes
+          fi

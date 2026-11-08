@@ -42,18 +42,18 @@ func (t target) binary() string {
 
 type config struct {
 	version string
-	commit  string
 	outDir  string
 }
 
 // command is the go build of t. It has no cgo, so the binary does not depend on
-// the host it was built on.
+// the host it was built on, and it asks for no VCS stamp and trims the build
+// path, so the bytes depend on the source only.
 func (c config) command(ctx context.Context, t target) *exec.Cmd {
-	ldflags := fmt.Sprintf("-s -w -X %[1]s/internal/version.version=%[2]s -X %[1]s/internal/version.commit=%[3]s",
-		module, c.version, c.commit)
+	ldflags := fmt.Sprintf("-s -w -X %s/internal/version.version=%s", module, c.version)
 
 	cmd := exec.CommandContext(ctx, "go", "build",
 		"-trimpath",
+		"-buildvcs=false",
 		"-ldflags", ldflags,
 		"-o", filepath.Join(c.outDir, t.binary()),
 		".",
@@ -109,8 +109,7 @@ func buildAll(ctx context.Context, cfg config, run runner) ([]string, error) {
 
 func main() {
 	var cfg config
-	flag.StringVar(&cfg.version, "version", "dev", "version to stamp into the binaries")
-	flag.StringVar(&cfg.commit, "commit", "none", "commit to stamp into the binaries")
+	flag.StringVar(&cfg.version, "version", "dev", "version to stamp into the binaries (dev unless this is a release)")
 	flag.StringVar(&cfg.outDir, "out", "bin", "directory to write the binaries to")
 	flag.Parse()
 

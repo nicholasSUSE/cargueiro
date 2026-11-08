@@ -14,8 +14,8 @@ func TestRootCmd(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{name: "version", args: []string{"version"}, want: "dev (commit none)\n"},
-		{name: "version with debug", args: []string{"--debug", "version"}, want: "dev (commit none)\n"},
+		{name: "version", args: []string{"version"}, want: "dev\n"},
+		{name: "version with debug", args: []string{"--debug", "version"}, want: "dev\n"},
 		{name: "version rejects args", args: []string{"version", "extra"}, wantErr: true},
 		{name: "unknown command", args: []string{"nope"}, wantErr: true},
 	}

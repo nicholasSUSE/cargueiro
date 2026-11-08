@@ -304,7 +304,7 @@ Create `.vscode/launch.json` locally from this template (requires [Delve](https:
 }
 ```
 
-Open `cargueiro/` as the workspace root. Change `args` to debug other commands. Debug runs skip the Makefile `-ldflags`, so the version output shows `dev (commit none)`.
+Open `cargueiro/` as the workspace root. Change `args` to debug other commands. Debug runs skip the Makefile `-ldflags`, so the version output shows `dev`.
 
 ## Testing
 

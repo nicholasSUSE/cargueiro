@@ -20,9 +20,9 @@ The unit tests start nothing, so they run in a job of their own and do not wait 
 
 ## Release binaries
 
-`make release-build` builds cargueiro for every release target into `bin/`, next to the `bin/cargueiro` that `make build` writes for the host. `make build` stays a fast build for the host only. The build is a Go program in `tools/build`, which is also the one place that lists the targets. It uses plain `go build` without cgo, with `-trimpath` and a stripped binary, and stamps the version and commit with the same `VERSION` and `COMMIT` as `make build`. The targets build in parallel, and one that fails does not stop the others.
+`make release-build` builds cargueiro for every release target into `bin/`, next to the `bin/cargueiro` that `make build` writes for the host. `make build` stays a fast build for the host only. The build is a Go program in `tools/build`, which is also the one place that lists the targets. It uses plain `go build` without cgo, with `-trimpath` and a stripped binary, and stamps the version with the same `VERSION` as `make build`, which is `dev` unless you set it. The targets build in parallel, and one that fails does not stop the others.
 
-`make test-release` builds them and then checks each binary from its header: the format and the architecture of its operating system, and that the version and commit reached the one binary the runner can run. The test has a build tag of its own, so `make test` and the e2e tests do not pay for a cross-build. CI builds and checks the binaries on every pull request, in a job of its own. Nothing is published: that is the release pipeline.
+`make test-release` builds them and then checks each binary from its header: the format and the architecture of its operating system, and that the version reached the one binary the runner can run. The test has a build tag of its own, so `make test` and the e2e tests do not pay for a cross-build. CI builds and checks the binaries on every pull request, in a job of its own. Nothing is published: that is the release pipeline.
 
 ## Tool versions
 

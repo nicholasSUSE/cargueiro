@@ -1,27 +1,11 @@
-// Package version exposes build information injected at link time.
+// Package version exposes the version injected at link time.
 package version
 
-import "fmt"
+// version is set via -ldflags at build time, which requires a package-level
+// variable. A build that the release workflow did not make keeps "dev".
+var version = "dev" //nolint:gochecknoglobals // set via ldflags
 
-// These values are set via -ldflags at build time, which requires
-// package-level variables.
-var (
-	version = "dev"
-	commit  = "none" //nolint:gochecknoglobals // set via ldflags
-)
-
-// Info describes the running build.
-type Info struct {
-	Version string
-	Commit  string
-}
-
-// Get returns the build information of the running binary.
-func Get() Info {
-	return Info{Version: version, Commit: commit}
-}
-
-// String formats the build information for display.
-func (i Info) String() string {
-	return fmt.Sprintf("%s (commit %s)", i.Version, i.Commit)
+// Get returns the version of the running binary: the release tag, or "dev".
+func Get() string {
+	return version
 }

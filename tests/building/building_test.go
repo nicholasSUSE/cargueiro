@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -80,8 +79,8 @@ func TestDarwinBuilds(t *testing.T) {
 }
 
 // TestLinuxBuildIsStamped runs the one build the host can run, and checks that
-// the version and the commit reached it. The unstamped default is "dev" with
-// commit "none".
+// it prints exactly the version it was built with: VERSION when make was given
+// one, "dev" otherwise.
 func TestLinuxBuildIsStamped(t *testing.T) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		t.Skip("the linux/amd64 build can only run on linux/amd64")
@@ -90,7 +89,9 @@ func TestLinuxBuildIsStamped(t *testing.T) {
 	out, err := exec.Command(binary(t, "cargueiro_linux_amd64"), "version").Output()
 	require.NoError(t, err)
 
-	got := strings.TrimSpace(string(out))
-	require.Regexp(t, regexp.MustCompile(`^\S+ \(commit \S+\)$`), got)
-	require.NotContains(t, got, "commit none", "the commit was not stamped")
+	want := os.Getenv("VERSION")
+	if want == "" {
+		want = "dev"
+	}
+	require.Equal(t, want, strings.TrimSpace(string(out)))
 }

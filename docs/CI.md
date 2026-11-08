@@ -1,6 +1,6 @@
 # CI
 
-GitHub Actions checks every pull request and every push to `main`. The workflow lives in `.github/workflows`. It runs the same `make` targets as a developer, so a failure in CI can be reproduced locally with the command named in the failing step.
+GitHub Actions checks every pull request, and runs the same checks again for the commit of every release. A change reaches `main` only through a pull request whose checks passed, so a push to `main` is not checked a second time. The workflow lives in `.github/workflows`. It runs the same `make` targets as a developer, so a failure in CI can be reproduced locally with the command named in the failing step.
 
 ## What runs
 

@@ -24,6 +24,19 @@ The unit tests start nothing, so they run in a job of their own and do not wait 
 
 `make test-release` builds them and then checks each binary from its header: the format and the architecture of its operating system, and that the version reached the one binary the runner can run. The test has a build tag of its own, so `make test` and the e2e tests do not pay for a cross-build. CI builds and checks the binaries on every pull request, in a job of its own. Nothing is published: that is the release pipeline.
 
+## Releasing
+
+A release is started by a person, never by pushing a tag. Run the release workflow from `main` (the Actions tab, or `gh workflow run Release -f version=v0.0.1` from a terminal) and type the version.
+
+- **Accepted versions.** `v1.2.3`, or `v1.2.3-rc.1` for a release candidate, which is published as a prerelease. Anything else is stopped at the start, before any build, and so is a version whose tag already exists or a run that was not started from `main`.
+- **What happens, in order.** The guard checks the branch and the version. The CI jobs then run again for that commit. Only if they all pass does one job build the release binaries, check them (`make test-release`, with the typed version) and publish those same files: it creates a draft release, attaches the files, and publishes it. The tag is created by the publish, on the commit that was checked, so a tag never exists for a commit that failed.
+- **What is published.** The binaries for every release target, a `checksums.txt`, and the release notes that GitHub generates from the merged pull requests. The asset names carry no version, so the download link of the latest release does not change from one release to the next.
+- **If it fails.** Nothing is published, and a draft release that the run created is removed. Fix the cause and run the workflow again with the same version.
+- **Verifying a download.** Put the binary and `checksums.txt` in one directory and run `sha256sum --ignore-missing -c checksums.txt`.
+- **The version a binary reports.** A release prints its tag. Every other build prints `dev`, whatever commit it was built from.
+
+Only the publishing job can write to the repository. The input is passed to the scripts as an environment variable and is checked before it is used.
+
 ## Tool versions
 
 `mise.toml` is the only place with tool versions. The workflow installs them with `jdx/mise-action`, so Go, golangci-lint and Helm are the ones you use locally. There is no `go-version` in the workflow. Helm has to be the version of the `helm.sh/helm/v4` library in `go.mod`, and a test fails if it is not.

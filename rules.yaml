@@ -7,6 +7,9 @@
 # editions. The registries section says where the charts of each edition and the
 # images are released to; push uses it to protect the SUSE registries.
 #
+# A crd or extra chart keeps its icon as it is, and so does a main chart marked
+# icon: skip. Any other chart must have an icon that can be made local.
+#
 # Data source: latest Chart.yaml of every chart in rancher/charts release-v2.15
 # (be246f515, 2026-10-29). The prime-charts entries are the charts of
 # prime-charts release-v2.13, v2.14 and v2.15.
@@ -29,12 +32,12 @@ families:
       - { name: elemental-crd, kind: crd, release-name: elemental-operator-crds, edition: rancher-charts }
   - family: fleet
     charts:
-      - { name: fleet, kind: main, edition: rancher-charts }
+      - { name: fleet, kind: main, edition: rancher-charts, icon: skip }
       - { name: fleet-agent, kind: extra, edition: rancher-charts }
       - { name: fleet-crd, kind: crd, edition: rancher-charts }
   - family: harvester-rbac
     charts:
-      - { name: harvester-rbac, kind: main, edition: rancher-charts }
+      - { name: harvester-rbac, kind: main, edition: rancher-charts, icon: skip }
   - family: longhorn
     charts:
       - { name: longhorn, kind: main, edition: rancher-charts }
@@ -49,7 +52,7 @@ families:
       - { name: prometheus-federator, kind: main, edition: rancher-charts }
   - family: rancher-aks-operator
     charts:
-      - { name: rancher-aks-operator, kind: main, edition: rancher-charts }
+      - { name: rancher-aks-operator, kind: main, edition: rancher-charts, icon: skip }
       - { name: rancher-aks-operator-crd, kind: crd, edition: rancher-charts }
   - family: rancher-backup
     charts:
@@ -61,11 +64,11 @@ families:
       - { name: rancher-compliance-crd, kind: crd, edition: rancher-charts }
   - family: rancher-eks-operator
     charts:
-      - { name: rancher-eks-operator, kind: main, edition: rancher-charts }
+      - { name: rancher-eks-operator, kind: main, edition: rancher-charts, icon: skip }
       - { name: rancher-eks-operator-crd, kind: crd, edition: rancher-charts }
   - family: rancher-gke-operator
     charts:
-      - { name: rancher-gke-operator, kind: main, edition: rancher-charts }
+      - { name: rancher-gke-operator, kind: main, edition: rancher-charts, icon: skip }
       - { name: rancher-gke-operator-crd, kind: crd, edition: rancher-charts }
   - family: rancher-logging
     charts:
@@ -87,20 +90,20 @@ families:
       - { name: rancher-turtles, kind: main, edition: rancher-charts }
   - family: rancher-webhook
     charts:
-      - { name: rancher-webhook, kind: main, edition: rancher-charts }
+      - { name: rancher-webhook, kind: main, edition: rancher-charts, icon: skip }
   - family: remotedialer-proxy
     charts:
-      - { name: remotedialer-proxy, kind: main, edition: rancher-charts }  # known violation: no kube-version, fix upstream
+      - { name: remotedialer-proxy, kind: main, edition: rancher-charts, icon: skip }  # known violation: no kube-version, fix upstream
   - family: system-upgrade-controller
     charts:
-      - { name: system-upgrade-controller, kind: main, edition: rancher-charts, version: plain }
+      - { name: system-upgrade-controller, kind: main, edition: rancher-charts, version: plain, icon: skip }
 
   - family: rancher-ai-agent
     charts:
       - { name: rancher-ai-agent, kind: main, release-name: cattle-ai-agent-system, edition: prime-charts }
   - family: rancher-ali-operator
     charts:
-      - { name: rancher-ali-operator, kind: main, edition: prime-charts }
+      - { name: rancher-ali-operator, kind: main, edition: prime-charts, icon: skip }
       - { name: rancher-ali-operator-crd, kind: crd, edition: prime-charts }
   - family: rancher-turtles-providers
     charts:

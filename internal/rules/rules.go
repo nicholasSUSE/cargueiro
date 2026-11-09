@@ -25,12 +25,22 @@ type Chart struct {
 	// PlainVersion is true when the chart version has no +up part: 1XY.Z.W
 	// and not 1XY.Z.W+upA.B.C.
 	PlainVersion bool
+	// SkipIcon is true when the rules file says icon: skip. Use IconExempt to
+	// know whether a chart needs an icon.
+	SkipIcon bool
 	// ReleaseName is the expected catalog.cattle.io/release-name. It is the
 	// chart name unless the file says otherwise.
 	ReleaseName string
 	// Required lists the annotations the chart must carry, without the
 	// catalog.cattle.io/ prefix.
 	Required []string
+}
+
+// IconExempt reports whether the chart is shipped without a logo and with its
+// icon as it is: a CRD or an extra chart always, and a main chart that the
+// rules file marks icon: skip.
+func (c Chart) IconExempt() bool {
+	return c.Kind != KindMain || c.SkipIcon
 }
 
 // The kinds a rules file may define.
@@ -43,6 +53,10 @@ const (
 // versionPlain is the value of a chart's version key for a chart whose version
 // has no +up part.
 const versionPlain = "plain"
+
+// iconSkip is the value of a chart's icon key for a main chart that is exempt
+// from having its icon made local.
+const iconSkip = "skip"
 
 // The editions a chart may belong to.
 const (
@@ -196,6 +210,7 @@ type chartItem struct {
 	ReleaseName string `yaml:"release-name"`
 	Edition     string `yaml:"edition"`
 	Version     string `yaml:"version"`
+	Icon        string `yaml:"icon"`
 }
 
 // Parse reads a rules file. It rejects malformed input: unknown keys, an
@@ -317,6 +332,16 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		return Chart{}, fmt.Errorf("parse rules: chart %q has unknown version %q", item.Name, item.Version)
 	}
 
+	switch item.Icon {
+	case "":
+	case iconSkip:
+		if item.Kind != KindMain {
+			return Chart{}, fmt.Errorf("parse rules: chart %q: icon: skip is for a main chart; a crd or extra chart is exempt already", item.Name)
+		}
+	default:
+		return Chart{}, fmt.Errorf("parse rules: chart %q has unknown icon %q", item.Name, item.Icon)
+	}
+
 	releaseName := item.ReleaseName
 	if releaseName == "" {
 		releaseName = item.Name
@@ -328,6 +353,7 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		Edition:      item.Edition,
 		ReleaseName:  releaseName,
 		PlainVersion: item.Version == versionPlain,
+		SkipIcon:     item.Icon == iconSkip,
 		Required:     slices.Clone(rule.Required),
 	}, nil
 }

@@ -124,6 +124,25 @@ func TestChart(t *testing.T) {
 			wantVersion: []string{},
 		},
 		{
+			name: "an image with the tag latest",
+			files: &chart.Files{
+				Metadata: chart.Metadata{Name: "fleet"},
+				Annotations: map[string]string{
+					certified: "rancher",
+				},
+				Values: map[string]any{
+					"image": map[string]any{
+						"repository": "rancher/fleet",
+						"tag":        "latest",
+					},
+				},
+			},
+			version:         goodVersion,
+			wantAnnotations: []string{},
+			wantHIP15:       []string{`values.yaml image: "tag" must not be "latest"`},
+			wantVersion:     []string{},
+		},
+		{
 			name: "version errors only",
 			files: &chart.Files{
 				Metadata: chart.Metadata{Name: "fleet"},

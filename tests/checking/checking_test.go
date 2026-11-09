@@ -260,6 +260,19 @@ metadata:
 	})
 }
 
+// TestUpstreamTagLatestIsRefused checks the webhook chart as its upstream keeps
+// it, before the owner's automation sets the real image tag: the tag latest is
+// an error of the helm.sh/images section, once, and not a second error about
+// the annotation missing it.
+func TestUpstreamTagLatestIsRefused(t *testing.T) {
+	got, res := checkJSON(t, harness.ChartSource(t, "rancher-webhook-upstream", "rancher-webhook"))
+
+	require.Equal(t, 1, res.ExitCode)
+	require.Contains(t, res.Stderr, "chart is not valid")
+	require.False(t, got.HIP15Annotations.Valid)
+	require.Equal(t, []string{`values.yaml image: "tag" must not be "latest"`}, got.HIP15Annotations.Errors)
+}
+
 // TestFailuresPrintNothing checks the cases where no result can be built: the
 // error goes to stderr, stdout stays empty, and the exit code is 1.
 func TestFailuresPrintNothing(t *testing.T) {

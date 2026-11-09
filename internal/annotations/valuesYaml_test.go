@@ -214,6 +214,28 @@ image:
 			want: []string{`values.yaml image: "repository" is set but "tag" is empty`},
 		},
 		{
+			name: "repository with the tag latest",
+			values: `
+image:
+  repository: rancher/a
+  tag: latest
+`,
+			want: []string{`values.yaml image: "tag" must not be "latest"`},
+		},
+		{
+			name: "a nested image with the tag latest",
+			values: `
+image:
+  operator:
+    repository: rancher/a
+    tag: v1
+  scan:
+    repository: rancher/b
+    tag: latest
+`,
+			want: []string{`values.yaml image.scan: "tag" must not be "latest"`},
+		},
+		{
 			name: "repository with a null tag",
 			values: `
 image:

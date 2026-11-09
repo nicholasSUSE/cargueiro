@@ -33,6 +33,7 @@ type dependencies struct {
 	pkg         packageFunc
 	newPusher   pusherFactory
 	verifyLogin verifyFunc
+	fetchChart  fetchFunc
 }
 
 // NewRootCmd builds the root command. Output streams are injected so
@@ -49,6 +50,7 @@ func NewRootCmd(stdout, stderr io.Writer, rules []byte) (*cobra.Command, error) 
 		pkg:         chart.Package,
 		newPusher:   newOCIPusher,
 		verifyLogin: oci.VerifyLogin,
+		fetchChart:  oci.FetchChart,
 	})
 }
 
@@ -83,7 +85,7 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	checkCmd, err := newCheckCmd(opts)
+	checkCmd, err := newCheckCmd(opts, deps.fetchChart)
 	if err != nil {
 		return nil, err
 	}

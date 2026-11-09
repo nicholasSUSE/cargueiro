@@ -151,6 +151,14 @@ Each kind has one function in `internal/annotations` (`ValidateMainChart`, `Vali
 
 The result has the same fields as text and as JSON (`--output json`): `valid`, two sections, `annotations` and `hip15-annotations`, each with its own `valid` and an `errors` list, and then the chart, its kind and family, and a few `Chart.yaml` fields. Both sections always run. Annotation values are never printed, except `kubeVersion` in the metadata, which is the `catalog.cattle.io/kube-version` annotation and not Helm's own `kubeVersion` field. In `internal/check`, `Result` carries the JSON tags, and `Metadata` is its own struct so that the loader's type does not decide the output.
 
+### check archive
+
+`cargueiro check archive <chart.tgz>` checks a packaged chart with the same rules, output and exit codes as `check chart`. `chart.LoadArchive` takes `Chart.yaml` and `values.yaml` from the archive in memory, and the shared `report` does the rest, so the same files give the same report from an archive, a directory and a registry.
+
+### check oci
+
+`cargueiro check oci <registry/path/chart:tag>` checks a chart that is already in a registry, with the same rules, output and exit codes as `check chart`: only the source of `Chart.yaml` and `values.yaml` differs. `internal/oci` resolves the tag anonymously, requires a Helm chart manifest with exactly one chart layer, reads that layer in full (at most 2 MB, verified against its size and digest), and `chart.LoadArchive` takes the two files from it. Reading the registry is untrusted input, so it is bounded; credentials are not supported yet. A failure to read the chart prints nothing on stdout and exits 1.
+
 ### helm.sh/images
 
 The `helm.sh/images` annotation follows [Helm HIP-15](https://github.com/helm/community/blob/main/hips/hip-0015.md), a draft, and adds Rancher policy on top. `ValidateHelmImages(annotations, values)` is meant to run for every kind, next to the kind's own validator, and takes the parsed `Chart.yaml` annotations and `values.yaml`. A chart whose `values.yaml` has no images needs no annotation.
@@ -323,24 +331,25 @@ E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`
 
 `tests/login` logs in and out of the local registries over HTTP and TLS and checks what `push` does with what was saved: a second login is refused until logout, explicit credentials win, a wrong password saves nothing, logout forgets everything, and the file is private.
 
-`tests/checking` runs `check chart` on real SUSE charts and checks the exact output. The fleet charts pass. `rancher-monitoring` (the largest `values.yaml`), `rancher-monitoring-crd`, `longhorn`, `rancher-webhook` and `system-upgrade-controller` fail, because they carry no `helm.sh/images` annotation, and `longhorn` and `rancher-webhook` also have a `kube-version` without both bounds. Their fixtures keep only `Chart.yaml` and `values.yaml`, the two files `check` reads. It also covers the text output and every case that prints nothing on stdout.
+`tests/checking` runs `check chart`, `check archive` and `check oci` on real SUSE charts and checks the exact output; `check oci` is run against the local registry that asks for no password, after pushing the charts to it, and its report must equal the one for the source directory. The fleet charts pass. `rancher-monitoring` (the largest `values.yaml`), `rancher-monitoring-crd`, `longhorn`, `rancher-webhook` and `system-upgrade-controller` fail, because they carry no `helm.sh/images` annotation, and `longhorn` and `rancher-webhook` also have a `kube-version` without both bounds. Their fixtures keep only `Chart.yaml` and `values.yaml`, the two files `check` reads. It also covers the text output and every case that prints nothing on stdout.
 
 Test data is committed by hand, never fetched by a script. See the `PROVENANCE.md` next to each chart in `tests/data/charts/` for where it came from. Nothing under `tests/` is embedded in the binary.
 
 ## Local registries
 
-E2E tests for `push` use two throwaway `registry:2` containers, both bound to `127.0.0.1` only and both requiring basic auth, like the production registries:
+E2E tests use three throwaway `registry:2` containers, all bound to `127.0.0.1` only. Two require basic auth, like the production registries, and are used by `push`. The third needs no password and is used by the commands that read anonymously, such as `check oci`:
 
 | Name | Address | Transport |
 |------|---------|-----------|
 | `cargueiro-registry` | `127.0.0.1:5050` | HTTP |
 | `cargueiro-registry-tls` | `127.0.0.1:5051` | HTTPS, self-signed CA |
+| `cargueiro-registry-open` | `127.0.0.1:5052` | HTTP, no password |
 
-Credentials: `admin` / `cargueiro-test`. They are test-only; the htpasswd file is `tests/data/registry/htpasswd`.
+Credentials of the first two: `admin` / `cargueiro-test`. They are test-only; the htpasswd file is `tests/data/registry/htpasswd`.
 
 ```
-make registry-up       # start both (needs a running Docker daemon)
-make registry-down     # stop and remove both
+make registry-up       # start them (needs a running Docker daemon)
+make registry-down     # stop and remove them
 make registry-status   # are they up? prints the credentials and the login commands
 ```
 

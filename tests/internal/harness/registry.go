@@ -22,6 +22,7 @@ const (
 const (
 	defaultHTTPRegistry = "127.0.0.1:5050"
 	defaultTLSRegistry  = "127.0.0.1:5051"
+	defaultOpenRegistry = "127.0.0.1:5052"
 	dialTimeout         = 2 * time.Second
 )
 
@@ -39,6 +40,14 @@ func TLSRegistry(t *testing.T) string {
 	t.Helper()
 
 	return reachable(t, envOr("CARGUEIRO_TEST_REGISTRY_TLS", defaultTLSRegistry))
+}
+
+// OpenRegistry returns the address of the plain-HTTP e2e registry that asks for
+// no password. It fails the test when the registry is not running.
+func OpenRegistry(t *testing.T) string {
+	t.Helper()
+
+	return reachable(t, envOr("CARGUEIRO_TEST_REGISTRY_OPEN", defaultOpenRegistry))
 }
 
 // RegistryCA returns the path of the CA certificate that signed the TLS

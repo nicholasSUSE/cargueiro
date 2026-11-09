@@ -7,6 +7,7 @@ import (
 
 	"github.com/nicholasSUSE/cargueiro/internal/chart"
 	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/nicholasSUSE/cargueiro/internal/version"
 )
 
 // fetchFunc reads Chart.yaml and values.yaml of the chart at ref.
@@ -49,5 +50,5 @@ func checkOCI(cmd *cobra.Command, opts *rootOptions, fetch fetchFunc, reference,
 	if err != nil {
 		return err
 	}
-	return report(cmd, opts, files, output, noErrorHIP15)
+	return report(cmd, opts, files, version.FromOCITag(ref.Tag), output, noErrorHIP15)
 }

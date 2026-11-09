@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -21,6 +22,9 @@ type Chart struct {
 	Family string
 	// Edition is the repository the chart is released from.
 	Edition string
+	// PlainVersion is true when the chart version has no +up part: 1XY.Z.W
+	// and not 1XY.Z.W+upA.B.C.
+	PlainVersion bool
 	// ReleaseName is the expected catalog.cattle.io/release-name. It is the
 	// chart name unless the file says otherwise.
 	ReleaseName string
@@ -35,6 +39,10 @@ const (
 	KindCRD   = "crd"
 	KindExtra = "extra"
 )
+
+// versionPlain is the value of a chart's version key for a chart whose version
+// has no +up part.
+const versionPlain = "plain"
 
 // The editions a chart may belong to.
 const (
@@ -63,6 +71,16 @@ type Registries struct {
 	Images        ImageRegistries
 }
 
+// Versions is the chart version policy named in the rules file.
+type Versions struct {
+	// Prereleases are the prerelease names a chart version may carry, as in
+	// the rc of -rc.1.
+	Prereleases []string
+	// Majors maps a Rancher version, such as 2.16, to the major its charts
+	// carry, such as 111.
+	Majors map[string]int
+}
+
 // ChartRepositories lists the repositories the charts of edition are released
 // to, staging first. It is empty for an unknown edition.
 func (r Registries) ChartRepositories(edition string) []string {
@@ -85,6 +103,15 @@ func (r Registries) ImageRepositories() []string {
 type Config struct {
 	charts     map[string]Chart
 	registries Registries
+	versions   Versions
+}
+
+// Versions returns the chart version policy named in the rules file.
+func (c *Config) Versions() Versions {
+	return Versions{
+		Prereleases: slices.Clone(c.versions.Prereleases),
+		Majors:      maps.Clone(c.versions.Majors),
+	}
 }
 
 // Editions returns the edition of every listed chart, by chart name.
@@ -116,6 +143,12 @@ type file struct {
 	Families []family            `yaml:"families"`
 
 	Registries registriesFile `yaml:"registries"`
+	Versions   versionsFile   `yaml:"versions"`
+}
+
+type versionsFile struct {
+	Prereleases []string       `yaml:"prereleases"`
+	Majors      map[string]int `yaml:"majors"`
 }
 
 type registriesFile struct {
@@ -148,6 +181,7 @@ type chartItem struct {
 	Kind        string `yaml:"kind"`
 	ReleaseName string `yaml:"release-name"`
 	Edition     string `yaml:"edition"`
+	Version     string `yaml:"version"`
 }
 
 // Parse reads a rules file. It rejects malformed input: unknown keys, an
@@ -173,7 +207,11 @@ func Parse(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Config{charts: charts, registries: registries}, nil
+	versions, err := newVersions(f.Versions)
+	if err != nil {
+		return nil, err
+	}
+	return &Config{charts: charts, registries: registries, versions: versions}, nil
 }
 
 // decode reads the YAML, rejecting unknown keys.
@@ -259,17 +297,24 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		return Chart{}, fmt.Errorf("parse rules: chart %q has unknown edition %q", item.Name, item.Edition)
 	}
 
+	switch item.Version {
+	case "", versionPlain:
+	default:
+		return Chart{}, fmt.Errorf("parse rules: chart %q has unknown version %q", item.Name, item.Version)
+	}
+
 	releaseName := item.ReleaseName
 	if releaseName == "" {
 		releaseName = item.Name
 	}
 	return Chart{
-		Name:        item.Name,
-		Kind:        item.Kind,
-		Family:      family,
-		Edition:     item.Edition,
-		ReleaseName: releaseName,
-		Required:    slices.Clone(rule.Required),
+		Name:         item.Name,
+		Kind:         item.Kind,
+		Family:       family,
+		Edition:      item.Edition,
+		ReleaseName:  releaseName,
+		PlainVersion: item.Version == versionPlain,
+		Required:     slices.Clone(rule.Required),
 	}, nil
 }
 
@@ -326,4 +371,55 @@ func checkRegistry(value string) error {
 		return errors.New("must not end in a slash")
 	}
 	return nil
+}
+
+var (
+	prereleaseName = regexp.MustCompile(`^[a-z]+$`)
+	rancherVersion = regexp.MustCompile(`^2\.\d+$`)
+)
+
+// The majors a chart version may start with: 1XY.
+const (
+	minMajor = 100
+	maxMajor = 199
+)
+
+// newVersions checks the version policy and returns it.
+func newVersions(v versionsFile) (Versions, error) {
+	if len(v.Prereleases) == 0 {
+		return Versions{}, errors.New("parse rules: versions: no prereleases")
+	}
+	seen := make(map[string]bool, len(v.Prereleases))
+	for _, name := range v.Prereleases {
+		switch {
+		case !prereleaseName.MatchString(name):
+			return Versions{}, fmt.Errorf("parse rules: versions: prerelease %q must be lowercase letters", name)
+		case seen[name]:
+			return Versions{}, fmt.Errorf("parse rules: versions: prerelease %q is listed twice", name)
+		}
+		seen[name] = true
+	}
+
+	if len(v.Majors) == 0 {
+		return Versions{}, errors.New("parse rules: versions: no majors")
+	}
+	used := make(map[int]string, len(v.Majors))
+	for _, rancher := range slices.Sorted(maps.Keys(v.Majors)) {
+		major := v.Majors[rancher]
+		switch {
+		case !rancherVersion.MatchString(rancher):
+			return Versions{}, fmt.Errorf("parse rules: versions: Rancher version %q must look like 2.16", rancher)
+		case major < minMajor || major > maxMajor:
+			return Versions{}, fmt.Errorf("parse rules: versions: major %d of Rancher %s must be between %d and %d",
+				major, rancher, minMajor, maxMajor)
+		case used[major] != "":
+			return Versions{}, fmt.Errorf("parse rules: versions: major %d is used by Rancher %s and %s", major, used[major], rancher)
+		}
+		used[major] = rancher
+	}
+
+	return Versions{
+		Prereleases: slices.Clone(v.Prereleases),
+		Majors:      maps.Clone(v.Majors),
+	}, nil
 }

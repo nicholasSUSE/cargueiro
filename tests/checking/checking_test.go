@@ -78,6 +78,7 @@ func TestFleetIsValid(t *testing.T) {
 			require.True(t, got.Valid)
 			require.Equal(t, check.Section{Valid: true, Errors: []string{}}, got.Annotations)
 			require.Equal(t, check.Section{Valid: true, Errors: []string{}}, got.HIP15Annotations)
+			require.Equal(t, check.Section{Valid: true, Errors: []string{}}, got.Version)
 		})
 	}
 }
@@ -191,6 +192,8 @@ func TestRancherChartsBreakTheRules(t *testing.T) {
 			require.Equal(t, len(tt.wantAnnotations) == 0, got.Annotations.Valid)
 			require.Equal(t, tt.wantHIP15, got.HIP15Annotations.Errors)
 			require.False(t, got.HIP15Annotations.Valid)
+			require.Equal(t, check.Section{Valid: true, Errors: []string{}}, got.Version,
+				"the released versions follow the policy: a prerelease, a CRD and a plain chart included")
 		})
 	}
 }
@@ -235,6 +238,7 @@ func TestTextOutput(t *testing.T) {
 		require.True(t, strings.HasPrefix(res.Stdout, `valid: true
 annotations: valid
 hip15-annotations: valid
+version: valid
 chart: fleet
 kind: main
 family: fleet
@@ -252,7 +256,7 @@ metadata:
 		require.Contains(t, res.Stderr, "chart is not valid")
 		require.True(t, strings.HasPrefix(res.Stdout, "valid: false\nannotations: valid\nhip15-annotations: invalid\n"), res.Stdout)
 		require.Contains(t, res.Stdout, "  - "+unlisted("kubectl.image", "rancher/kuberlr-kubectl:v8.1.1")+"\n")
-		require.Contains(t, res.Stdout, "  - "+unlisted("systemUpgradeController.image", "rancher/system-upgrade-controller:v0.20.1")+"\nchart: system-upgrade-controller\n")
+		require.Contains(t, res.Stdout, "  - "+unlisted("systemUpgradeController.image", "rancher/system-upgrade-controller:v0.20.1")+"\nversion: valid\nchart: system-upgrade-controller\n")
 	})
 }
 

@@ -29,6 +29,11 @@ registries:
   images:
     staging: stgregistry.suse.com/rancher
     production: registry.suse.com/rancher
+versions:
+  prereleases: [rancher, rc, beta, alpha]
+  majors:
+    "2.16": 111
+    "2.17": 112
 `
 
 func TestParse(t *testing.T) {
@@ -71,6 +76,17 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// registriesAndVersions are the sections a file needs besides the charts.
+const registriesAndVersions = `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: p.io/b}
+  images: {staging: s.io/c, production: p.io/c}
+versions:
+  prereleases: [rc]
+  majors: {"2.16": 111}
+`
+
 func TestParseRegistries(t *testing.T) {
 	cfg, err := Parse([]byte(valid))
 	require.NoError(t, err)
@@ -90,6 +106,137 @@ func TestParseRegistries(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, cfg.Registries())
+}
+
+func TestParseVersions(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+
+	want := Versions{
+		Prereleases: []string{"rancher", "rc", "beta", "alpha"},
+		Majors:      map[string]int{"2.16": 111, "2.17": 112},
+	}
+	require.Equal(t, want, cfg.Versions())
+
+	// The caller gets a copy, not the policy itself.
+	got := cfg.Versions()
+	got.Prereleases[0] = "changed"
+	got.Majors["2.16"] = 1
+	require.Equal(t, want, cfg.Versions())
+}
+
+func TestParsePlainVersion(t *testing.T) {
+	const charts = `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts, version: plain}
+      - {name: b, kind: main, edition: rancher-charts}
+`
+	cfg, err := Parse([]byte(charts + registriesAndVersions))
+	require.NoError(t, err)
+
+	a, err := cfg.Find("a")
+	require.NoError(t, err)
+	require.True(t, a.PlainVersion)
+
+	b, err := cfg.Find("b")
+	require.NoError(t, err)
+	require.False(t, b.PlainVersion)
+}
+
+func TestParseRejectsVersions(t *testing.T) {
+	const charts = `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+`
+	const registries = `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: p.io/b}
+  images: {staging: s.io/c, production: p.io/c}
+`
+
+	tests := []struct {
+		name     string
+		versions string
+		wantErr  string
+	}{
+		{
+			name:     "no versions section",
+			versions: "",
+			wantErr:  "versions: no prereleases",
+		},
+		{
+			name:     "no majors",
+			versions: "versions: {prereleases: [rc]}",
+			wantErr:  "versions: no majors",
+		},
+		{
+			name:     "an uppercase prerelease",
+			versions: `versions: {prereleases: [RC], majors: {"2.16": 111}}`,
+			wantErr:  `prerelease "RC" must be lowercase letters`,
+		},
+		{
+			name:     "a prerelease with a dot",
+			versions: `versions: {prereleases: ["rc."], majors: {"2.16": 111}}`,
+			wantErr:  `prerelease "rc." must be lowercase letters`,
+		},
+		{
+			name:     "a prerelease listed twice",
+			versions: `versions: {prereleases: [rc, rc], majors: {"2.16": 111}}`,
+			wantErr:  `prerelease "rc" is listed twice`,
+		},
+		{
+			name:     "a Rancher version that is not 2.N",
+			versions: `versions: {prereleases: [rc], majors: {"3.1": 111}}`,
+			wantErr:  `Rancher version "3.1" must look like 2.16`,
+		},
+		{
+			name:     "a major below 100",
+			versions: `versions: {prereleases: [rc], majors: {"2.16": 99}}`,
+			wantErr:  "major 99 of Rancher 2.16 must be between 100 and 199",
+		},
+		{
+			name:     "a major above 199",
+			versions: `versions: {prereleases: [rc], majors: {"2.16": 200}}`,
+			wantErr:  "major 200 of Rancher 2.16 must be between 100 and 199",
+		},
+		{
+			name:     "a major used twice",
+			versions: `versions: {prereleases: [rc], majors: {"2.16": 111, "2.17": 111}}`,
+			wantErr:  "major 111 is used by Rancher 2.16 and 2.17",
+		},
+		{
+			name:     "an unknown key",
+			versions: `versions: {prereleases: [rc], majors: {"2.16": 111}, other: x}`,
+			wantErr:  "field other not found",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := Parse([]byte(charts + registries + tt.versions))
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, cfg)
+		})
+	}
+}
+
+func TestParseRejectsAnUnknownChartVersion(t *testing.T) {
+	const in = `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts, version: other}
+`
+	cfg, err := Parse([]byte(in))
+	require.ErrorContains(t, err, `chart "a" has unknown version "other"`)
+	require.Nil(t, cfg)
 }
 
 func TestRegistriesRepositories(t *testing.T) {
@@ -448,6 +595,16 @@ func TestRepositoryConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, EditionPrimeCharts, agent.Edition)
 	require.Equal(t, "cattle-ai-agent-system", agent.ReleaseName)
+
+	suc, err := cfg.Find("system-upgrade-controller")
+	require.NoError(t, err)
+	require.True(t, suc.PlainVersion)
+
+	fleet, err := cfg.Find("fleet")
+	require.NoError(t, err)
+	require.False(t, fleet.PlainVersion)
+
+	require.Equal(t, 111, cfg.Versions().Majors["2.16"])
 }
 
 // TestParseReportsTheSameKindEveryTime keeps the error stable when several
@@ -489,6 +646,11 @@ registries:
   images:
     staging: stgregistry.suse.com/rancher
     production: registry.suse.com/rancher
+versions:
+  prereleases: [rancher, rc, beta, alpha]
+  majors:
+    "2.16": 111
+    "2.17": 112
 `
 
 	cfg, err := Parse([]byte(in))

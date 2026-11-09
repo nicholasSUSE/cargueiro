@@ -124,6 +124,8 @@ Every chart also has an `edition`, `rancher-charts` or `prime-charts`, which say
 
 `push` builds its guard from these. On the SUSE registries named there, a listed chart may only go to the repositories of its edition, anything else is an image dependency that may only go to the image path, and nothing that already exists is overwritten. The check and the upload are separate calls, so only the registry's own immutable tags could close the race between two pushes of the same new tag.
 
+A chart version is `1XY.Z.W+upA.B.C`, with an optional prerelease after the `+up` part such as `-rc.1`; a chart marked `version: plain` is `1XY.Z.W` and has neither. The `versions` section of the file lists the prerelease names that are allowed and ties each Rancher version to the major (`1XY`) its charts carry. `internal/version` applies it: `Policy.Validate` checks the form, and `Policy.CheckMajor` compares the major with the lower bound of the chart's `rancher-version` annotation. The `check` commands call them.
+
 | Kind | Chart | Required annotations (under `catalog.cattle.io/`) |
 |------|-------|---------------------------------------------------|
 | `main` | a product chart, with or without a `-crd` sibling | `release-name`, `certified`, `rancher-version`, `kube-version`, `permits-os` |
@@ -144,7 +146,7 @@ Each kind has one function in `internal/annotations` (`ValidateMainChart`, `Vali
 
 ### check chart
 
-`cargueiro check chart <chart-dir>` ties the pieces together: `internal/chart` reads `Chart.yaml` and `values.yaml` into memory (nothing else in the directory is read), `internal/check` finds the chart in the rules and runs the annotation checks and the `helm.sh/images` checks, and `cmd` prints the result.
+`cargueiro check chart <chart-dir>` ties the pieces together: `internal/chart` reads `Chart.yaml` and `values.yaml` into memory (nothing else in the directory is read), `internal/check` finds the chart in the rules and runs the annotation checks, the `helm.sh/images` checks and the version checks, and `cmd` prints the result.
 
 | Outcome | stdout | stderr | Exit |
 |---------|--------|--------|------|
@@ -153,7 +155,7 @@ Each kind has one function in `internal/annotations` (`ValidateMainChart`, `Vali
 | Only `helm.sh/images` violations, with `--no-error-hip-15` | the result, unchanged | `chart is not valid (HIP-15 errors ignored by --no-error-hip-15)` | 0 |
 | Unreadable directory or file, bad YAML, chart not in `rules.yaml`, unknown `--output` | | the error | 1 |
 
-The result has the same fields as text and as JSON (`--output json`): `valid`, two sections, `annotations` and `hip15-annotations`, each with its own `valid` and an `errors` list, and then the chart, its kind and family, and a few `Chart.yaml` fields. Both sections always run. Annotation values are never printed, except `kubeVersion` in the metadata, which is the `catalog.cattle.io/kube-version` annotation and not Helm's own `kubeVersion` field. In `internal/check`, `Result` carries the JSON tags, and `Metadata` is its own struct so that the loader's type does not decide the output.
+The result has the same fields as text and as JSON (`--output json`): `valid`, three sections, `annotations`, `hip15-annotations` and `version`, each with its own `valid` and an `errors` list, and then the chart, its kind and family, and a few `Chart.yaml` fields. All sections always run. `version` holds the version rule errors: the form, and the major against the `rancher-version` annotation. `check oci` validates the version in the reference, and the other two the one in `Chart.yaml`. Annotation values are never printed, except `kubeVersion` in the metadata, which is the `catalog.cattle.io/kube-version` annotation and not Helm's own `kubeVersion` field. In `internal/check`, `Result` carries the JSON tags, and `Metadata` is its own struct so that the loader's type does not decide the output.
 
 ### check archive
 

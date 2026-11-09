@@ -40,7 +40,7 @@ func stampChart(cmd *cobra.Command, opts *rootOptions, dir, newVersion string) e
 	}
 	opts.log.DebugContext(cmd.Context(), "stamping chart", "chart", dir, "version", newVersion)
 
-	plan, err := stamp.Build(cfg, dir, newVersion)
+	plan, err := stamp.Build(cmd.Context(), cfg, dir, stamp.Options{Version: newVersion})
 	if err != nil {
 		return err
 	}

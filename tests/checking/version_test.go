@@ -92,7 +92,7 @@ func requireOnlyTheVersionFails(t *testing.T, res harness.Result, wantErr string
 // The Rancher 2.15 fleet chart, with a version that is wrong in one way each.
 const (
 	wrongMajor = `version "109.0.3+up0.16.3" has major 109, but charts for Rancher 2.15 have major 110`
-	noUp       = `version "110.0.3" must look like 1XY.Z.W+upA.B.C, optionally followed by -rc.N, -alpha.N, -beta.N, -rancher.N or -security.N`
+	noUp       = `version "110.0.3" must look like 1XY.Z.W+upA.B.C, optionally followed by -rancher.N, -rc.N, -beta.N or -alpha.N`
 )
 
 func TestCheckChartVersion(t *testing.T) {

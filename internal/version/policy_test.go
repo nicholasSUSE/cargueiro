@@ -10,7 +10,7 @@ func newTestPolicy(t *testing.T) *Policy {
 	t.Helper()
 
 	policy, err := NewPolicy(
-		[]string{"rc", "alpha", "beta", "rancher", "security"},
+		[]string{"rancher", "rc", "beta", "alpha"},
 		map[string]int{"2.16": 111, "2.17": 112},
 	)
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestNewPolicyRejects(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	const standardMsg = `must look like 1XY.Z.W+upA.B.C, optionally followed by ` +
-		`-rc.N, -alpha.N, -beta.N, -rancher.N or -security.N`
+		`-rancher.N, -rc.N, -beta.N or -alpha.N`
 
 	tests := []struct {
 		name    string
@@ -89,10 +89,6 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "rancher",
 			version: "109.0.1+up0.10.4-rancher.3",
-		},
-		{
-			name:    "security",
-			version: "109.0.1+up0.10.4-security.1",
 		},
 
 		// A standard chart, refused.
@@ -139,6 +135,11 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "a prerelease number with a leading zero",
 			version: "109.0.1+up0.10.4-rc.01",
+			wantErr: standardMsg,
+		},
+		{
+			name:    "a prerelease that is not allowed any more",
+			version: "109.0.1+up0.10.4-security.1",
 			wantErr: standardMsg,
 		},
 		{

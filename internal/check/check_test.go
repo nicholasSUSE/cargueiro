@@ -34,7 +34,7 @@ registries:
     staging: stgregistry.suse.com/rancher
     production: registry.suse.com/rancher
 versions:
-  prereleases: [rc, alpha, beta, rancher, security]
+  prereleases: [rancher, rc, beta, alpha]
   majors:
     "2.16": 111
     "2.17": 112
@@ -135,7 +135,7 @@ func TestChart(t *testing.T) {
 			wantAnnotations: []string{},
 			wantHIP15:       []string{},
 			wantVersion: []string{
-				`version "110.0.3" must look like 1XY.Z.W+upA.B.C, optionally followed by -rc.N, -alpha.N, -beta.N, -rancher.N or -security.N`,
+				`version "110.0.3" must look like 1XY.Z.W+upA.B.C, optionally followed by -rancher.N, -rc.N, -beta.N or -alpha.N`,
 			},
 		},
 	}
@@ -348,7 +348,7 @@ func TestResultFails(t *testing.T) {
 
 func TestChartVersion(t *testing.T) {
 	const (
-		standard = `must look like 1XY.Z.W+upA.B.C, optionally followed by -rc.N, -alpha.N, -beta.N, -rancher.N or -security.N`
+		standard = `must look like 1XY.Z.W+upA.B.C, optionally followed by -rancher.N, -rc.N, -beta.N or -alpha.N`
 		rancher  = "catalog.cattle.io/rancher-version"
 	)
 

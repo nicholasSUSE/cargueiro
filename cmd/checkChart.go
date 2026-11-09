@@ -40,13 +40,10 @@ func newCheckChartCmd(opts *rootOptions) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-// checkChart checks the chart in dir and prints the result. A chart that breaks
-// the rules is printed and then reported as an error, so the exit code is 1.
-// With noErrorHIP15, a chart whose only errors are HIP-15 ones is printed the
-// same way, and the exit code is 0.
+// checkChart checks the chart in dir and reports on it.
 func checkChart(cmd *cobra.Command, opts *rootOptions, dir, output string, noErrorHIP15 bool) error {
-	if output != outputText && output != outputJSON {
-		return fmt.Errorf("unknown output format %q, want %s or %s", output, outputText, outputJSON)
+	if err := checkOutputFormat(output); err != nil {
+		return err
 	}
 	opts.log.DebugContext(cmd.Context(), "checking chart", "chart", dir, "output", output)
 
@@ -54,6 +51,22 @@ func checkChart(cmd *cobra.Command, opts *rootOptions, dir, output string, noErr
 	if err != nil {
 		return err
 	}
+	return report(cmd, opts, files, output, noErrorHIP15)
+}
+
+// checkOutputFormat rejects a format that cannot be printed.
+func checkOutputFormat(output string) error {
+	if output != outputText && output != outputJSON {
+		return fmt.Errorf("unknown output format %q, want %s or %s", output, outputText, outputJSON)
+	}
+	return nil
+}
+
+// report checks files against the rules and prints the result. A chart that
+// breaks the rules is printed and then reported as an error, so the exit code
+// is 1. With noErrorHIP15, a chart whose only errors are HIP-15 ones is printed
+// the same way, and the exit code is 0.
+func report(cmd *cobra.Command, opts *rootOptions, files *chart.Files, output string, noErrorHIP15 bool) error {
 	cfg, err := rules.Parse(opts.rules)
 	if err != nil {
 		return err

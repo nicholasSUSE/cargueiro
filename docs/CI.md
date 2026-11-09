@@ -74,3 +74,19 @@ Start from a clean tree, so that `git diff` shows only what the commands changed
 CI reports a result; it does not stop a merge. To require it, mark the workflow's checks as required in the repository's rules for `main`. That is a repository setting, not part of the workflow.
 
 A required check is matched by the name of its job. Renaming a job in the workflow means updating the rule, or the old name stays required and no pull request can merge.
+
+## Settings for releases
+
+These are repository settings, applied by hand, not by a workflow.
+
+### Tag rules
+
+A tag ruleset for the release tags (`v*`) restricts updating, deleting and force-pushing them, with an empty bypass list, so a published version's tag cannot be moved or removed. Creation is not restricted: the release workflow's own token is not exempt from a tag ruleset, and publishing fails with `Cannot create ref due to creations being restricted`. To restrict it too, put the GitHub Actions app in the bypass list, or create the tag with the token of a small GitHub App that is.
+
+### Immutable releases
+
+With the repository setting on, a release published afterwards is locked: its tag and its files cannot be changed or deleted, and a deleted release's tag name can never be reused, release candidates included. This is why the workflow creates a draft, attaches every file, and only then publishes. `gh release view <tag> --json isImmutable` shows whether a release came out immutable.
+
+### Checking a change
+
+After changing one of these settings, run the release workflow with a release candidate. A failed publish names the rule that stopped it, and the draft is removed.

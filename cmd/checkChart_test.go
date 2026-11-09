@@ -16,7 +16,7 @@ kinds:
 families:
   - family: fleet
     charts:
-      - { name: fleet, kind: main }
+      - { name: fleet, kind: main, edition: rancher-charts }
 `
 
 const validChartYAML = `

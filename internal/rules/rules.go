@@ -18,6 +18,8 @@ type Chart struct {
 	Name   string
 	Kind   string
 	Family string
+	// Edition is the repository the chart is released from.
+	Edition string
 	// ReleaseName is the expected catalog.cattle.io/release-name. It is the
 	// chart name unless the file says otherwise.
 	ReleaseName string
@@ -31,6 +33,12 @@ const (
 	KindMain  = "main"
 	KindCRD   = "crd"
 	KindExtra = "extra"
+)
+
+// The editions a chart may belong to.
+const (
+	EditionRancherCharts = "rancher-charts"
+	EditionPrimeCharts   = "prime-charts"
 )
 
 // Config is the parsed rules file.
@@ -66,12 +74,14 @@ type chartItem struct {
 	Name        string `yaml:"name"`
 	Kind        string `yaml:"kind"`
 	ReleaseName string `yaml:"release-name"`
+	Edition     string `yaml:"edition"`
 }
 
 // Parse reads a rules file. It rejects malformed input: unknown keys, an
 // unknown kind, a family or chart without a name, a family without charts, a
-// chart listed twice or without a defined kind, and an empty or repeated
-// annotation name in a kind.
+// chart listed twice or without a defined kind, a chart without a known
+// edition, a family that mixes editions, and an empty or repeated annotation
+// name in a kind.
 func Parse(data []byte) (*Config, error) {
 	f, err := decode(data)
 	if err != nil {
@@ -133,6 +143,10 @@ func indexCharts(f file) (map[string]Chart, error) {
 			if err != nil {
 				return nil, err
 			}
+			if chart.Edition != fam.Charts[0].Edition {
+				return nil, fmt.Errorf("parse rules: family %q mixes editions %q and %q",
+					fam.Family, fam.Charts[0].Edition, chart.Edition)
+			}
 			if _, dup := charts[chart.Name]; dup {
 				return nil, fmt.Errorf("parse rules: chart %q is listed twice", chart.Name)
 			}
@@ -159,6 +173,14 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		return Chart{}, fmt.Errorf("parse rules: chart %q has undefined kind %q", item.Name, item.Kind)
 	}
 
+	switch item.Edition {
+	case "":
+		return Chart{}, fmt.Errorf("parse rules: chart %q has no edition", item.Name)
+	case EditionRancherCharts, EditionPrimeCharts:
+	default:
+		return Chart{}, fmt.Errorf("parse rules: chart %q has unknown edition %q", item.Name, item.Edition)
+	}
+
 	releaseName := item.ReleaseName
 	if releaseName == "" {
 		releaseName = item.Name
@@ -167,6 +189,7 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		Name:        item.Name,
 		Kind:        item.Kind,
 		Family:      family,
+		Edition:     item.Edition,
 		ReleaseName: releaseName,
 		Required:    slices.Clone(rule.Required),
 	}, nil

@@ -17,8 +17,8 @@ kinds:
 families:
   - family: elemental
     charts:
-      - { name: elemental, kind: main, release-name: elemental-operator }
-      - { name: elemental-crd, kind: crd }
+      - { name: elemental, kind: main, release-name: elemental-operator, edition: rancher-charts }
+      - { name: elemental-crd, kind: crd, edition: rancher-charts }
 `
 
 func TestParse(t *testing.T) {
@@ -35,6 +35,7 @@ func TestParse(t *testing.T) {
 				Name:        "elemental",
 				Kind:        "main",
 				Family:      "elemental",
+				Edition:     "rancher-charts",
 				ReleaseName: "elemental-operator",
 				Required:    []string{"release-name", "kube-version"},
 			},
@@ -45,6 +46,7 @@ func TestParse(t *testing.T) {
 				Name:        "elemental-crd",
 				Kind:        "crd",
 				Family:      "elemental",
+				Edition:     "rancher-charts",
 				ReleaseName: "elemental-crd",
 				Required:    []string{"hidden"},
 			},
@@ -119,7 +121,7 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {name: a, kind: main, colour: red}
+      - {name: a, kind: main, colour: red, edition: rancher-charts}
 `,
 			wantErr: "field colour not found",
 		},
@@ -143,7 +145,7 @@ kinds: {main: {}}
 kinds: {main: {}}
 families:
   - charts:
-      - {name: a, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: "a family has no name",
 		},
@@ -163,7 +165,7 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {kind: main}
+      - {kind: main, edition: rancher-charts}
 `,
 			wantErr: `family "a" has a chart with no name`,
 		},
@@ -174,7 +176,7 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {name: a, kind: other}
+      - {name: a, kind: other, edition: rancher-charts}
 `,
 			wantErr: `chart "a" has undefined kind "other"`,
 		},
@@ -190,14 +192,48 @@ families:
 			wantErr: `chart "a" has no kind`,
 		},
 		{
-			name: "chart listed twice in one family",
+			name: "chart without an edition",
 			in: `
 kinds: {main: {}}
 families:
   - family: a
     charts:
       - {name: a, kind: main}
-      - {name: a, kind: main}
+`,
+			wantErr: `chart "a" has no edition`,
+		},
+		{
+			name: "unknown edition",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: other}
+`,
+			wantErr: `chart "a" has unknown edition "other"`,
+		},
+		{
+			name: "family mixing editions",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: b, kind: main, edition: prime-charts}
+`,
+			wantErr: `family "a" mixes editions "rancher-charts" and "prime-charts"`,
+		},
+		{
+			name: "chart listed twice in one family",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: `chart "a" is listed twice`,
 		},
@@ -208,10 +244,10 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {name: x, kind: main}
+      - {name: x, kind: main, edition: rancher-charts}
   - family: b
     charts:
-      - {name: x, kind: main}
+      - {name: x, kind: main, edition: rancher-charts}
 `,
 			wantErr: `chart "x" is listed twice`,
 		},
@@ -222,7 +258,7 @@ kinds: {main: {required: ['']}}
 families:
   - family: a
     charts:
-      - {name: a, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: `kind "main": empty annotation name`,
 		},
@@ -233,7 +269,7 @@ kinds: {main: {required: [hidden, hidden]}}
 families:
   - family: a
     charts:
-      - {name: a, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: `kind "main": annotation "hidden" is required twice`,
 		},
@@ -289,8 +325,8 @@ kinds:
 families:
   - family: a
     charts:
-      - {name: a, kind: main}
-      - {name: b, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: b, kind: main, edition: rancher-charts}
 `
 
 	cfg, err := Parse([]byte(in))

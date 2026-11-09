@@ -13,6 +13,8 @@ import (
 	helmregistry "helm.sh/helm/v4/pkg/registry"
 	"oras.land/oras-go/v2/errdef"
 	"oras.land/oras-go/v2/registry/remote/auth"
+
+	"github.com/nicholasSUSE/cargueiro/internal/version"
 )
 
 // ErrInvalidOptions is returned when client options contradict each other.
@@ -147,11 +149,11 @@ func (h helmClient) Push(data []byte, ref string) (string, error) {
 }
 
 // Exists reports whether ref is already stored in its registry. A reference
-// the registry does not know is not an error. Like Push, it stores a "+" in the
-// tag as "_", because a tag cannot hold a "+".
+// the registry does not know is not an error. Helm's resolve does not convert
+// the version to a tag as its push does, so Exists does.
 func (h helmClient) Exists(ref string) (bool, error) {
 	if i := strings.LastIndex(ref, ":"); i >= 0 {
-		ref = ref[:i+1] + strings.ReplaceAll(ref[i+1:], "+", "_")
+		ref = ref[:i+1] + version.ToOCITag(ref[i+1:])
 	}
 
 	if _, err := h.client.Resolve(ref); err != nil {

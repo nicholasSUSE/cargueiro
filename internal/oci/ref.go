@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/nicholasSUSE/cargueiro/internal/version"
 )
 
 // tagForm is the form OCI allows for a tag.
@@ -65,7 +67,7 @@ func ParseChartRef(s string) (ChartRef, error) {
 		}
 	}
 
-	tag = strings.ReplaceAll(tag, "+", "_")
+	tag = version.ToOCITag(tag)
 	if !tagForm.MatchString(tag) {
 		return ChartRef{}, invalidRef("%q: %q is not a valid tag", s, tag)
 	}

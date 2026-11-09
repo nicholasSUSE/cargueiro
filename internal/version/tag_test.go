@@ -35,16 +35,16 @@ func TestTagConversion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.tag, ToTag(tt.version))
-			require.Equal(t, tt.version, FromTag(tt.tag))
+			require.Equal(t, tt.tag, ToOCITag(tt.version))
+			require.Equal(t, tt.version, FromOCITag(tt.tag))
 		})
 	}
 }
 
-func TestToTagLeavesATagAlone(t *testing.T) {
-	require.Equal(t, "110.0.3_up0.16.3", ToTag("110.0.3_up0.16.3"))
+func TestToOCITagLeavesATagAlone(t *testing.T) {
+	require.Equal(t, "110.0.3_up0.16.3", ToOCITag("110.0.3_up0.16.3"))
 }
 
-func TestFromTagLeavesAVersionAlone(t *testing.T) {
-	require.Equal(t, "110.0.3+up0.16.3", FromTag("110.0.3+up0.16.3"))
+func TestFromOCITagLeavesAVersionAlone(t *testing.T) {
+	require.Equal(t, "110.0.3+up0.16.3", FromOCITag("110.0.3+up0.16.3"))
 }

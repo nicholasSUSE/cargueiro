@@ -329,18 +329,19 @@ Test data is committed by hand, never fetched by a script. See the `PROVENANCE.m
 
 ## Local registries
 
-E2E tests for `push` use two throwaway `registry:2` containers, both bound to `127.0.0.1` only and both requiring basic auth, like the production registries:
+E2E tests use three throwaway `registry:2` containers, all bound to `127.0.0.1` only. Two require basic auth, like the production registries, and are used by `push`. The third needs no password and is used by the commands that read anonymously, such as `check oci`:
 
 | Name | Address | Transport |
 |------|---------|-----------|
 | `cargueiro-registry` | `127.0.0.1:5050` | HTTP |
 | `cargueiro-registry-tls` | `127.0.0.1:5051` | HTTPS, self-signed CA |
+| `cargueiro-registry-open` | `127.0.0.1:5052` | HTTP, no password |
 
-Credentials: `admin` / `cargueiro-test`. They are test-only; the htpasswd file is `tests/data/registry/htpasswd`.
+Credentials of the first two: `admin` / `cargueiro-test`. They are test-only; the htpasswd file is `tests/data/registry/htpasswd`.
 
 ```
-make registry-up       # start both (needs a running Docker daemon)
-make registry-down     # stop and remove both
+make registry-up       # start them (needs a running Docker daemon)
+make registry-down     # stop and remove them
 make registry-status   # are they up? prints the credentials and the login commands
 ```
 

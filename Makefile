@@ -4,12 +4,14 @@ LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSI
 
 PKG     ?= ./...
 
-# Local OCI registries for e2e tests, bound to localhost only. Both require
-# the htpasswd credentials in tests/data/registry; one serves plain HTTP, the
-# other TLS with a generated self-signed CA.
+# Local OCI registries for e2e tests, bound to localhost only. Two require the
+# htpasswd credentials in tests/data/registry; one serves plain HTTP, the other
+# TLS with a generated self-signed CA. A third one, over HTTP, asks for no
+# password, for the commands that read anonymously.
 REGISTRY_IMAGE    ?= registry:2.8.3
 REGISTRY_PORT     ?= 5050
 REGISTRY_TLS_PORT ?= 5051
+REGISTRY_OPEN_PORT ?= 5052
 CERTS_DIR         := $(CURDIR)/.tmp/registry/certs
 # Test-only credentials of both registries. They match tests/data/registry/htpasswd.
 REGISTRY_USER     := admin
@@ -39,7 +41,7 @@ test-e2e: build ## Run e2e tests; starts and stops the local registries (needs D
 test-release: release-build ## Check the release binaries (builds them first)
 	go test -tags release -count=1 ./tests/building
 
-registry-up: registry-down ## Start local registries: HTTP+auth on 5050, TLS+auth on 5051
+registry-up: registry-down ## Start the local registries: two with a password (HTTP, TLS) and one without
 	@go run ./tests/gencerts $(CERTS_DIR)
 	@docker run -d --name cargueiro-registry -p 127.0.0.1:$(REGISTRY_PORT):5000 \
 		-v $(CURDIR)/tests/data/registry:/auth:ro,z \
@@ -51,19 +53,22 @@ registry-up: registry-down ## Start local registries: HTTP+auth on 5050, TLS+aut
 		-e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
 		-e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/server.crt -e REGISTRY_HTTP_TLS_KEY=/certs/server.key \
 		$(REGISTRY_IMAGE) >/dev/null
+	@docker run -d --name cargueiro-registry-open -p 127.0.0.1:$(REGISTRY_OPEN_PORT):5000 $(REGISTRY_IMAGE) >/dev/null
 	@for i in $$(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:$(REGISTRY_PORT)/v2/ && break; sleep 1; done
+	@for i in $$(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:$(REGISTRY_OPEN_PORT)/v2/ && break; sleep 1; done
 	@for i in $$(seq 1 30); do curl -s -o /dev/null --cacert $(CERTS_DIR)/ca.crt https://127.0.0.1:$(REGISTRY_TLS_PORT)/v2/ && break; sleep 1; done
-	@echo "registries up ($(REGISTRY_USER)/$(REGISTRY_PASSWORD)): http://127.0.0.1:$(REGISTRY_PORT), https://127.0.0.1:$(REGISTRY_TLS_PORT) (CA: $(CERTS_DIR)/ca.crt)"
+	@echo "registries up ($(REGISTRY_USER)/$(REGISTRY_PASSWORD)): http://127.0.0.1:$(REGISTRY_PORT), https://127.0.0.1:$(REGISTRY_TLS_PORT) (CA: $(CERTS_DIR)/ca.crt); no password: http://127.0.0.1:$(REGISTRY_OPEN_PORT)"
 
 registry-down: ## Stop and remove the local registries
-	@docker rm -f cargueiro-registry cargueiro-registry-tls cargueiro-registry-auth >/dev/null 2>&1 || true
+	@docker rm -f cargueiro-registry cargueiro-registry-tls cargueiro-registry-open cargueiro-registry-auth >/dev/null 2>&1 || true
 
 registry-status: ## Show whether the local registries are up, and how to log in to them
 	@running() { [ "$$(docker inspect -f '{{.State.Running}}' "$$1" 2>/dev/null)" = true ]; }; \
-	if running cargueiro-registry && running cargueiro-registry-tls; then \
+	if running cargueiro-registry && running cargueiro-registry-tls && running cargueiro-registry-open; then \
 		echo "registries are up"; \
 		echo "  http   127.0.0.1:$(REGISTRY_PORT)  (cargueiro-registry)"; \
 		echo "  https  127.0.0.1:$(REGISTRY_TLS_PORT)  (cargueiro-registry-tls)"; \
+		echo "  http   127.0.0.1:$(REGISTRY_OPEN_PORT)  (cargueiro-registry-open, no password)"; \
 		echo "username: $(REGISTRY_USER)"; \
 		echo "password: $(REGISTRY_PASSWORD)"; \
 		echo "log in over HTTP:"; \
@@ -71,8 +76,8 @@ registry-status: ## Show whether the local registries are up, and how to log in 
 		echo "log in over TLS:"; \
 		echo "  echo $(REGISTRY_PASSWORD) | cargueiro registry login 127.0.0.1:$(REGISTRY_TLS_PORT) --username $(REGISTRY_USER) --password-stdin --ca-file $(CERTS_DIR)/ca.crt"; \
 	else \
-		echo "the registries are not both up:"; \
-		for name in cargueiro-registry cargueiro-registry-tls; do \
+		echo "the registries are not all up:"; \
+		for name in cargueiro-registry cargueiro-registry-tls cargueiro-registry-open; do \
 			if running $$name; then state=up; else state=down; fi; \
 			printf "  %-24s %s\n" $$name $$state; \
 		done; \

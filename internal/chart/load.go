@@ -35,14 +35,43 @@ type chartYAML struct {
 // Load reads Chart.yaml and values.yaml from dir. Both files must exist and be
 // valid YAML. Nothing else in dir is read.
 func Load(dir string) (*Files, error) {
-	var meta chartYAML
-	if err := readYAML(filepath.Join(dir, "Chart.yaml"), &meta); err != nil {
+	chartPath := filepath.Join(dir, "Chart.yaml")
+	chartData, err := readFile(chartPath)
+	if err != nil {
+		return nil, err
+	}
+	valuesPath := filepath.Join(dir, "values.yaml")
+	valuesData, err := readFile(valuesPath)
+	if err != nil {
 		return nil, err
 	}
 
+	return newFiles(chartPath, chartData, valuesPath, valuesData)
+}
+
+// readFile reads the file at path.
+func readFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("%s not found", path)
+		}
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	return data, nil
+}
+
+// newFiles decodes the content of Chart.yaml and values.yaml. An empty file
+// leaves its part of the result empty. The names are only used in errors.
+func newFiles(chartName string, chartData []byte, valuesName string, valuesData []byte) (*Files, error) {
+	var meta chartYAML
+	if err := yaml.Unmarshal(chartData, &meta); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", chartName, err)
+	}
+
 	var values map[string]any
-	if err := readYAML(filepath.Join(dir, "values.yaml"), &values); err != nil {
-		return nil, err
+	if err := yaml.Unmarshal(valuesData, &values); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", valuesName, err)
 	}
 
 	return &Files{
@@ -50,20 +79,4 @@ func Load(dir string) (*Files, error) {
 		Annotations: meta.Annotations,
 		Values:      values,
 	}, nil
-}
-
-// readYAML decodes the YAML file at path into out. An empty file leaves out
-// untouched.
-func readYAML(path string, out any) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("%s not found", path)
-		}
-		return fmt.Errorf("read %s: %w", path, err)
-	}
-	if err := yaml.Unmarshal(data, out); err != nil {
-		return fmt.Errorf("parse %s: %w", path, err)
-	}
-	return nil
 }

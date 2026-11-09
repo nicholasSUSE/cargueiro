@@ -1,4 +1,5 @@
-// Package version exposes the version injected at link time.
+// Package version holds what cargueiro knows about versions: its own, injected at
+// link time, and how a chart version is written as an OCI tag.
 package version
 
 // version is set via -ldflags at build time, which requires a package-level

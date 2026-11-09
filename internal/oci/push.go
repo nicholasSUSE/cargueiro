@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"regexp"
 
 	ci "helm.sh/helm/v4/pkg/chart"
@@ -26,11 +25,13 @@ type Client interface {
 type Pusher struct {
 	client Client
 	target Target
+	guard  *Guard
 }
 
-// NewPusher returns a Pusher that uploads through client to target.
-func NewPusher(client Client, target Target) *Pusher {
-	return &Pusher{client: client, target: target}
+// NewPusher returns a Pusher that uploads through client to target, unless
+// guard forbids it.
+func NewPusher(client Client, target Target, guard *Guard) *Pusher {
+	return &Pusher{client: client, target: target, guard: guard}
 }
 
 // Push uploads the chart archive at archivePath to <target>/<name>:<version>,
@@ -38,9 +39,6 @@ func NewPusher(client Client, target Target) *Pusher {
 // reference the chart was stored under.
 func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	if err := CheckTarget(p.target); err != nil {
 		return "", err
 	}
 
@@ -54,8 +52,7 @@ func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 		return "", fmt.Errorf("invalid chart archive: %s: %w", archivePath, err)
 	}
 
-	// The chart name is part of the repository, so check the final path too.
-	if err := checkRepository(p.target.Host, path.Join(p.target.Path, name)); err != nil {
+	if err := p.guard.Check(p.target, name); err != nil {
 		return "", err
 	}
 
@@ -65,6 +62,20 @@ func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 	}
 
 	return ref, nil
+}
+
+// ReadIdentity returns the name and version stored in the chart archive at
+// archivePath.
+func ReadIdentity(archivePath string) (name, version string, err error) {
+	data, err := os.ReadFile(archivePath)
+	if err != nil {
+		return "", "", fmt.Errorf("read archive %s: %w", archivePath, err)
+	}
+	name, version, err = chartIdentity(data)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid chart archive: %s: %w", archivePath, err)
+	}
+	return name, version, nil
 }
 
 // chartIdentity returns the name and version stored in a chart archive.

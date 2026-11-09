@@ -50,7 +50,7 @@ func TestPusherPush(t *testing.T) {
 		archive := writeChart(t, "fleet", "1.2.3")
 		fake := &fakeClient{}
 
-		got, err := NewPusher(fake, target).Push(context.Background(), archive)
+		got, err := NewPusher(fake, target, newTestGuard(t)).Push(context.Background(), archive)
 
 		require.NoError(t, err)
 		require.Equal(t, []string{"reg.local:5000/team/fleet:1.2.3"}, fake.refs)
@@ -61,7 +61,7 @@ func TestPusherPush(t *testing.T) {
 		archive := writeChart(t, "fleet", "110.0.3+up0.16.3")
 		fake := &fakeClient{}
 
-		_, err := NewPusher(fake, target).Push(context.Background(), archive)
+		_, err := NewPusher(fake, target, newTestGuard(t)).Push(context.Background(), archive)
 
 		require.NoError(t, err)
 		require.Equal(t, []string{"reg.local:5000/team/fleet:110.0.3+up0.16.3"}, fake.refs)
@@ -73,7 +73,7 @@ func TestPusherPush(t *testing.T) {
 		require.NoError(t, os.Rename(archive, renamed))
 		fake := &fakeClient{}
 
-		_, err := NewPusher(fake, target).Push(context.Background(), renamed)
+		_, err := NewPusher(fake, target, newTestGuard(t)).Push(context.Background(), renamed)
 
 		require.NoError(t, err)
 		require.Equal(t, []string{"reg.local:5000/team/fleet:1.2.3"}, fake.refs)
@@ -85,7 +85,7 @@ func TestPusherPush(t *testing.T) {
 		require.NoError(t, err)
 		fake := &fakeClient{}
 
-		_, err = NewPusher(fake, target).Push(context.Background(), archive)
+		_, err = NewPusher(fake, target, newTestGuard(t)).Push(context.Background(), archive)
 
 		require.NoError(t, err)
 		require.Equal(t, [][]byte{want}, fake.data)
@@ -95,7 +95,7 @@ func TestPusherPush(t *testing.T) {
 		archive := writeChart(t, "fleet", "1.2.3")
 		fake := &fakeClient{}
 
-		_, err := NewPusher(fake, Target{Host: "reg.local"}).Push(context.Background(), archive)
+		_, err := NewPusher(fake, Target{Host: "reg.local"}, newTestGuard(t)).Push(context.Background(), archive)
 
 		require.NoError(t, err)
 		require.Equal(t, []string{"reg.local/fleet:1.2.3"}, fake.refs)
@@ -147,7 +147,7 @@ func TestPusherPushFailures(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			archive := tt.archive(t)
 
-			got, err := NewPusher(tt.client, target).Push(context.Background(), archive)
+			got, err := NewPusher(tt.client, target, newTestGuard(t)).Push(context.Background(), archive)
 
 			if tt.wantIs != nil {
 				require.ErrorIs(t, err, tt.wantIs)
@@ -169,7 +169,7 @@ func TestPusherPushCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := NewPusher(fake, Target{Host: "reg.local"}).Push(ctx, archive)
+	_, err := NewPusher(fake, Target{Host: "reg.local"}, newTestGuard(t)).Push(ctx, archive)
 
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, fake.refs)

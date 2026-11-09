@@ -2,54 +2,215 @@ package oci
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-// requireRefused asserts err is the refusal for host/repository, word for word:
-// a reworded message must fail here, not pass unnoticed.
-func requireRefused(t *testing.T, err error, host, repository string) {
+// newTestGuard is the policy of the rules file: charts per edition, images,
+// and two listed charts.
+func newTestGuard(t *testing.T) *Guard {
 	t.Helper()
 
-	require.EqualError(t, err, fmt.Sprintf(
-		"pushing to this registry is not allowed: %s/%s holds published charts that must never be overwritten", host, repository))
+	guard, err := NewGuard(Policy{
+		Images: []string{"stgregistry.suse.com/rancher", "registry.suse.com/rancher"},
+		Charts: map[string][]string{
+			"rancher-charts": {"stgregistry.suse.com/rancher/catalog", "registry.suse.com/rancher/catalog"},
+			"prime-charts":   {"stgregistry.suse.com/rancher/charts", "registry.suse.com/rancher/charts"},
+		},
+		Editions: map[string]string{
+			"fleet":                "rancher-charts",
+			"rancher-ai-agent":     "prime-charts",
+			"rancher-ali-operator": "prime-charts",
+		},
+	})
+	require.NoError(t, err)
+	return guard
 }
 
-func TestCheckTarget(t *testing.T) {
+func TestNewGuardRejects(t *testing.T) {
+	valid := Policy{
+		Images: []string{"s.io/rancher"},
+		Charts: map[string][]string{"rancher-charts": {"s.io/rancher/catalog"}},
+	}
 	tests := []struct {
-		name      string
-		registry  string
-		protected bool
+		name    string
+		mutate  func(p *Policy)
+		wantErr string
 	}{
-		// Protected.
-		{name: "production catalog", registry: "registry.suse.com/rancher/catalog", protected: true},
-		{name: "staging catalog", registry: "stgregistry.suse.com/rancher/catalog", protected: true},
-		{name: "chart path under the catalog", registry: "registry.suse.com/rancher/catalog/fleet", protected: true},
-		{name: "deeper path under the catalog", registry: "stgregistry.suse.com/rancher/catalog/team/charts", protected: true},
-		{name: "uppercase host", registry: "REGISTRY.SUSE.COM/rancher/catalog", protected: true},
-		{name: "mixed-case path", registry: "registry.suse.com/Rancher/Catalog", protected: true},
-		{name: "trailing dot in host", registry: "registry.suse.com./rancher/catalog", protected: true},
-		{name: "default HTTPS port", registry: "registry.suse.com:443/rancher/catalog", protected: true},
-		{name: "any other port", registry: "registry.suse.com:5000/rancher/catalog", protected: true},
-		{name: "oci scheme", registry: "oci://registry.suse.com/rancher/catalog", protected: true},
-		{name: "https scheme", registry: "https://stgregistry.suse.com/rancher/catalog", protected: true},
-		{name: "trailing slashes", registry: "registry.suse.com/rancher/catalog///", protected: true},
-		{name: "surrounding space", registry: "  registry.suse.com/rancher/catalog  ", protected: true},
+		{
+			name:    "no images",
+			mutate:  func(p *Policy) { p.Images = nil },
+			wantErr: "no image or chart repositories",
+		},
+		{
+			name:    "no charts",
+			mutate:  func(p *Policy) { p.Charts = nil },
+			wantErr: "no image or chart repositories",
+		},
+		{
+			name:    "an image repository without a path",
+			mutate:  func(p *Policy) { p.Images = []string{"s.io"} },
+			wantErr: `repository "s.io" has no path`,
+		},
+		{
+			name:    "an invalid chart repository",
+			mutate:  func(p *Policy) { p.Charts = map[string][]string{"rancher-charts": {"s.io/../x"}} },
+			wantErr: "guard: invalid registry",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := valid
+			tt.mutate(&p)
 
-		// Allowed.
-		{name: "local registry, same path", registry: "localhost:5051/rancher/catalog"},
-		{name: "loopback, same path", registry: "127.0.0.1:5050/rancher/catalog"},
-		{name: "protected host without a path", registry: "registry.suse.com"},
-		{name: "protected host, parent path", registry: "registry.suse.com/rancher"},
-		{name: "protected host, other path", registry: "registry.suse.com/rancher/charts"},
-		{name: "similar name", registry: "registry.suse.com/rancher/catalogue"},
-		{name: "similar name with a prefix", registry: "registry.suse.com/rancher/catalog-old"},
-		{name: "catalog is not at the root", registry: "registry.suse.com/other/rancher/catalog"},
-		{name: "another SUSE host", registry: "registry.opensuse.org/rancher/catalog"},
-		{name: "host that only contains the name", registry: "registry.suse.com.example.org/rancher/catalog"},
-		{name: "host with the name as a suffix", registry: "myregistry.suse.com/rancher/catalog"},
+			guard, err := NewGuard(p)
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, guard)
+		})
+	}
+}
+
+func TestGuardCheck(t *testing.T) {
+	tests := []struct {
+		name     string
+		registry string
+		chart    string
+		wantErr  string
+	}{
+		// A listed chart goes to the repositories of its edition.
+		{
+			name:     "rancher chart, staging catalog",
+			registry: "stgregistry.suse.com/rancher/catalog",
+			chart:    "fleet",
+		},
+		{
+			name:     "rancher chart, production catalog",
+			registry: "registry.suse.com/rancher/catalog",
+			chart:    "fleet",
+		},
+		{
+			name:     "prime chart, staging charts",
+			registry: "stgregistry.suse.com/rancher/charts",
+			chart:    "rancher-ai-agent",
+		},
+		{
+			name:     "prime chart, production charts",
+			registry: "registry.suse.com/rancher/charts",
+			chart:    "rancher-ali-operator",
+		},
+		{
+			name:     "host in capitals, port, trailing dot and scheme",
+			registry: "https://REGISTRY.SUSE.COM.:443/Rancher/Catalog/",
+			chart:    "fleet",
+		},
+
+		// ... and nowhere else on the SUSE registries.
+		{
+			name:     "rancher chart in the prime repository",
+			registry: "stgregistry.suse.com/rancher/charts",
+			chart:    "fleet",
+			wantErr:  "fleet is a rancher-charts chart and cannot go to stgregistry.suse.com/rancher/charts, which is for prime-charts charts",
+		},
+		{
+			name:     "prime chart in the rancher repository",
+			registry: "registry.suse.com/rancher/catalog",
+			chart:    "rancher-ai-agent",
+			wantErr:  "rancher-ai-agent is a prime-charts chart and cannot go to registry.suse.com/rancher/catalog, which is for rancher-charts charts",
+		},
+		{
+			name:     "mixed case does not get around the edition",
+			registry: "registry.suse.com/Rancher/CATALOG",
+			chart:    "rancher-ai-agent",
+			wantErr:  "rancher-ai-agent is a prime-charts chart and cannot go to registry.suse.com/Rancher/CATALOG",
+		},
+		{
+			name:     "chart under the images path",
+			registry: "registry.suse.com/rancher",
+			chart:    "fleet",
+			wantErr:  "fleet is a rancher-charts chart and can only go to registry.suse.com/rancher/catalog",
+		},
+		{
+			name:     "chart below its repository",
+			registry: "registry.suse.com/rancher/catalog/team",
+			chart:    "fleet",
+			wantErr:  "fleet is a rancher-charts chart and can only go to",
+		},
+
+		// An image dependency goes to the images path.
+		{
+			name:     "image, staging",
+			registry: "stgregistry.suse.com/rancher",
+			chart:    "mirrored-pause",
+		},
+		{
+			name:     "image, production",
+			registry: "registry.suse.com/rancher",
+			chart:    "mirrored-pause",
+		},
+		{
+			name:     "image in the rancher catalog",
+			registry: "stgregistry.suse.com/rancher/catalog",
+			chart:    "mirrored-pause",
+			wantErr:  "mirrored-pause is not a chart listed in the rules file, so it is an image and can only go to stgregistry.suse.com/rancher",
+		},
+		{
+			name:     "image in the prime repository",
+			registry: "registry.suse.com/rancher/charts",
+			chart:    "mirrored-pause",
+			wantErr:  "mirrored-pause is not a chart listed in the rules file",
+		},
+		{
+			name:     "image below the images path",
+			registry: "registry.suse.com/rancher/mirrored",
+			chart:    "pause",
+			wantErr:  "pause is not a chart listed in the rules file",
+		},
+		{
+			name:     "image named like a chart repository",
+			registry: "registry.suse.com/rancher",
+			chart:    "catalog",
+			wantErr:  "catalog is not a chart listed in the rules file, so it cannot go to the chart repository registry.suse.com/rancher/catalog",
+		},
+		{
+			name:     "image named like the prime repository",
+			registry: "stgregistry.suse.com/Rancher",
+			chart:    "charts",
+			wantErr:  "charts is not a chart listed in the rules file, so it cannot go to the chart repository stgregistry.suse.com/rancher/charts",
+		},
+		{
+			name:     "image on the host root",
+			registry: "registry.suse.com",
+			chart:    "pause",
+			wantErr:  "pause is not a chart listed in the rules file",
+		},
+
+		// Any other host is not guarded.
+		{
+			name:     "local registry, rancher chart in the prime path",
+			registry: "localhost:5051/rancher/charts",
+			chart:    "fleet",
+		},
+		{
+			name:     "local registry, image in the catalog",
+			registry: "127.0.0.1:5050/rancher/catalog",
+			chart:    "mirrored-pause",
+		},
+		{
+			name:     "another SUSE host",
+			registry: "registry.opensuse.org/rancher/catalog",
+			chart:    "rancher-ai-agent",
+		},
+		{
+			name:     "host that only contains the name",
+			registry: "registry.suse.com.example.org/rancher/catalog",
+			chart:    "rancher-ai-agent",
+		},
+		{
+			name:     "host with the name as a suffix",
+			registry: "myregistry.suse.com/rancher/charts",
+			chart:    "fleet",
+		},
 	}
 
 	for _, tt := range tests {
@@ -57,28 +218,57 @@ func TestCheckTarget(t *testing.T) {
 			target, err := ParseTarget(tt.registry)
 			require.NoError(t, err)
 
-			err = CheckTarget(target)
+			err = newTestGuard(t).Check(target, tt.chart)
 
-			if tt.protected {
-				requireRefused(t, err, target.Host, target.Path)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
 				return
 			}
-			require.NoError(t, err)
+			require.ErrorContains(t, err, "pushing to this registry is not allowed: "+tt.wantErr)
 		})
 	}
 }
 
-func TestPusherRefusesProtectedTargets(t *testing.T) {
+func TestGuardGuarded(t *testing.T) {
 	tests := []struct {
 		name     string
-		target   Target
-		chart    string
-		wantRepo string
+		registry string
+		want     bool
 	}{
-		{name: "production catalog", target: Target{Host: "registry.suse.com", Path: "rancher/catalog"}, chart: "fleet", wantRepo: "rancher/catalog"},
-		{name: "staging catalog", target: Target{Host: "stgregistry.suse.com", Path: "rancher/catalog"}, chart: "fleet", wantRepo: "rancher/catalog"},
-		{name: "case and port tricks", target: Target{Host: "Registry.SUSE.com.:443", Path: "Rancher/CATALOG"}, chart: "fleet", wantRepo: "Rancher/CATALOG"},
-		{name: "the chart name completes the path", target: Target{Host: "registry.suse.com", Path: "rancher"}, chart: "catalog", wantRepo: "rancher/catalog"},
+		{name: "staging", registry: "stgregistry.suse.com/anything", want: true},
+		{name: "production, port and capitals", registry: "REGISTRY.suse.com:443", want: true},
+		{name: "local", registry: "localhost:5050", want: false},
+		{name: "similar host", registry: "registry.suse.com.example.org", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			target, err := ParseTarget(tt.registry)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.want, newTestGuard(t).Guarded(target))
+		})
+	}
+}
+
+func TestPusherRefusesWhatTheGuardForbids(t *testing.T) {
+	tests := []struct {
+		name    string
+		target  Target
+		chart   string
+		wantErr string
+	}{
+		{
+			name:    "rancher chart in the prime repository",
+			target:  Target{Host: "registry.suse.com", Path: "rancher/charts"},
+			chart:   "fleet",
+			wantErr: "fleet is a rancher-charts chart and cannot go to registry.suse.com/rancher/charts",
+		},
+		{
+			name:    "image in the catalog, with case and port tricks",
+			target:  Target{Host: "Registry.SUSE.com.:443", Path: "Rancher/CATALOG"},
+			chart:   "pause",
+			wantErr: "pause is not a chart listed in the rules file",
+		},
 	}
 
 	for _, tt := range tests {
@@ -86,34 +276,61 @@ func TestPusherRefusesProtectedTargets(t *testing.T) {
 			archive := writeChart(t, tt.chart, "1.0.0")
 			fake := &fakeClient{}
 
-			got, err := NewPusher(fake, tt.target).Push(context.Background(), archive)
+			got, err := NewPusher(fake, tt.target, newTestGuard(t)).Push(context.Background(), archive)
 
-			requireRefused(t, err, tt.target.Host, tt.wantRepo)
+			require.ErrorContains(t, err, "pushing to this registry is not allowed: "+tt.wantErr)
 			require.Empty(t, got)
 			require.Empty(t, fake.refs, "nothing may reach the registry")
 		})
 	}
 }
 
-func TestPusherRefusesProtectedTargetBeforeReadingTheArchive(t *testing.T) {
-	fake := &fakeClient{}
-	target := Target{Host: "registry.suse.com", Path: "rancher/catalog"}
-
-	_, err := NewPusher(fake, target).Push(context.Background(), "/no/such/archive.tgz")
-
-	requireRefused(t, err, target.Host, target.Path) // the guard comes before any other work
-}
-
-func TestPusherAllowsOverwritingOutsideTheProtectedRegistries(t *testing.T) {
-	archive := writeChart(t, "fleet", "1.0.0")
-	fake := &fakeClient{}
-	pusher := NewPusher(fake, Target{Host: "localhost:5050", Path: "rancher/catalog"})
-
-	for range 2 {
-		_, err := pusher.Push(context.Background(), archive)
-		require.NoError(t, err)
+func TestPusherPushesWhatTheGuardAllows(t *testing.T) {
+	tests := []struct {
+		name    string
+		target  Target
+		chart   string
+		wantRef string
+	}{
+		{
+			name:    "rancher chart in the catalog",
+			target:  Target{Host: "stgregistry.suse.com", Path: "rancher/catalog"},
+			chart:   "fleet",
+			wantRef: "stgregistry.suse.com/rancher/catalog/fleet:1.0.0",
+		},
+		{
+			name:    "image in the images path",
+			target:  Target{Host: "registry.suse.com", Path: "rancher"},
+			chart:   "pause",
+			wantRef: "registry.suse.com/rancher/pause:1.0.0",
+		},
+		{
+			name:    "a local registry, the same chart again",
+			target:  Target{Host: "localhost:5050", Path: "rancher/charts"},
+			chart:   "fleet",
+			wantRef: "localhost:5050/rancher/charts/fleet:1.0.0",
+		},
 	}
 
-	require.Equal(t, []string{"localhost:5050/rancher/catalog/fleet:1.0.0", "localhost:5050/rancher/catalog/fleet:1.0.0"}, fake.refs,
-		"the same chart may be pushed again to a local registry")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			archive := writeChart(t, tt.chart, "1.0.0")
+			fake := &fakeClient{}
+
+			_, err := NewPusher(fake, tt.target, newTestGuard(t)).Push(context.Background(), archive)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{tt.wantRef}, fake.refs)
+		})
+	}
+}
+
+func TestReadIdentity(t *testing.T) {
+	name, version, err := ReadIdentity(writeChart(t, "fleet", "1.2.3"))
+	require.NoError(t, err)
+	require.Equal(t, "fleet", name)
+	require.Equal(t, "1.2.3", version)
+
+	_, _, err = ReadIdentity("/no/such/archive.tgz")
+	require.ErrorContains(t, err, "read archive /no/such/archive.tgz")
 }

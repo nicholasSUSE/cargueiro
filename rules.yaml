@@ -7,7 +7,8 @@
 # editions.
 #
 # Data source: latest Chart.yaml of every chart in rancher/charts release-v2.15
-# (be246f515, 2026-10-29).
+# (be246f515, 2026-10-29). The prime-charts entries are the charts of
+# prime-charts release-v2.13, v2.14 and v2.15.
 
 # Annotation names are under catalog.cattle.io/ .
 # namespace is optional for every kind.
@@ -93,3 +94,13 @@ families:
     charts:
       - { name: system-upgrade-controller, kind: main, edition: rancher-charts }
 
+  - family: rancher-ai-agent
+    charts:
+      - { name: rancher-ai-agent, kind: main, release-name: cattle-ai-agent-system, edition: prime-charts }
+  - family: rancher-ali-operator
+    charts:
+      - { name: rancher-ali-operator, kind: main, edition: prime-charts }
+      - { name: rancher-ali-operator-crd, kind: crd, edition: prime-charts }
+  - family: rancher-turtles-providers
+    charts:
+      - { name: rancher-turtles-providers, kind: main, edition: prime-charts }  # probably extra; main until its use is clear

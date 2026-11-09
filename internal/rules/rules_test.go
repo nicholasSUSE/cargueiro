@@ -296,6 +296,12 @@ func TestRepositoryConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "crd", chart.Kind)
 	require.Equal(t, "rancher-backup", chart.Family)
+	require.Equal(t, EditionRancherCharts, chart.Edition)
+
+	agent, err := cfg.Find("rancher-ai-agent")
+	require.NoError(t, err)
+	require.Equal(t, EditionPrimeCharts, agent.Edition)
+	require.Equal(t, "cattle-ai-agent-system", agent.ReleaseName)
 }
 
 // TestParseReportsTheSameKindEveryTime keeps the error stable when several

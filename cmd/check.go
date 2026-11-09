@@ -22,7 +22,11 @@ func newCheckCmd(opts *rootOptions, fetch fetchFunc) (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd.AddCommand(chart, oci)
+	archive, err := newCheckArchiveCmd(opts)
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(chart, archive, oci)
 
 	return cmd, nil
 }

@@ -17,6 +17,7 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 | Command | Description |
 |---------|-------------|
 | [`check`](cmd/docs/check.md) | Check that a chart follows the Rancher chart rules. |
+| [`check archive`](cmd/docs/check-archive.md) | Check one packaged chart (.tgz) against the chart rules. |
 | [`check chart`](cmd/docs/check-chart.md) | Check one chart directory against the chart rules. |
 | [`check oci`](cmd/docs/check-oci.md) | Check one chart in an OCI registry against the chart rules. |
 | [`package`](cmd/docs/package.md) | Package a Helm chart into a .tgz archive. |

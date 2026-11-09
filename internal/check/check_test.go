@@ -28,6 +28,11 @@ registries:
   images:
     staging: stgregistry.suse.com/rancher
     production: registry.suse.com/rancher
+versions:
+  prereleases: [rc, alpha, beta, rancher, security]
+  majors:
+    "2.16": 111
+    "2.17": 112
 `
 
 func parseRules(t *testing.T) *rules.Config {

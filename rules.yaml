@@ -93,7 +93,7 @@ families:
       - { name: remotedialer-proxy, kind: main, edition: rancher-charts }  # known violation: no kube-version, fix upstream
   - family: system-upgrade-controller
     charts:
-      - { name: system-upgrade-controller, kind: main, edition: rancher-charts }
+      - { name: system-upgrade-controller, kind: main, edition: rancher-charts, version: plain }
 
   - family: rancher-ai-agent
     charts:
@@ -117,3 +117,15 @@ registries:
   images:
     staging: stgregistry.suse.com/rancher
     production: registry.suse.com/rancher
+
+# The chart version is 1XY.Z.W+upA.B.C, or 1XY.Z.W for a chart marked
+# version: plain. A prerelease follows the +up part, as in -rc.1, and only these
+# names are allowed. The major (1XY) belongs to the Rancher version the chart
+# targets.
+versions:
+  prereleases: [rc, alpha, beta, rancher, security]
+  majors:
+    "2.16": 111
+    "2.17": 112
+    "2.18": 113
+    "2.19": 114

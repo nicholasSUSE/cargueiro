@@ -20,6 +20,9 @@ families:
   - family: rancher-ai-agent
     charts:
       - { name: rancher-ai-agent, kind: main, edition: prime-charts }
+  - family: system-upgrade-controller
+    charts:
+      - { name: system-upgrade-controller, kind: main, edition: rancher-charts, version: plain }
 registries:
   rancher-charts:
     charts-staging: stgregistry.suse.com/rancher/catalog

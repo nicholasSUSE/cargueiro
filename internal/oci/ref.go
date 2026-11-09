@@ -61,10 +61,8 @@ func ParseChartRef(s string) (ChartRef, error) {
 	if strings.Contains(repository, ":") {
 		return ChartRef{}, invalidRef("%q: only the tag may follow a ':'", s)
 	}
-	for _, segment := range strings.Split(repository, "/") {
-		if !repoName.MatchString(segment) {
-			return ChartRef{}, invalidRef("%q: %q is not a valid repository name", s, segment)
-		}
+	if err := checkRepository(s, repository); err != nil {
+		return ChartRef{}, err
 	}
 
 	tag = version.ToOCITag(tag)
@@ -73,6 +71,74 @@ func ParseChartRef(s string) (ChartRef, error) {
 	}
 
 	return ChartRef{Host: host, Repository: repository, Tag: tag}, nil
+}
+
+// ChartRepo is the repository of a chart in a registry, with no tag:
+// <host>/<repository>.
+type ChartRepo struct {
+	// Host is the registry, with an optional port.
+	Host string
+	// Repository is the path of the chart in the registry, such as
+	// "rancher/fleet".
+	Repository string
+}
+
+// String returns the repository without a scheme.
+func (r ChartRepo) String() string {
+	return r.Host + "/" + r.Repository
+}
+
+// Name returns the chart name: the last part of the repository.
+func (r ChartRepo) Name() string {
+	if _, name, found := cutLast(r.Repository, "/"); found {
+		return name
+	}
+	return r.Repository
+}
+
+// ParseChartRepo parses "[oci://]host[:port]/path/chart". A reference with a
+// tag, or pinned to a digest, is refused.
+func ParseChartRepo(s string) (ChartRepo, error) {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "oci://")
+
+	switch {
+	case s == "":
+		return ChartRepo{}, invalidRef("empty reference")
+	case strings.Contains(s, "://"):
+		return ChartRepo{}, invalidRef("%q: only the oci:// scheme is accepted", s)
+	case strings.Contains(s, "@"):
+		return ChartRepo{}, invalidRef("%q: a digest is not accepted, give host/path/chart", s)
+	case strings.ContainsAny(s, " \t\r\n?#"):
+		return ChartRepo{}, invalidRef("%q contains forbidden characters", s)
+	}
+
+	host, repository, found := strings.Cut(s, "/")
+	if !found || repository == "" {
+		return ChartRepo{}, invalidRef("%q: want host/path/chart", s)
+	}
+	if err := checkHost(host); err != nil {
+		return ChartRepo{}, invalidRef("%q: %v", s, err)
+	}
+	if strings.Contains(repository, ":") {
+		return ChartRepo{}, invalidRef("%q: a tag is not accepted, give host/path/chart", s)
+	}
+	if err := checkRepository(s, repository); err != nil {
+		return ChartRepo{}, err
+	}
+
+	return ChartRepo{Host: host, Repository: repository}, nil
+}
+
+// checkRepository rejects a repository with a part that is not a valid name. s
+// is the whole reference, for the error.
+func checkRepository(s, repository string) error {
+	for _, segment := range strings.Split(repository, "/") {
+		if !repoName.MatchString(segment) {
+			return invalidRef("%q: %q is not a valid repository name", s, segment)
+		}
+	}
+	return nil
 }
 
 // cutLast splits s around the last sep, like strings.Cut does around the first.

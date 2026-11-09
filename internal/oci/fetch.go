@@ -50,7 +50,7 @@ func FetchChart(ctx context.Context, ref ChartRef, opts FetchOptions) (*chart.Fi
 
 	rc, err := repo.Fetch(ctx, layer)
 	if err != nil {
-		return nil, fetchError(ref, err)
+		return nil, fetchError(ref.String(), err)
 	}
 	defer func() { _ = rc.Close() }()
 
@@ -89,7 +89,7 @@ func newRepository(ref ChartRef, opts FetchOptions) (*remote.Repository, error) 
 func chartLayer(ctx context.Context, repo *remote.Repository, ref ChartRef) (ocispec.Descriptor, error) {
 	desc, rc, err := repo.FetchReference(ctx, ref.Tag)
 	if err != nil {
-		return ocispec.Descriptor{}, fetchError(ref, err)
+		return ocispec.Descriptor{}, fetchError(ref.String(), err)
 	}
 	defer func() { _ = rc.Close() }()
 
@@ -125,15 +125,16 @@ func chartLayer(ctx context.Context, repo *remote.Repository, ref ChartRef) (oci
 	}
 }
 
-// fetchError says what went wrong in terms of the reference.
-func fetchError(ref ChartRef, err error) error {
+// fetchError says what went wrong in terms of what was read, such as a
+// reference.
+func fetchError(what string, err error) error {
 	var resp *errcode.ErrorResponse
 	switch {
 	case errors.Is(err, errdef.ErrNotFound):
-		return fmt.Errorf("%s was not found in the registry", ref)
+		return fmt.Errorf("%s was not found in the registry", what)
 	case errors.As(err, &resp) && (resp.StatusCode == 401 || resp.StatusCode == 403):
-		return fmt.Errorf("the registry asks for authentication to read %s, which is not supported yet", ref)
+		return fmt.Errorf("the registry asks for authentication to read %s, which is not supported yet", what)
 	default:
-		return fmt.Errorf("fetch %s: %w", ref, err)
+		return fmt.Errorf("fetch %s: %w", what, err)
 	}
 }

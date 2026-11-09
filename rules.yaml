@@ -4,7 +4,8 @@
 # docs/DEVELOPING.md.
 #
 # Every chart has an edition: rancher-charts or prime-charts. A family never mixes
-# editions.
+# editions. The registries section says where the charts of each edition and the
+# images are released to; push uses it to protect the SUSE registries.
 #
 # Data source: latest Chart.yaml of every chart in rancher/charts release-v2.15
 # (be246f515, 2026-10-29). The prime-charts entries are the charts of

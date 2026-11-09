@@ -149,3 +149,62 @@ func TestRancherOf(t *testing.T) {
 		})
 	}
 }
+
+func TestSupportedRancher(t *testing.T) {
+	tests := []struct {
+		name    string
+		rancher string
+		want    bool
+	}{
+		{
+			name:    "the lowest supported version",
+			rancher: "2.16",
+			want:    true,
+		},
+		{
+			name:    "a later version",
+			rancher: "2.19",
+			want:    true,
+		},
+		{
+			name:    "a minor with more digits",
+			rancher: "2.120",
+			want:    true,
+		},
+		{
+			name:    "the version before",
+			rancher: "2.15",
+			want:    false,
+		},
+		{
+			name:    "an old version",
+			rancher: "2.9",
+			want:    false,
+		},
+		{
+			name:    "not Rancher 2",
+			rancher: "3.20",
+			want:    false,
+		},
+		{
+			name:    "no minor",
+			rancher: "2",
+			want:    false,
+		},
+		{
+			name:    "a minor that is not a number",
+			rancher: "2.x",
+			want:    false,
+		},
+		{
+			name:    "empty",
+			rancher: "",
+			want:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, SupportedRancher(tt.rancher))
+		})
+	}
+}

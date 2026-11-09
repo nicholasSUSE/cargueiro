@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	helmregistry "helm.sh/helm/v4/pkg/registry"
@@ -146,8 +147,13 @@ func (h helmClient) Push(data []byte, ref string) (string, error) {
 }
 
 // Exists reports whether ref is already stored in its registry. A reference
-// the registry does not know is not an error.
+// the registry does not know is not an error. Like Push, it stores a "+" in the
+// tag as "_", because a tag cannot hold a "+".
 func (h helmClient) Exists(ref string) (bool, error) {
+	if i := strings.LastIndex(ref, ":"); i >= 0 {
+		ref = ref[:i+1] + strings.ReplaceAll(ref[i+1:], "+", "_")
+	}
+
 	if _, err := h.client.Resolve(ref); err != nil {
 		if errors.Is(err, errdef.ErrNotFound) {
 			return false, nil

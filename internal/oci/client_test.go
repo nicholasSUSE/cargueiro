@@ -101,7 +101,7 @@ func TestClientExists(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/":
-		case "/v2/team/fleet/manifests/1.0.0":
+		case "/v2/team/fleet/manifests/1.0.0", "/v2/team/fleet/manifests/1.0.0_up0.1":
 			w.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
 			w.Header().Set("Docker-Content-Digest", digest)
 			w.Header().Set("Content-Length", "0")
@@ -126,6 +126,11 @@ func TestClientExists(t *testing.T) {
 		{
 			name: "a stored chart",
 			ref:  host + "/team/fleet:1.0.0",
+			want: true,
+		},
+		{
+			name: "a version with build metadata is stored with an underscore",
+			ref:  host + "/team/fleet:1.0.0+up0.1",
 			want: true,
 		},
 		{

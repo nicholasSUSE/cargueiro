@@ -98,6 +98,57 @@ metadata:
 	})
 }
 
+// TestCheckOCIValidatesTheVersionOfTheReference makes sure the version checked
+// is the one on the command line, read back from the tag, and not the one in
+// the Chart.yaml of the fetched chart.
+func TestCheckOCIValidatesTheVersionOfTheReference(t *testing.T) {
+	tests := []struct {
+		name      string
+		reference string
+		wantValid bool
+		wantError string
+	}{
+		{
+			name:      "a tag as the registry stores it",
+			reference: "registry.example.com/rancher/fleet:111.0.3_up0.16.3",
+			wantValid: true,
+		},
+		{
+			name:      "a version with a plus",
+			reference: "registry.example.com/rancher/fleet:111.0.3+up0.16.3",
+			wantValid: true,
+		},
+		{
+			name:      "a tag that is not a Rancher version",
+			reference: "registry.example.com/rancher/fleet:latest",
+			wantError: `version "latest" must look like 1XY.Z.W+upA.B.C`,
+		},
+		{
+			name:      "a tag without the +up part",
+			reference: "registry.example.com/rancher/fleet:111.0.3",
+			wantError: `version "111.0.3" must look like 1XY.Z.W+upA.B.C`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeFetcher{files: validFiles()} // its Chart.yaml version is valid
+
+			stdout, _, err := runCheckOCI(t, fake, tt.reference, "-o", "json")
+
+			var got check.Result
+			require.NoError(t, json.Unmarshal([]byte(stdout), &got))
+			require.Equal(t, tt.wantValid, got.Version.Valid)
+			if tt.wantValid {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, "chart is not valid")
+			require.Len(t, got.Version.Errors, 1)
+			require.Contains(t, got.Version.Errors[0], tt.wantError)
+		})
+	}
+}
+
 func TestCheckOCIAsksForTheReference(t *testing.T) {
 	tests := []struct {
 		name string
@@ -106,9 +157,9 @@ func TestCheckOCIAsksForTheReference(t *testing.T) {
 	}{
 		{
 			name: "a reference",
-			args: []string{"registry.example.com/rancher/fleet:1.0.0"},
+			args: []string{"registry.example.com/rancher/fleet:111.0.3_up0.16.3"},
 			want: fetchCall{
-				ref:  oci.ChartRef{Host: "registry.example.com", Repository: "rancher/fleet", Tag: "1.0.0"},
+				ref:  oci.ChartRef{Host: "registry.example.com", Repository: "rancher/fleet", Tag: "111.0.3_up0.16.3"},
 				opts: oci.FetchOptions{PlainHTTP: false},
 			},
 		},
@@ -122,9 +173,9 @@ func TestCheckOCIAsksForTheReference(t *testing.T) {
 		},
 		{
 			name: "plain HTTP",
-			args: []string{"127.0.0.1:5050/rancher/fleet:1.0.0", "--plain-http"},
+			args: []string{"127.0.0.1:5050/rancher/fleet:111.0.3_up0.16.3", "--plain-http"},
 			want: fetchCall{
-				ref:  oci.ChartRef{Host: "127.0.0.1:5050", Repository: "rancher/fleet", Tag: "1.0.0"},
+				ref:  oci.ChartRef{Host: "127.0.0.1:5050", Repository: "rancher/fleet", Tag: "111.0.3_up0.16.3"},
 				opts: oci.FetchOptions{PlainHTTP: true},
 			},
 		},
@@ -158,7 +209,7 @@ func TestCheckOCINoErrorHIP15(t *testing.T) {
 		"image": map[string]any{"repository": "rancher/fleet", "tag": "v1"},
 	}
 	fake := &fakeFetcher{files: files}
-	const ref = "registry.example.com/rancher/fleet:1.0.0"
+	const ref = "registry.example.com/rancher/fleet:111.0.3_up0.16.3"
 
 	_, _, err := runCheckOCI(t, fake, ref)
 	require.ErrorContains(t, err, "chart is not valid")

@@ -18,6 +18,7 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 |---------|-------------|
 | [`check`](cmd/docs/check.md) | Check that a chart follows the Rancher chart rules. |
 | [`check chart`](cmd/docs/check-chart.md) | Check one chart directory against the chart rules. |
+| [`check oci`](cmd/docs/check-oci.md) | Check one chart in an OCI registry against the chart rules. |
 | [`package`](cmd/docs/package.md) | Package a Helm chart into a .tgz archive. |
 | [`push`](cmd/docs/push.md) | Push a packaged Helm chart to an OCI registry. |
 | [`registry`](cmd/docs/registry.md) | Manage the registry login cargueiro saves. |

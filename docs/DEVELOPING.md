@@ -165,6 +165,10 @@ The result has the same fields as text and as JSON (`--output json`): `valid`, t
 
 `cargueiro check oci <registry/path/chart:tag>` checks a chart that is already in a registry, with the same rules, output and exit codes as `check chart`: only the source of `Chart.yaml` and `values.yaml` differs. `internal/oci` resolves the tag anonymously, requires a Helm chart manifest with exactly one chart layer, reads that layer in full (at most 2 MB, verified against its size and digest), and `chart.LoadArchive` takes the two files from it. Reading the registry is untrusted input, so it is bounded; credentials are not supported yet. A failure to read the chart prints nothing on stdout and exits 1.
 
+### list
+
+`cargueiro list <registry/path/chart>` prints the versions of a chart that is in a registry, newest first. `internal/oci` reads every tag anonymously, following the registry's pages, and `cmd` turns each tag back into a version with `version.FromOCITag`. `version.Policy.SortNewestFirst` orders them: by `1XY.Z.W`, then by the upstream version after `+up`, then by the prerelease, where a release is newer than its prereleases. The numbers are compared with the semver library. The rank of the prerelease names is the order of `versions.prereleases` in `rules.yaml`, not an alphabetical one. The chart must be listed in `rules.yaml`, which says whether its versions have a `+up` part. A tag that is not a version that follows the rules is an error, and nothing is printed.
+
 ### helm.sh/images
 
 The `helm.sh/images` annotation follows [Helm HIP-15](https://github.com/helm/community/blob/main/hips/hip-0015.md), a draft, and adds Rancher policy on top. `ValidateHelmImages(annotations, values)` is meant to run for every kind, next to the kind's own validator, and takes the parsed `Chart.yaml` annotations and `values.yaml`. A chart whose `values.yaml` has no images needs no annotation.
@@ -338,6 +342,8 @@ E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`
 `tests/login` logs in and out of the local registries over HTTP and TLS and checks what `push` does with what was saved: a second login is refused until logout, explicit credentials win, a wrong password saves nothing, logout forgets everything, and the file is private.
 
 `tests/checking` runs `check chart`, `check archive` and `check oci` on real SUSE charts and checks the exact output; `check oci` is run against the local registry that asks for no password, after pushing the charts to it, and its report must equal the one for the source directory. The fleet charts pass. `rancher-monitoring` (the largest `values.yaml`), `rancher-monitoring-crd`, `longhorn`, `rancher-webhook` and `system-upgrade-controller` fail, because they carry no `helm.sh/images` annotation, and `longhorn` and `rancher-webhook` also have a `kube-version` without both bounds. Their fixtures keep only `Chart.yaml` and `values.yaml`, the two files `check` reads. It also covers the text output and every case that prints nothing on stdout.
+
+`tests/listing` pushes real charts, with only the version changed, to the local registry that asks for no password, in an order that is not the right one, and checks that `list` puts them newest first, as text and JSON. It compares the tags with the ones the registry itself gives, and covers every case that prints nothing on stdout.
 
 Test data is committed by hand, never fetched by a script. See the `PROVENANCE.md` next to each chart in `tests/data/charts/` for where it came from. Nothing under `tests/` is embedded in the binary.
 

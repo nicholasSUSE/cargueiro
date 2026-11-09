@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,18 @@ type fakeClient struct {
 	refs []string
 	data [][]byte
 	err  error
+
+	// stored are the references Exists reports as present.
+	stored []string
+	// existsErr is returned by Exists.
+	existsErr error
+	// checked are the references Exists was asked about.
+	checked []string
+}
+
+func (f *fakeClient) Exists(ref string) (bool, error) {
+	f.checked = append(f.checked, ref)
+	return slices.Contains(f.stored, ref), f.existsErr
 }
 
 func (f *fakeClient) Push(data []byte, ref string) (string, error) {

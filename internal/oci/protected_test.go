@@ -2,6 +2,7 @@ package oci
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -323,6 +324,77 @@ func TestPusherPushesWhatTheGuardAllows(t *testing.T) {
 			require.Equal(t, []string{tt.wantRef}, fake.refs)
 		})
 	}
+}
+
+func TestPusherNeverOverwritesOnTheSUSERegistries(t *testing.T) {
+	tests := []struct {
+		name   string
+		target Target
+		chart  string
+	}{
+		{
+			name:   "a chart in the catalog",
+			target: Target{Host: "registry.suse.com", Path: "rancher/catalog"},
+			chart:  "fleet",
+		},
+		{
+			name:   "a chart in the prime repository",
+			target: Target{Host: "stgregistry.suse.com", Path: "rancher/charts"},
+			chart:  "rancher-ai-agent",
+		},
+		{
+			name:   "an image",
+			target: Target{Host: "stgregistry.suse.com", Path: "rancher"},
+			chart:  "pause",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			archive := writeChart(t, tt.chart, "1.0.0")
+			ref := tt.target.Ref(tt.chart, "1.0.0")
+			fake := &fakeClient{stored: []string{ref}}
+
+			got, err := NewPusher(fake, tt.target, newTestGuard(t)).Push(context.Background(), archive)
+
+			require.EqualError(t, err, "pushing to this registry is not allowed: "+ref+" already exists and must never be overwritten")
+			require.Empty(t, got)
+			require.Equal(t, []string{ref}, fake.checked)
+			require.Empty(t, fake.refs, "nothing may reach the registry")
+		})
+	}
+}
+
+func TestPusherPushesANewVersionToTheSUSERegistries(t *testing.T) {
+	target := Target{Host: "registry.suse.com", Path: "rancher/catalog"}
+	fake := &fakeClient{stored: []string{target.Ref("fleet", "1.0.0")}}
+
+	_, err := NewPusher(fake, target, newTestGuard(t)).Push(context.Background(), writeChart(t, "fleet", "1.0.1"))
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"registry.suse.com/rancher/catalog/fleet:1.0.1"}, fake.refs)
+}
+
+func TestPusherRefusesWhenItCannotTellIfTheChartExists(t *testing.T) {
+	errBoom := errors.New("boom")
+	target := Target{Host: "registry.suse.com", Path: "rancher/catalog"}
+	fake := &fakeClient{existsErr: errBoom}
+
+	_, err := NewPusher(fake, target, newTestGuard(t)).Push(context.Background(), writeChart(t, "fleet", "1.0.0"))
+
+	require.ErrorIs(t, err, errBoom)
+	require.Empty(t, fake.refs, "when in doubt, nothing is pushed")
+}
+
+func TestPusherDoesNotAskLocalRegistries(t *testing.T) {
+	fake := &fakeClient{stored: []string{"localhost:5050/rancher/catalog/fleet:1.0.0"}}
+	target := Target{Host: "localhost:5050", Path: "rancher/catalog"}
+
+	_, err := NewPusher(fake, target, newTestGuard(t)).Push(context.Background(), writeChart(t, "fleet", "1.0.0"))
+
+	require.NoError(t, err)
+	require.Empty(t, fake.checked)
+	require.Len(t, fake.refs, 1, "a chart may be replaced outside the SUSE registries")
 }
 
 func TestReadIdentity(t *testing.T) {

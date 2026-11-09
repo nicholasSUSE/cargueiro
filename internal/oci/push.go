@@ -19,6 +19,8 @@ var repoName = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
 // reference it was stored under.
 type Client interface {
 	Push(data []byte, ref string) (string, error)
+	// Exists reports whether ref is already stored.
+	Exists(ref string) (bool, error)
 }
 
 // Pusher pushes chart archives to one registry target.
@@ -56,7 +58,18 @@ func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 		return "", err
 	}
 
-	ref, err := p.client.Push(data, p.target.Ref(name, version))
+	address := p.target.Ref(name, version)
+	if p.guard.Guarded(p.target) {
+		exists, err := p.client.Exists(address)
+		if err != nil {
+			return "", fmt.Errorf("check whether %s exists: %w", address, err)
+		}
+		if exists {
+			return "", refused("%s already exists and must never be overwritten", address)
+		}
+	}
+
+	ref, err := p.client.Push(data, address)
 	if err != nil {
 		return "", fmt.Errorf("push %s: %w", archivePath, err)
 	}

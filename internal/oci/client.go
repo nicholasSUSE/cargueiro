@@ -10,6 +10,7 @@ import (
 	"time"
 
 	helmregistry "helm.sh/helm/v4/pkg/registry"
+	"oras.land/oras-go/v2/errdef"
 	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
@@ -142,4 +143,16 @@ func (h helmClient) Push(data []byte, ref string) (string, error) {
 		return "", err
 	}
 	return res.Ref, nil
+}
+
+// Exists reports whether ref is already stored in its registry. A reference
+// the registry does not know is not an error.
+func (h helmClient) Exists(ref string) (bool, error) {
+	if _, err := h.client.Resolve(ref); err != nil {
+		if errors.Is(err, errdef.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

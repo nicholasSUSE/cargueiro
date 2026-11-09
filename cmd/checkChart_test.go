@@ -16,7 +16,20 @@ kinds:
 families:
   - family: fleet
     charts:
-      - { name: fleet, kind: main }
+      - { name: fleet, kind: main, edition: rancher-charts }
+  - family: rancher-ai-agent
+    charts:
+      - { name: rancher-ai-agent, kind: main, edition: prime-charts }
+registries:
+  rancher-charts:
+    charts-staging: stgregistry.suse.com/rancher/catalog
+    charts-production: registry.suse.com/rancher/catalog
+  prime-charts:
+    charts-staging: stgregistry.suse.com/rancher/charts
+    charts-production: registry.suse.com/rancher/charts
+  images:
+    staging: stgregistry.suse.com/rancher
+    production: registry.suse.com/rancher
 `
 
 const validChartYAML = `

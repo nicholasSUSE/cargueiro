@@ -3,8 +3,13 @@
 # A chart that is not listed is an error. See "Chart annotation rules" in
 # docs/DEVELOPING.md.
 #
+# Every chart has an edition: rancher-charts or prime-charts. A family never mixes
+# editions. The registries section says where the charts of each edition and the
+# images are released to; push uses it to protect the SUSE registries.
+#
 # Data source: latest Chart.yaml of every chart in rancher/charts release-v2.15
-# (be246f515, 2026-10-29).
+# (be246f515, 2026-10-29). The prime-charts entries are the charts of
+# prime-charts release-v2.13, v2.14 and v2.15.
 
 # Annotation names are under catalog.cattle.io/ .
 # namespace is optional for every kind.
@@ -20,73 +25,95 @@ kinds:
 families:
   - family: elemental
     charts:
-      - { name: elemental, kind: main, release-name: elemental-operator }
-      - { name: elemental-crd, kind: crd, release-name: elemental-operator-crds }
+      - { name: elemental, kind: main, release-name: elemental-operator, edition: rancher-charts }
+      - { name: elemental-crd, kind: crd, release-name: elemental-operator-crds, edition: rancher-charts }
   - family: fleet
     charts:
-      - { name: fleet, kind: main }
-      - { name: fleet-agent, kind: extra }
-      - { name: fleet-crd, kind: crd }
+      - { name: fleet, kind: main, edition: rancher-charts }
+      - { name: fleet-agent, kind: extra, edition: rancher-charts }
+      - { name: fleet-crd, kind: crd, edition: rancher-charts }
   - family: harvester-rbac
     charts:
-      - { name: harvester-rbac, kind: main }
+      - { name: harvester-rbac, kind: main, edition: rancher-charts }
   - family: longhorn
     charts:
-      - { name: longhorn, kind: main }
-      - { name: longhorn-crd, kind: crd }
+      - { name: longhorn, kind: main, edition: rancher-charts }
+      - { name: longhorn-crd, kind: crd, edition: rancher-charts }
   - family: neuvector
     charts:
-      - { name: neuvector, kind: main }
-      - { name: neuvector-crd, kind: crd }
-      - { name: neuvector-monitor, kind: extra }
+      - { name: neuvector, kind: main, edition: rancher-charts }
+      - { name: neuvector-crd, kind: crd, edition: rancher-charts }
+      - { name: neuvector-monitor, kind: extra, edition: rancher-charts }
   - family: prometheus-federator
     charts:
-      - { name: prometheus-federator, kind: main }
+      - { name: prometheus-federator, kind: main, edition: rancher-charts }
   - family: rancher-aks-operator
     charts:
-      - { name: rancher-aks-operator, kind: main }
-      - { name: rancher-aks-operator-crd, kind: crd }
+      - { name: rancher-aks-operator, kind: main, edition: rancher-charts }
+      - { name: rancher-aks-operator-crd, kind: crd, edition: rancher-charts }
   - family: rancher-backup
     charts:
-      - { name: rancher-backup, kind: main }
-      - { name: rancher-backup-crd, kind: crd }
+      - { name: rancher-backup, kind: main, edition: rancher-charts }
+      - { name: rancher-backup-crd, kind: crd, edition: rancher-charts }
   - family: rancher-compliance
     charts:
-      - { name: rancher-compliance, kind: main }
-      - { name: rancher-compliance-crd, kind: crd }
+      - { name: rancher-compliance, kind: main, edition: rancher-charts }
+      - { name: rancher-compliance-crd, kind: crd, edition: rancher-charts }
   - family: rancher-eks-operator
     charts:
-      - { name: rancher-eks-operator, kind: main }
-      - { name: rancher-eks-operator-crd, kind: crd }
+      - { name: rancher-eks-operator, kind: main, edition: rancher-charts }
+      - { name: rancher-eks-operator-crd, kind: crd, edition: rancher-charts }
   - family: rancher-gke-operator
     charts:
-      - { name: rancher-gke-operator, kind: main }
-      - { name: rancher-gke-operator-crd, kind: crd }
+      - { name: rancher-gke-operator, kind: main, edition: rancher-charts }
+      - { name: rancher-gke-operator-crd, kind: crd, edition: rancher-charts }
   - family: rancher-logging
     charts:
-      - { name: rancher-logging, kind: main }
-      - { name: rancher-logging-crd, kind: crd }
+      - { name: rancher-logging, kind: main, edition: rancher-charts }
+      - { name: rancher-logging-crd, kind: crd, edition: rancher-charts }
   - family: rancher-monitoring
     charts:
-      - { name: rancher-monitoring, kind: main }
-      - { name: rancher-monitoring-crd, kind: crd }
+      - { name: rancher-monitoring, kind: main, edition: rancher-charts }
+      - { name: rancher-monitoring-crd, kind: crd, edition: rancher-charts }
   - family: rancher-monitoring-dashboards
     charts:
-      - { name: rancher-monitoring-dashboards, kind: main }
+      - { name: rancher-monitoring-dashboards, kind: main, edition: rancher-charts }
   - family: rancher-supportability-review
     charts:
-      - { name: rancher-supportability-review, kind: main }
-      - { name: rancher-supportability-review-crd, kind: crd }
+      - { name: rancher-supportability-review, kind: main, edition: rancher-charts }
+      - { name: rancher-supportability-review-crd, kind: crd, edition: rancher-charts }
   - family: rancher-turtles
     charts:
-      - { name: rancher-turtles, kind: main }
+      - { name: rancher-turtles, kind: main, edition: rancher-charts }
   - family: rancher-webhook
     charts:
-      - { name: rancher-webhook, kind: main }
+      - { name: rancher-webhook, kind: main, edition: rancher-charts }
   - family: remotedialer-proxy
     charts:
-      - { name: remotedialer-proxy, kind: main }  # known violation: no kube-version, fix upstream
+      - { name: remotedialer-proxy, kind: main, edition: rancher-charts }  # known violation: no kube-version, fix upstream
   - family: system-upgrade-controller
     charts:
-      - { name: system-upgrade-controller, kind: main }
+      - { name: system-upgrade-controller, kind: main, edition: rancher-charts }
 
+  - family: rancher-ai-agent
+    charts:
+      - { name: rancher-ai-agent, kind: main, release-name: cattle-ai-agent-system, edition: prime-charts }
+  - family: rancher-ali-operator
+    charts:
+      - { name: rancher-ali-operator, kind: main, edition: prime-charts }
+      - { name: rancher-ali-operator-crd, kind: crd, edition: prime-charts }
+  - family: rancher-turtles-providers
+    charts:
+      - { name: rancher-turtles-providers, kind: main, edition: prime-charts }  # probably extra; main until its use is clear
+
+# Where charts and images are released to: host/path, no scheme, no trailing slash.
+registries:
+  rancher-charts:
+    charts-staging: stgregistry.suse.com/rancher/catalog
+    charts-production: registry.suse.com/rancher/catalog
+  prime-charts:
+    charts-staging: stgregistry.suse.com/rancher/charts
+    charts-production: registry.suse.com/rancher/charts
+  images:
+    staging: stgregistry.suse.com/rancher
+    production: registry.suse.com/rancher

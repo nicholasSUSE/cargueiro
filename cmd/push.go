@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/nicholasSUSE/cargueiro/internal/rules"
 )
 
 const (
@@ -26,15 +27,15 @@ type archivePusher interface {
 }
 
 // pusherFactory builds an archivePusher for a registry.
-type pusherFactory func(target oci.Target, opts oci.ClientOptions) (archivePusher, error)
+type pusherFactory func(target oci.Target, guard *oci.Guard, opts oci.ClientOptions) (archivePusher, error)
 
 // newOCIPusher is the production pusherFactory.
-func newOCIPusher(target oci.Target, opts oci.ClientOptions) (archivePusher, error) {
+func newOCIPusher(target oci.Target, guard *oci.Guard, opts oci.ClientOptions) (archivePusher, error) {
 	client, err := oci.NewClient(opts)
 	if err != nil {
 		return nil, err
 	}
-	return oci.NewPusher(client, target), nil
+	return oci.NewPusher(client, target, guard), nil
 }
 
 func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, error) {
@@ -52,9 +53,19 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 			if err != nil {
 				return err
 			}
-			// Before reading any secret or touching the network.
-			if err := oci.CheckTarget(target); err != nil {
+			guard, err := newGuard(opts.rules)
+			if err != nil {
 				return err
+			}
+			// Before reading any secret or touching the network.
+			if guard.Guarded(target) {
+				name, _, err := oci.ReadIdentity(args[0])
+				if err != nil {
+					return err
+				}
+				if err := guard.Check(target, name); err != nil {
+					return err
+				}
 			}
 
 			if username == "" {
@@ -70,7 +81,7 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				return err
 			}
 
-			pusher, err := newPusher(target, conn.clientOptions())
+			pusher, err := newPusher(target, guard, conn.clientOptions())
 			if err != nil {
 				return err
 			}
@@ -101,6 +112,25 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 		return nil, err
 	}
 	return cmd, nil
+}
+
+// newGuard builds the push policy from the rules: where images go, where the
+// charts of each edition go, and the edition of every listed chart.
+func newGuard(data []byte) (*oci.Guard, error) {
+	cfg, err := rules.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+
+	registries := cfg.Registries()
+	return oci.NewGuard(oci.Policy{
+		Images: registries.ImageRepositories(),
+		Charts: map[string][]string{
+			rules.EditionRancherCharts: registries.ChartRepositories(rules.EditionRancherCharts),
+			rules.EditionPrimeCharts:   registries.ChartRepositories(rules.EditionPrimeCharts),
+		},
+		Editions: cfg.Editions(),
+	})
 }
 
 // readPassword returns the registry password: from stdin when asked to,

@@ -224,26 +224,43 @@ func deadProxy() []string {
 	}
 }
 
-func TestPushRefusesProtectedRegistries(t *testing.T) {
-	archive := published(t, "fleet-crd")
-
-	for _, registry := range []string{
-		"registry.suse.com/rancher/catalog",
-		"stgregistry.suse.com/rancher/catalog",
-		"REGISTRY.suse.com:443/Rancher/Catalog/",
-		"oci://stgregistry.suse.com/rancher/catalog/fleet",
-	} {
-		t.Run(registry, func(t *testing.T) {
+func TestPushRefusesWhatTheSUSERegistriesForbid(t *testing.T) {
+	tests := []struct {
+		name     string
+		registry string
+		chart    string
+		wantErr  string
+	}{
+		{
+			name:     "rancher chart in the prime repository",
+			registry: "registry.suse.com/rancher/charts",
+			chart:    "fleet-crd",
+			wantErr:  "fleet-crd is a rancher-charts chart and cannot go to registry.suse.com/rancher/charts",
+		},
+		{
+			name:     "rancher chart below the catalog",
+			registry: "oci://stgregistry.suse.com/rancher/catalog/fleet",
+			chart:    "fleet-crd",
+			wantErr:  "fleet-crd is a rancher-charts chart and can only go to stgregistry.suse.com/rancher/catalog",
+		},
+		{
+			name:     "capitals and port do not get around the edition",
+			registry: "REGISTRY.suse.com:443/Rancher/Charts/",
+			chart:    "fleet-crd",
+			wantErr:  "fleet-crd is a rancher-charts chart and cannot go to",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			res := harness.CargueiroWith(t, harness.Options{
 				Dir: t.TempDir(),
 				Env: append(deadProxy(), "CARGUEIRO_PASSWORD="+harness.RegistryPassword),
-			}, "push", archive, "--registry", registry, "--username", harness.RegistryUser)
+			}, "push", published(t, tt.chart), "--registry", tt.registry, "--username", harness.RegistryUser)
 
 			requireNoPassword(t, res)
 			require.NotZero(t, res.ExitCode)
 			require.Empty(t, res.Stdout)
-			require.Contains(t, res.Stderr, "pushing to this registry is not allowed")
-			require.Contains(t, res.Stderr, "must never be overwritten")
+			require.Contains(t, res.Stderr, "pushing to this registry is not allowed: "+tt.wantErr)
 			require.NotContains(t, res.Stderr, "127.0.0.1:1", "the guard must act before any network attempt")
 		})
 	}

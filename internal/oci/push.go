@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"regexp"
 
 	ci "helm.sh/helm/v4/pkg/chart"
@@ -20,17 +19,21 @@ var repoName = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
 // reference it was stored under.
 type Client interface {
 	Push(data []byte, ref string) (string, error)
+	// Exists reports whether ref is already stored.
+	Exists(ref string) (bool, error)
 }
 
 // Pusher pushes chart archives to one registry target.
 type Pusher struct {
 	client Client
 	target Target
+	guard  *Guard
 }
 
-// NewPusher returns a Pusher that uploads through client to target.
-func NewPusher(client Client, target Target) *Pusher {
-	return &Pusher{client: client, target: target}
+// NewPusher returns a Pusher that uploads through client to target, unless
+// guard forbids it.
+func NewPusher(client Client, target Target, guard *Guard) *Pusher {
+	return &Pusher{client: client, target: target, guard: guard}
 }
 
 // Push uploads the chart archive at archivePath to <target>/<name>:<version>,
@@ -38,9 +41,6 @@ func NewPusher(client Client, target Target) *Pusher {
 // reference the chart was stored under.
 func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	if err := CheckTarget(p.target); err != nil {
 		return "", err
 	}
 
@@ -54,17 +54,41 @@ func (p *Pusher) Push(ctx context.Context, archivePath string) (string, error) {
 		return "", fmt.Errorf("invalid chart archive: %s: %w", archivePath, err)
 	}
 
-	// The chart name is part of the repository, so check the final path too.
-	if err := checkRepository(p.target.Host, path.Join(p.target.Path, name)); err != nil {
+	if err := p.guard.Check(p.target, name); err != nil {
 		return "", err
 	}
 
-	ref, err := p.client.Push(data, p.target.Ref(name, version))
+	address := p.target.Ref(name, version)
+	if p.guard.Guarded(p.target) {
+		exists, err := p.client.Exists(address)
+		if err != nil {
+			return "", fmt.Errorf("check whether %s exists: %w", address, err)
+		}
+		if exists {
+			return "", refused("%s already exists and must never be overwritten", address)
+		}
+	}
+
+	ref, err := p.client.Push(data, address)
 	if err != nil {
 		return "", fmt.Errorf("push %s: %w", archivePath, err)
 	}
 
 	return ref, nil
+}
+
+// ReadIdentity returns the name and version stored in the chart archive at
+// archivePath.
+func ReadIdentity(archivePath string) (name, version string, err error) {
+	data, err := os.ReadFile(archivePath)
+	if err != nil {
+		return "", "", fmt.Errorf("read archive %s: %w", archivePath, err)
+	}
+	name, version, err = chartIdentity(data)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid chart archive: %s: %w", archivePath, err)
+	}
+	return name, version, nil
 }
 
 // chartIdentity returns the name and version stored in a chart archive.

@@ -56,7 +56,7 @@ func runPushWithStore(t *testing.T, store *auth.Store, env map[string]string, st
 	t.Helper()
 
 	res := pushResult{pusher: &fakePusher{failing: failing}}
-	factory := func(target oci.Target, opts oci.ClientOptions) (archivePusher, error) {
+	factory := func(target oci.Target, _ *oci.Guard, opts oci.ClientOptions) (archivePusher, error) {
 		res.env = pushEnv{target: target, opts: opts}
 		return res.pusher, nil
 	}
@@ -67,6 +67,7 @@ func runPushWithStore(t *testing.T, store *auth.Store, env map[string]string, st
 		getenv:    func(k string) string { return env[k] },
 		openStore: openerFor(store),
 		prompt:    &fakePrompter{},
+		rules:     []byte(checkRules),
 	}
 	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
 	require.NoError(t, err)
@@ -182,7 +183,7 @@ func TestPushCmdRejectsBadInput(t *testing.T) {
 
 func TestPushCmdFactoryError(t *testing.T) {
 	errBadOpts := errors.New("bad options")
-	factory := func(oci.Target, oci.ClientOptions) (archivePusher, error) { return nil, errBadOpts }
+	factory := func(oci.Target, *oci.Guard, oci.ClientOptions) (archivePusher, error) { return nil, errBadOpts }
 
 	var out, errOut bytes.Buffer
 	opts := &rootOptions{
@@ -190,6 +191,7 @@ func TestPushCmdFactoryError(t *testing.T) {
 		getenv:    func(string) string { return "" },
 		openStore: openerFor(newTestStore(t)),
 		prompt:    &fakePrompter{},
+		rules:     []byte(checkRules),
 	}
 	root, err := newRootCmd(&out, &errOut, opts, dependencies{newPusher: factory})
 	require.NoError(t, err)
@@ -207,23 +209,86 @@ func TestPushCmdSecretsNeverInOutput(t *testing.T) {
 	require.NotContains(t, res.stderr, "super-secret")
 }
 
-func TestPushCmdRefusesProtectedRegistries(t *testing.T) {
-	for _, registry := range []string{
-		"registry.suse.com/rancher/catalog",
-		"stgregistry.suse.com/rancher/catalog",
-		"https://Registry.SUSE.com:443/rancher/catalog/",
-	} {
-		t.Run(registry, func(t *testing.T) {
-			res := runPush(t, map[string]string{"CARGUEIRO_PASSWORD": "secret"}, "", nil,
-				"a.tgz", "--registry", registry, "--username", "admin")
+func TestPushCmdRefusesWhatTheSUSERegistriesForbid(t *testing.T) {
+	tests := []struct {
+		name     string
+		registry string
+		chart    string
+		wantErr  string
+	}{
+		{
+			name:     "rancher chart in the prime repository",
+			registry: "stgregistry.suse.com/rancher/charts",
+			chart:    "fleet",
+			wantErr:  "fleet is a rancher-charts chart and cannot go to stgregistry.suse.com/rancher/charts",
+		},
+		{
+			name:     "prime chart in the rancher repository",
+			registry: "https://Registry.SUSE.com:443/rancher/catalog/",
+			chart:    "rancher-ai-agent",
+			wantErr:  "rancher-ai-agent is a prime-charts chart and cannot go to",
+		},
+		{
+			name:     "image in the catalog",
+			registry: "registry.suse.com/rancher/catalog",
+			chart:    "pause",
+			wantErr:  "pause is not a chart listed in the rules file",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			archive := writeArchive(t, "apiVersion: v2\nname: "+tt.chart+"\nversion: 1.0.0\n", "")
 
-			require.ErrorContains(t, res.err, "pushing to this registry is not allowed: ")
-			require.ErrorContains(t, res.err, "must never be overwritten")
+			res := runPush(t, map[string]string{"CARGUEIRO_PASSWORD": "secret"}, "", nil,
+				archive, "--registry", tt.registry, "--username", "admin")
+
+			require.ErrorContains(t, res.err, "pushing to this registry is not allowed: "+tt.wantErr)
 			require.Equal(t, pushEnv{}, res.env, "no pusher may even be built")
 			require.Empty(t, res.pusher.pushed)
 			require.Empty(t, res.stdout)
 		})
 	}
+}
+
+func TestPushCmdAllowsWhatTheSUSERegistriesAllow(t *testing.T) {
+	tests := []struct {
+		name     string
+		registry string
+		chart    string
+	}{
+		{
+			name:     "rancher chart in the catalog",
+			registry: "stgregistry.suse.com/rancher/catalog",
+			chart:    "fleet",
+		},
+		{
+			name:     "prime chart in the prime repository",
+			registry: "registry.suse.com/rancher/charts",
+			chart:    "rancher-ai-agent",
+		},
+		{
+			name:     "image in the images path",
+			registry: "stgregistry.suse.com/rancher",
+			chart:    "pause",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			archive := writeArchive(t, "apiVersion: v2\nname: "+tt.chart+"\nversion: 1.0.0\n", "")
+
+			res := runPush(t, nil, "", nil, archive, "--registry", tt.registry)
+
+			require.NoError(t, res.err)
+			require.Equal(t, []string{archive}, res.pusher.pushed)
+		})
+	}
+}
+
+func TestPushCmdRefusesAnUnreadableArchiveOnTheSUSERegistries(t *testing.T) {
+	res := runPush(t, nil, "", nil, "/no/such/archive.tgz", "--registry", "registry.suse.com/rancher")
+
+	require.ErrorContains(t, res.err, "read archive /no/such/archive.tgz")
+	require.Equal(t, pushEnv{}, res.env)
 }
 
 func TestPushCmdAllowsTheSamePathOnOtherRegistries(t *testing.T) {

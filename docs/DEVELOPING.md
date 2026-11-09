@@ -120,6 +120,10 @@ Later features reuse these and only add their own pieces:
 
 The file is compiled into the binary: `main.go` embeds it with `//go:embed` and hands the bytes to `cmd`. Changing a rule means rebuilding and releasing cargueiro. `cargueiro check chart` is what runs the rules.
 
+Every chart also has an `edition`, `rancher-charts` or `prime-charts`, which says which repository it is released from; the kinds mean the same in both. A family never mixes editions. The `registries` section names the chart repositories of each edition and the image repositories, as `host/path` with no scheme and no trailing slash, and the parser rejects a missing or malformed one.
+
+`push` builds its guard from these. On the SUSE registries named there, a listed chart may only go to the repositories of its edition, anything else is an image dependency that may only go to the image path, and nothing that already exists is overwritten. The check and the upload are separate calls, so only the registry's own immutable tags could close the race between two pushes of the same new tag.
+
 | Kind | Chart | Required annotations (under `catalog.cattle.io/`) |
 |------|-------|---------------------------------------------------|
 | `main` | a product chart, with or without a `-crd` sibling | `release-name`, `certified`, `rancher-version`, `kube-version`, `permits-os` |

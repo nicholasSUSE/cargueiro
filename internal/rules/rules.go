@@ -9,6 +9,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -18,6 +19,8 @@ type Chart struct {
 	Name   string
 	Kind   string
 	Family string
+	// Edition is the repository the chart is released from.
+	Edition string
 	// ReleaseName is the expected catalog.cattle.io/release-name. It is the
 	// chart name unless the file says otherwise.
 	ReleaseName string
@@ -33,9 +36,69 @@ const (
 	KindExtra = "extra"
 )
 
+// The editions a chart may belong to.
+const (
+	EditionRancherCharts = "rancher-charts"
+	EditionPrimeCharts   = "prime-charts"
+)
+
+// ChartRegistries are the repositories an edition releases its charts to, as
+// host/path with no scheme and no trailing slash.
+type ChartRegistries struct {
+	Staging    string
+	Production string
+}
+
+// ImageRegistries are the repositories images are released to. Both editions
+// share them.
+type ImageRegistries struct {
+	Staging    string
+	Production string
+}
+
+// Registries are the registries named in the rules file.
+type Registries struct {
+	RancherCharts ChartRegistries
+	PrimeCharts   ChartRegistries
+	Images        ImageRegistries
+}
+
+// ChartRepositories lists the repositories the charts of edition are released
+// to, staging first. It is empty for an unknown edition.
+func (r Registries) ChartRepositories(edition string) []string {
+	switch edition {
+	case EditionRancherCharts:
+		return []string{r.RancherCharts.Staging, r.RancherCharts.Production}
+	case EditionPrimeCharts:
+		return []string{r.PrimeCharts.Staging, r.PrimeCharts.Production}
+	}
+	return nil
+}
+
+// ImageRepositories lists the repositories images are released to, staging
+// first.
+func (r Registries) ImageRepositories() []string {
+	return []string{r.Images.Staging, r.Images.Production}
+}
+
 // Config is the parsed rules file.
 type Config struct {
-	charts map[string]Chart
+	charts     map[string]Chart
+	registries Registries
+}
+
+// Editions returns the edition of every listed chart, by chart name.
+func (c *Config) Editions() map[string]string {
+	editions := make(map[string]string, len(c.charts))
+	for name, chart := range c.charts {
+		editions[name] = chart.Edition
+	}
+	return editions
+}
+
+// Registries returns the registries named in the rules file.
+func (c *Config) Registries() Registries {
+	return c.registries
 }
 
 // Find returns the chart called name. It fails when the rules file does not
@@ -51,6 +114,24 @@ func (c *Config) Find(name string) (Chart, error) {
 type file struct {
 	Kinds    map[string]kindRule `yaml:"kinds"`
 	Families []family            `yaml:"families"`
+
+	Registries registriesFile `yaml:"registries"`
+}
+
+type registriesFile struct {
+	RancherCharts chartRegistriesFile `yaml:"rancher-charts"`
+	PrimeCharts   chartRegistriesFile `yaml:"prime-charts"`
+	Images        imageRegistriesFile `yaml:"images"`
+}
+
+type chartRegistriesFile struct {
+	Staging    string `yaml:"charts-staging"`
+	Production string `yaml:"charts-production"`
+}
+
+type imageRegistriesFile struct {
+	Staging    string `yaml:"staging"`
+	Production string `yaml:"production"`
 }
 
 type kindRule struct {
@@ -66,12 +147,15 @@ type chartItem struct {
 	Name        string `yaml:"name"`
 	Kind        string `yaml:"kind"`
 	ReleaseName string `yaml:"release-name"`
+	Edition     string `yaml:"edition"`
 }
 
 // Parse reads a rules file. It rejects malformed input: unknown keys, an
 // unknown kind, a family or chart without a name, a family without charts, a
-// chart listed twice or without a defined kind, and an empty or repeated
-// annotation name in a kind.
+// chart listed twice or without a defined kind, a chart without a known
+// edition, a family that mixes editions, and an empty or repeated annotation
+// name in a kind, and a registry that is missing, has a scheme or ends in a
+// slash.
 func Parse(data []byte) (*Config, error) {
 	f, err := decode(data)
 	if err != nil {
@@ -85,7 +169,11 @@ func Parse(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Config{charts: charts}, nil
+	registries, err := newRegistries(f.Registries)
+	if err != nil {
+		return nil, err
+	}
+	return &Config{charts: charts, registries: registries}, nil
 }
 
 // decode reads the YAML, rejecting unknown keys.
@@ -133,6 +221,10 @@ func indexCharts(f file) (map[string]Chart, error) {
 			if err != nil {
 				return nil, err
 			}
+			if chart.Edition != fam.Charts[0].Edition {
+				return nil, fmt.Errorf("parse rules: family %q mixes editions %q and %q",
+					fam.Family, fam.Charts[0].Edition, chart.Edition)
+			}
 			if _, dup := charts[chart.Name]; dup {
 				return nil, fmt.Errorf("parse rules: chart %q is listed twice", chart.Name)
 			}
@@ -159,6 +251,14 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		return Chart{}, fmt.Errorf("parse rules: chart %q has undefined kind %q", item.Name, item.Kind)
 	}
 
+	switch item.Edition {
+	case "":
+		return Chart{}, fmt.Errorf("parse rules: chart %q has no edition", item.Name)
+	case EditionRancherCharts, EditionPrimeCharts:
+	default:
+		return Chart{}, fmt.Errorf("parse rules: chart %q has unknown edition %q", item.Name, item.Edition)
+	}
+
 	releaseName := item.ReleaseName
 	if releaseName == "" {
 		releaseName = item.Name
@@ -167,6 +267,7 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		Name:        item.Name,
 		Kind:        item.Kind,
 		Family:      family,
+		Edition:     item.Edition,
 		ReleaseName: releaseName,
 		Required:    slices.Clone(rule.Required),
 	}, nil
@@ -183,6 +284,46 @@ func checkRequired(rule kindRule) error {
 			return fmt.Errorf("annotation %q is required twice", name)
 		}
 		seen[name] = true
+	}
+	return nil
+}
+
+// newRegistries checks every registry and returns them as typed fields.
+func newRegistries(r registriesFile) (Registries, error) {
+	fields := []struct {
+		key   string
+		value string
+	}{
+		{key: "rancher-charts.charts-staging", value: r.RancherCharts.Staging},
+		{key: "rancher-charts.charts-production", value: r.RancherCharts.Production},
+		{key: "prime-charts.charts-staging", value: r.PrimeCharts.Staging},
+		{key: "prime-charts.charts-production", value: r.PrimeCharts.Production},
+		{key: "images.staging", value: r.Images.Staging},
+		{key: "images.production", value: r.Images.Production},
+	}
+	for _, field := range fields {
+		if err := checkRegistry(field.value); err != nil {
+			return Registries{}, fmt.Errorf("parse rules: registry %q: %w", field.key, err)
+		}
+	}
+
+	return Registries{
+		RancherCharts: ChartRegistries(r.RancherCharts),
+		PrimeCharts:   ChartRegistries(r.PrimeCharts),
+		Images:        ImageRegistries(r.Images),
+	}, nil
+}
+
+// checkRegistry rejects a registry that is empty, has a scheme or ends in a
+// slash.
+func checkRegistry(value string) error {
+	switch {
+	case value == "":
+		return errors.New("missing")
+	case strings.Contains(value, "://"):
+		return errors.New("must not have a scheme")
+	case strings.HasSuffix(value, "/"):
+		return errors.New("must not end in a slash")
 	}
 	return nil
 }

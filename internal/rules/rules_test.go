@@ -17,8 +17,18 @@ kinds:
 families:
   - family: elemental
     charts:
-      - { name: elemental, kind: main, release-name: elemental-operator }
-      - { name: elemental-crd, kind: crd }
+      - { name: elemental, kind: main, release-name: elemental-operator, edition: rancher-charts }
+      - { name: elemental-crd, kind: crd, edition: rancher-charts }
+registries:
+  rancher-charts:
+    charts-staging: stgregistry.suse.com/rancher/catalog
+    charts-production: registry.suse.com/rancher/catalog
+  prime-charts:
+    charts-staging: stgregistry.suse.com/rancher/charts
+    charts-production: registry.suse.com/rancher/charts
+  images:
+    staging: stgregistry.suse.com/rancher
+    production: registry.suse.com/rancher
 `
 
 func TestParse(t *testing.T) {
@@ -35,6 +45,7 @@ func TestParse(t *testing.T) {
 				Name:        "elemental",
 				Kind:        "main",
 				Family:      "elemental",
+				Edition:     "rancher-charts",
 				ReleaseName: "elemental-operator",
 				Required:    []string{"release-name", "kube-version"},
 			},
@@ -45,6 +56,7 @@ func TestParse(t *testing.T) {
 				Name:        "elemental-crd",
 				Kind:        "crd",
 				Family:      "elemental",
+				Edition:     "rancher-charts",
 				ReleaseName: "elemental-crd",
 				Required:    []string{"hidden"},
 			},
@@ -57,6 +69,75 @@ func TestParse(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestParseRegistries(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+
+	want := Registries{
+		RancherCharts: ChartRegistries{
+			Staging:    "stgregistry.suse.com/rancher/catalog",
+			Production: "registry.suse.com/rancher/catalog",
+		},
+		PrimeCharts: ChartRegistries{
+			Staging:    "stgregistry.suse.com/rancher/charts",
+			Production: "registry.suse.com/rancher/charts",
+		},
+		Images: ImageRegistries{
+			Staging:    "stgregistry.suse.com/rancher",
+			Production: "registry.suse.com/rancher",
+		},
+	}
+	require.Equal(t, want, cfg.Registries())
+}
+
+func TestRegistriesRepositories(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+	registries := cfg.Registries()
+
+	tests := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{
+			name: "rancher-charts",
+			got:  registries.ChartRepositories(EditionRancherCharts),
+			want: []string{"stgregistry.suse.com/rancher/catalog", "registry.suse.com/rancher/catalog"},
+		},
+		{
+			name: "prime-charts",
+			got:  registries.ChartRepositories(EditionPrimeCharts),
+			want: []string{"stgregistry.suse.com/rancher/charts", "registry.suse.com/rancher/charts"},
+		},
+		{
+			name: "unknown edition",
+			got:  registries.ChartRepositories("other"),
+			want: nil,
+		},
+		{
+			name: "images",
+			got:  registries.ImageRepositories(),
+			want: []string{"stgregistry.suse.com/rancher", "registry.suse.com/rancher"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.got)
+		})
+	}
+}
+
+func TestEditions(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+
+	require.Equal(t, map[string]string{
+		"elemental":     EditionRancherCharts,
+		"elemental-crd": EditionRancherCharts,
+	}, cfg.Editions())
 }
 
 func TestFindUnlistedChart(t *testing.T) {
@@ -119,7 +200,7 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {name: a, kind: main, colour: red}
+      - {name: a, kind: main, colour: red, edition: rancher-charts}
 `,
 			wantErr: "field colour not found",
 		},
@@ -143,7 +224,7 @@ kinds: {main: {}}
 kinds: {main: {}}
 families:
   - charts:
-      - {name: a, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: "a family has no name",
 		},
@@ -163,7 +244,7 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {kind: main}
+      - {kind: main, edition: rancher-charts}
 `,
 			wantErr: `family "a" has a chart with no name`,
 		},
@@ -174,7 +255,7 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {name: a, kind: other}
+      - {name: a, kind: other, edition: rancher-charts}
 `,
 			wantErr: `chart "a" has undefined kind "other"`,
 		},
@@ -190,14 +271,48 @@ families:
 			wantErr: `chart "a" has no kind`,
 		},
 		{
-			name: "chart listed twice in one family",
+			name: "chart without an edition",
 			in: `
 kinds: {main: {}}
 families:
   - family: a
     charts:
       - {name: a, kind: main}
-      - {name: a, kind: main}
+`,
+			wantErr: `chart "a" has no edition`,
+		},
+		{
+			name: "unknown edition",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: other}
+`,
+			wantErr: `chart "a" has unknown edition "other"`,
+		},
+		{
+			name: "family mixing editions",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: b, kind: main, edition: prime-charts}
+`,
+			wantErr: `family "a" mixes editions "rancher-charts" and "prime-charts"`,
+		},
+		{
+			name: "chart listed twice in one family",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: `chart "a" is listed twice`,
 		},
@@ -208,10 +323,10 @@ kinds: {main: {}}
 families:
   - family: a
     charts:
-      - {name: x, kind: main}
+      - {name: x, kind: main, edition: rancher-charts}
   - family: b
     charts:
-      - {name: x, kind: main}
+      - {name: x, kind: main, edition: rancher-charts}
 `,
 			wantErr: `chart "x" is listed twice`,
 		},
@@ -222,7 +337,7 @@ kinds: {main: {required: ['']}}
 families:
   - family: a
     charts:
-      - {name: a, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: `kind "main": empty annotation name`,
 		},
@@ -233,12 +348,79 @@ kinds: {main: {required: [hidden, hidden]}}
 families:
   - family: a
     charts:
-      - {name: a, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
 `,
 			wantErr: `kind "main": annotation "hidden" is required twice`,
 		},
 	}
 
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := Parse([]byte(tt.in))
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, cfg)
+		})
+	}
+}
+
+func TestParseRejectsRegistries(t *testing.T) {
+	const charts = `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+`
+
+	tests := []struct {
+		name    string
+		in      string
+		wantErr string
+	}{
+		{
+			name:    "no registries section",
+			in:      charts,
+			wantErr: `registry "rancher-charts.charts-staging": missing`,
+		},
+		{
+			name: "a registry is missing",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: p.io/b}
+  images: {staging: s.io/c}
+`,
+			wantErr: `registry "images.production": missing`,
+		},
+		{
+			name: "a registry has a scheme",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: 'https://s.io/a', charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: p.io/b}
+  images: {staging: s.io/c, production: p.io/c}
+`,
+			wantErr: `registry "rancher-charts.charts-staging": must not have a scheme`,
+		},
+		{
+			name: "a registry ends in a slash",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: 'p.io/b/'}
+  images: {staging: s.io/c, production: p.io/c}
+`,
+			wantErr: `registry "prime-charts.charts-production": must not end in a slash`,
+		},
+		{
+			name: "an unknown registry key",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a, other: x}
+`,
+			wantErr: "field other not found",
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg, err := Parse([]byte(tt.in))
@@ -260,6 +442,12 @@ func TestRepositoryConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "crd", chart.Kind)
 	require.Equal(t, "rancher-backup", chart.Family)
+	require.Equal(t, EditionRancherCharts, chart.Edition)
+
+	agent, err := cfg.Find("rancher-ai-agent")
+	require.NoError(t, err)
+	require.Equal(t, EditionPrimeCharts, agent.Edition)
+	require.Equal(t, "cattle-ai-agent-system", agent.ReleaseName)
 }
 
 // TestParseReportsTheSameKindEveryTime keeps the error stable when several
@@ -289,8 +477,18 @@ kinds:
 families:
   - family: a
     charts:
-      - {name: a, kind: main}
-      - {name: b, kind: main}
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: b, kind: main, edition: rancher-charts}
+registries:
+  rancher-charts:
+    charts-staging: stgregistry.suse.com/rancher/catalog
+    charts-production: registry.suse.com/rancher/catalog
+  prime-charts:
+    charts-staging: stgregistry.suse.com/rancher/charts
+    charts-production: registry.suse.com/rancher/charts
+  images:
+    staging: stgregistry.suse.com/rancher
+    production: registry.suse.com/rancher
 `
 
 	cfg, err := Parse([]byte(in))

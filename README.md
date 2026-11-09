@@ -20,6 +20,7 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 | [`check archive`](cmd/docs/check-archive.md) | Check one packaged chart (.tgz) against the chart rules. |
 | [`check chart`](cmd/docs/check-chart.md) | Check one chart directory against the chart rules. |
 | [`check oci`](cmd/docs/check-oci.md) | Check one chart in an OCI registry against the chart rules. |
+| [`list`](cmd/docs/list.md) | List the versions of a chart in an OCI registry, newest first. |
 | [`package`](cmd/docs/package.md) | Package a Helm chart into a .tgz archive. |
 | [`push`](cmd/docs/push.md) | Push a packaged Helm chart to an OCI registry. |
 | [`registry`](cmd/docs/registry.md) | Manage the registry login cargueiro saves. |

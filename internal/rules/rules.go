@@ -63,10 +63,37 @@ type Registries struct {
 	Images        ImageRegistries
 }
 
+// ChartRepositories lists the repositories the charts of edition are released
+// to, staging first. It is empty for an unknown edition.
+func (r Registries) ChartRepositories(edition string) []string {
+	switch edition {
+	case EditionRancherCharts:
+		return []string{r.RancherCharts.Staging, r.RancherCharts.Production}
+	case EditionPrimeCharts:
+		return []string{r.PrimeCharts.Staging, r.PrimeCharts.Production}
+	}
+	return nil
+}
+
+// ImageRepositories lists the repositories images are released to, staging
+// first.
+func (r Registries) ImageRepositories() []string {
+	return []string{r.Images.Staging, r.Images.Production}
+}
+
 // Config is the parsed rules file.
 type Config struct {
 	charts     map[string]Chart
 	registries Registries
+}
+
+// Editions returns the edition of every listed chart, by chart name.
+func (c *Config) Editions() map[string]string {
+	editions := make(map[string]string, len(c.charts))
+	for name, chart := range c.charts {
+		editions[name] = chart.Edition
+	}
+	return editions
 }
 
 // Registries returns the registries named in the rules file.

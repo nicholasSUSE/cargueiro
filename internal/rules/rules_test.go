@@ -92,6 +92,54 @@ func TestParseRegistries(t *testing.T) {
 	require.Equal(t, want, cfg.Registries())
 }
 
+func TestRegistriesRepositories(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+	registries := cfg.Registries()
+
+	tests := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{
+			name: "rancher-charts",
+			got:  registries.ChartRepositories(EditionRancherCharts),
+			want: []string{"stgregistry.suse.com/rancher/catalog", "registry.suse.com/rancher/catalog"},
+		},
+		{
+			name: "prime-charts",
+			got:  registries.ChartRepositories(EditionPrimeCharts),
+			want: []string{"stgregistry.suse.com/rancher/charts", "registry.suse.com/rancher/charts"},
+		},
+		{
+			name: "unknown edition",
+			got:  registries.ChartRepositories("other"),
+			want: nil,
+		},
+		{
+			name: "images",
+			got:  registries.ImageRepositories(),
+			want: []string{"stgregistry.suse.com/rancher", "registry.suse.com/rancher"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.got)
+		})
+	}
+}
+
+func TestEditions(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+
+	require.Equal(t, map[string]string{
+		"elemental":     EditionRancherCharts,
+		"elemental-crd": EditionRancherCharts,
+	}, cfg.Editions())
+}
+
 func TestFindUnlistedChart(t *testing.T) {
 	cfg, err := Parse([]byte(valid))
 	require.NoError(t, err)

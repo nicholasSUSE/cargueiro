@@ -32,8 +32,9 @@ type chartYAML struct {
 	Annotations map[string]string `yaml:"annotations"`
 }
 
-// Load reads Chart.yaml and values.yaml from dir. Both files must exist and be
-// valid YAML. Nothing else in dir is read.
+// Load reads Chart.yaml and values.yaml from dir. Chart.yaml must exist. A chart
+// without a values.yaml has no values and no images, which is the case of most
+// CRD charts. Both files must be valid YAML. Nothing else in dir is read.
 func Load(dir string) (*Files, error) {
 	chartPath := filepath.Join(dir, "Chart.yaml")
 	chartData, err := readFile(chartPath)
@@ -42,19 +43,22 @@ func Load(dir string) (*Files, error) {
 	}
 	valuesPath := filepath.Join(dir, "values.yaml")
 	valuesData, err := readFile(valuesPath)
-	if err != nil {
+	if err != nil && !errors.Is(err, errNotFound) {
 		return nil, err
 	}
 
 	return newFiles(chartPath, chartData, valuesPath, valuesData)
 }
 
+// errNotFound is wrapped by the error for a file that does not exist.
+var errNotFound = errors.New("not found")
+
 // readFile reads the file at path.
 func readFile(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("%s not found", path)
+			return nil, fmt.Errorf("%s %w", path, errNotFound)
 		}
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}

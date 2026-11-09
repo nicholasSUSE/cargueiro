@@ -260,6 +260,33 @@ metadata:
 	})
 }
 
+// TestChartWithoutValues checks a CRD chart as most of them are released, with
+// no values.yaml: it has no images, so it is checked, from a directory and from
+// an archive, and nothing is expected of its helm.sh/images.
+func TestChartWithoutValues(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(harness.FleetSource(t, "fleet-crd"), "Chart.yaml"))
+	require.NoError(t, err)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Chart.yaml"), data, 0o600))
+
+	t.Run("directory", func(t *testing.T) {
+		got, res := checkJSON(t, dir)
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.True(t, got.Valid)
+		require.Equal(t, "crd", got.Kind)
+		require.Equal(t, check.Section{Valid: true, Errors: []string{}}, got.HIP15Annotations)
+	})
+
+	t.Run("archive", func(t *testing.T) {
+		fromArchive := checkArchive(t, archiveOf(t, dir, "fleet-crd"))
+		fromDirectory := checkChartText(t, dir)
+
+		require.Zero(t, fromArchive.ExitCode, fromArchive.Stderr)
+		require.Equal(t, fromDirectory.Stdout, fromArchive.Stdout)
+	})
+}
+
 // TestUpstreamTagLatestIsRefused checks the webhook chart as its upstream keeps
 // it, before the owner's automation sets the real image tag: the tag latest is
 // an error of the helm.sh/images section, once, and not a second error about
@@ -300,13 +327,6 @@ func TestFailuresPrintNothing(t *testing.T) {
 				return []string{filepath.Join(t.TempDir(), "nope")}
 			},
 			wantErr: "Chart.yaml not found",
-		},
-		{
-			name: "no values.yaml",
-			args: func(t *testing.T) []string {
-				return []string{writeChart(t, "name: fleet\n", "")}
-			},
-			wantErr: "values.yaml not found",
 		},
 		{
 			name: "Chart.yaml is not yaml",

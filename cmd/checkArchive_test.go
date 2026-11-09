@@ -60,6 +60,17 @@ func runCheckArchive(t *testing.T, args ...string) (stdout, stderr string, err e
 	return out.String(), errOut.String(), err
 }
 
+// TestCheckArchiveWithoutValues makes sure an archive with no values.yaml is
+// checked, and gives the same report as the directory.
+func TestCheckArchiveWithoutValues(t *testing.T) {
+	fromArchive, _, errArchive := runCheckArchive(t, writeArchive(t, validChartYAML, ""))
+	fromDirectory, _, errDirectory := runCheck(t, writeChartDir(t, validChartYAML, ""))
+
+	require.NoError(t, errArchive)
+	require.NoError(t, errDirectory)
+	require.Equal(t, fromDirectory, fromArchive)
+}
+
 // TestCheckArchiveReportsLikeCheckChart makes sure that the same files give
 // the same report from an archive as from a directory.
 func TestCheckArchiveReportsLikeCheckChart(t *testing.T) {
@@ -144,13 +155,6 @@ func TestCheckArchiveFailsWithoutPrinting(t *testing.T) {
 				return []string{notAnArchive}
 			},
 			wantErr: "the archive is not gzip",
-		},
-		{
-			name: "no values.yaml",
-			args: func(t *testing.T) []string {
-				return []string{writeArchive(t, validChartYAML, "")}
-			},
-			wantErr: "the archive has no values.yaml",
 		},
 		{
 			name: "the chart is not listed in the rules",

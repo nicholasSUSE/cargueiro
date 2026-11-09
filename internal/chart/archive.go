@@ -81,11 +81,8 @@ func loadArchive(r io.Reader, lim limits) (*Files, error) {
 		*dst, *have = data, true
 	}
 
-	switch {
-	case !haveChart:
+	if !haveChart {
 		return nil, errors.New("the archive has no Chart.yaml")
-	case !haveValues:
-		return nil, errors.New("the archive has no values.yaml")
 	}
 
 	return newFiles("Chart.yaml", chartData, "values.yaml", valuesData)

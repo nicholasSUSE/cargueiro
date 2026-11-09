@@ -146,7 +146,7 @@ Each kind has one function in `internal/annotations` (`ValidateMainChart`, `Vali
 
 ### check chart
 
-`cargueiro check chart <chart-dir>` ties the pieces together: `internal/chart` reads `Chart.yaml` and `values.yaml` into memory (nothing else in the directory is read), `internal/check` finds the chart in the rules and runs the annotation checks, the `helm.sh/images` checks and the version checks, and `cmd` prints the result.
+`cargueiro check chart <chart-dir>` ties the pieces together: `internal/chart` reads `Chart.yaml` and `values.yaml` into memory (nothing else in the directory is read; a chart with no `values.yaml` has no values and no images), `internal/check` finds the chart in the rules and runs the annotation checks, the `helm.sh/images` checks and the version checks, and `cmd` prints the result.
 
 | Outcome | stdout | stderr | Exit |
 |---------|--------|--------|------|

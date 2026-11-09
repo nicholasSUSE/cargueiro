@@ -39,6 +39,7 @@ func withVersion(t *testing.T, src, from, to string) string {
 }
 
 // archiveOf packs Chart.yaml and values.yaml of a directory as a chart archive.
+// A directory with no values.yaml gives an archive with none.
 func archiveOf(t *testing.T, dir, name string) string {
 	t.Helper()
 
@@ -47,6 +48,9 @@ func archiveOf(t *testing.T, dir, name string) string {
 	tw := tar.NewWriter(gz)
 	for _, file := range []string{"Chart.yaml", "values.yaml"} {
 		data, err := os.ReadFile(filepath.Join(dir, file))
+		if os.IsNotExist(err) {
+			continue
+		}
 		require.NoError(t, err)
 		require.NoError(t, tw.WriteHeader(&tar.Header{
 			Name:     name + "/" + file,

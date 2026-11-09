@@ -124,6 +124,8 @@ Every chart also has an `edition`, `rancher-charts` or `prime-charts`, which say
 
 `push` builds its guard from these. On the SUSE registries named there, a listed chart may only go to the repositories of its edition, anything else is an image dependency that may only go to the image path, and nothing that already exists is overwritten. The check and the upload are separate calls, so only the registry's own immutable tags could close the race between two pushes of the same new tag.
 
+A chart version is `1XY.Z.W+upA.B.C`, with an optional prerelease after the `+up` part such as `-rc.1`; a chart marked `version: plain` is `1XY.Z.W` and has neither. The `versions` section of the file lists the prerelease names that are allowed and ties each Rancher version to the major (`1XY`) its charts carry. `internal/version` applies it: `Policy.Validate` checks the form, and `Policy.CheckMajor` compares the major with the lower bound of the chart's `rancher-version` annotation. No command calls them yet.
+
 | Kind | Chart | Required annotations (under `catalog.cattle.io/`) |
 |------|-------|---------------------------------------------------|
 | `main` | a product chart, with or without a `-crd` sibling | `release-name`, `certified`, `rancher-version`, `kube-version`, `permits-os` |

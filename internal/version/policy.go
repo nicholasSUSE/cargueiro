@@ -3,6 +3,7 @@ package version
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 )
@@ -18,13 +19,19 @@ type Policy struct {
 	standard *regexp.Regexp
 	// forms are the allowed prereleases as written in an error: -rc.N or -beta.N.
 	forms string
+	// majors maps a Rancher version, such as 2.16, to the major its charts carry.
+	majors map[string]int
 }
 
 // NewPolicy returns the Policy that allows the given prerelease names after the
-// +up part, as in the rc of -rc.1.
-func NewPolicy(prereleases []string) (*Policy, error) {
+// +up part, as in the rc of -rc.1, and ties each Rancher version, such as 2.16,
+// to the major its charts carry, such as 111.
+func NewPolicy(prereleases []string, majors map[string]int) (*Policy, error) {
 	if len(prereleases) == 0 {
 		return nil, errors.New("version policy: no prereleases")
+	}
+	if len(majors) == 0 {
+		return nil, errors.New("version policy: no majors")
 	}
 
 	names := make([]string, len(prereleases))
@@ -40,6 +47,7 @@ func NewPolicy(prereleases []string) (*Policy, error) {
 	return &Policy{
 		standard: regexp.MustCompile(pattern),
 		forms:    joinOr(forms),
+		majors:   maps.Clone(majors),
 	}, nil
 }
 

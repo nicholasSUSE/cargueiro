@@ -9,16 +9,42 @@ import (
 func newTestPolicy(t *testing.T) *Policy {
 	t.Helper()
 
-	policy, err := NewPolicy([]string{"rc", "alpha", "beta", "rancher", "security"})
+	policy, err := NewPolicy(
+		[]string{"rc", "alpha", "beta", "rancher", "security"},
+		map[string]int{"2.16": 111, "2.17": 112},
+	)
 	require.NoError(t, err)
 	return policy
 }
 
-func TestNewPolicyRejectsNoPrereleases(t *testing.T) {
-	policy, err := NewPolicy(nil)
+func TestNewPolicyRejects(t *testing.T) {
+	tests := []struct {
+		name        string
+		prereleases []string
+		majors      map[string]int
+		wantErr     string
+	}{
+		{
+			name:        "no prereleases",
+			prereleases: nil,
+			majors:      map[string]int{"2.16": 111},
+			wantErr:     "version policy: no prereleases",
+		},
+		{
+			name:        "no majors",
+			prereleases: []string{"rc"},
+			majors:      nil,
+			wantErr:     "version policy: no majors",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy, err := NewPolicy(tt.prereleases, tt.majors)
 
-	require.EqualError(t, err, "version policy: no prereleases")
-	require.Nil(t, policy)
+			require.EqualError(t, err, tt.wantErr)
+			require.Nil(t, policy)
+		})
+	}
 }
 
 func TestValidate(t *testing.T) {
@@ -235,7 +261,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateUsesTheGivenPrereleases(t *testing.T) {
-	policy, err := NewPolicy([]string{"rc"})
+	policy, err := NewPolicy([]string{"rc"}, map[string]int{"2.16": 111})
 	require.NoError(t, err)
 
 	require.NoError(t, policy.Validate("109.0.1+up0.10.4-rc.1", false))
@@ -244,7 +270,7 @@ func TestValidateUsesTheGivenPrereleases(t *testing.T) {
 }
 
 func TestValidateEscapesPrereleaseNames(t *testing.T) {
-	policy, err := NewPolicy([]string{"r.c"})
+	policy, err := NewPolicy([]string{"r.c"}, map[string]int{"2.16": 111})
 	require.NoError(t, err)
 
 	require.ErrorContains(t, policy.Validate("109.0.1+up0.10.4-rxc.1", false), "must look like")

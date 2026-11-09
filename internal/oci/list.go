@@ -9,6 +9,11 @@ import (
 	"oras.land/oras-go/v2/registry/remote/errcode"
 )
 
+// ErrRepositoryNotFound is wrapped by the error ListTags returns for a
+// repository that the registry does not have. A chart that was never pushed is
+// in this case.
+var ErrRepositoryNotFound = errors.New("repository not found")
+
 // maxTags is the most tags of one chart that are read. What a registry sends is
 // not trusted.
 const maxTags = 100_000
@@ -39,7 +44,7 @@ func listTags(ctx context.Context, repo ChartRepo, opts FetchOptions, limit int)
 	switch {
 	case errors.As(err, &resp) && resp.StatusCode == http.StatusNotFound:
 		// A tag list has no not-found error of its own: the registry answers 404.
-		return nil, fmt.Errorf("%s was not found in the registry", repo)
+		return nil, fmt.Errorf("%s was not found in the registry: %w", repo, ErrRepositoryNotFound)
 	case err != nil:
 		return nil, fetchError(repo.String(), err)
 	}

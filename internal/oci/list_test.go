@@ -3,6 +3,7 @@ package oci
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -164,6 +165,8 @@ func TestListTagsFails(t *testing.T) {
 
 			require.ErrorContains(t, err, tt.wantErr)
 			require.ErrorContains(t, err, repo.String())
+			require.Equal(t, tt.repo != "", errors.Is(err, ErrRepositoryNotFound),
+				"only a repository that does not exist is ErrRepositoryNotFound")
 			require.Nil(t, got)
 		})
 	}

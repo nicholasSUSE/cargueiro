@@ -104,3 +104,15 @@ families:
   - family: rancher-turtles-providers
     charts:
       - { name: rancher-turtles-providers, kind: main, edition: prime-charts }  # probably extra; main until its use is clear
+
+# Where charts and images are released to: host/path, no scheme, no trailing slash.
+registries:
+  rancher-charts:
+    charts-staging: stgregistry.suse.com/rancher/catalog
+    charts-production: registry.suse.com/rancher/catalog
+  prime-charts:
+    charts-staging: stgregistry.suse.com/rancher/charts
+    charts-production: registry.suse.com/rancher/charts
+  images:
+    staging: stgregistry.suse.com/rancher
+    production: registry.suse.com/rancher

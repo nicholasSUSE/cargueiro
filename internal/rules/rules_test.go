@@ -19,6 +19,16 @@ families:
     charts:
       - { name: elemental, kind: main, release-name: elemental-operator, edition: rancher-charts }
       - { name: elemental-crd, kind: crd, edition: rancher-charts }
+registries:
+  rancher-charts:
+    charts-staging: stgregistry.suse.com/rancher/catalog
+    charts-production: registry.suse.com/rancher/catalog
+  prime-charts:
+    charts-staging: stgregistry.suse.com/rancher/charts
+    charts-production: registry.suse.com/rancher/charts
+  images:
+    staging: stgregistry.suse.com/rancher
+    production: registry.suse.com/rancher
 `
 
 func TestParse(t *testing.T) {
@@ -59,6 +69,27 @@ func TestParse(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestParseRegistries(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+
+	want := Registries{
+		RancherCharts: ChartRegistries{
+			Staging:    "stgregistry.suse.com/rancher/catalog",
+			Production: "registry.suse.com/rancher/catalog",
+		},
+		PrimeCharts: ChartRegistries{
+			Staging:    "stgregistry.suse.com/rancher/charts",
+			Production: "registry.suse.com/rancher/charts",
+		},
+		Images: ImageRegistries{
+			Staging:    "stgregistry.suse.com/rancher",
+			Production: "registry.suse.com/rancher",
+		},
+	}
+	require.Equal(t, want, cfg.Registries())
 }
 
 func TestFindUnlistedChart(t *testing.T) {
@@ -284,6 +315,73 @@ families:
 	}
 }
 
+func TestParseRejectsRegistries(t *testing.T) {
+	const charts = `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+`
+
+	tests := []struct {
+		name    string
+		in      string
+		wantErr string
+	}{
+		{
+			name:    "no registries section",
+			in:      charts,
+			wantErr: `registry "rancher-charts.charts-staging": missing`,
+		},
+		{
+			name: "a registry is missing",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: p.io/b}
+  images: {staging: s.io/c}
+`,
+			wantErr: `registry "images.production": missing`,
+		},
+		{
+			name: "a registry has a scheme",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: 'https://s.io/a', charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: p.io/b}
+  images: {staging: s.io/c, production: p.io/c}
+`,
+			wantErr: `registry "rancher-charts.charts-staging": must not have a scheme`,
+		},
+		{
+			name: "a registry ends in a slash",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a}
+  prime-charts: {charts-staging: s.io/b, charts-production: 'p.io/b/'}
+  images: {staging: s.io/c, production: p.io/c}
+`,
+			wantErr: `registry "prime-charts.charts-production": must not end in a slash`,
+		},
+		{
+			name: "an unknown registry key",
+			in: charts + `
+registries:
+  rancher-charts: {charts-staging: s.io/a, charts-production: p.io/a, other: x}
+`,
+			wantErr: "field other not found",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := Parse([]byte(tt.in))
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, cfg)
+		})
+	}
+}
+
 // TestRepositoryConfig keeps the rules file at the repository root valid.
 func TestRepositoryConfig(t *testing.T) {
 	data, err := os.ReadFile("../../rules.yaml")
@@ -333,6 +431,16 @@ families:
     charts:
       - {name: a, kind: main, edition: rancher-charts}
       - {name: b, kind: main, edition: rancher-charts}
+registries:
+  rancher-charts:
+    charts-staging: stgregistry.suse.com/rancher/catalog
+    charts-production: registry.suse.com/rancher/catalog
+  prime-charts:
+    charts-staging: stgregistry.suse.com/rancher/charts
+    charts-production: registry.suse.com/rancher/charts
+  images:
+    staging: stgregistry.suse.com/rancher
+    production: registry.suse.com/rancher
 `
 
 	cfg, err := Parse([]byte(in))

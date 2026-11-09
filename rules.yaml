@@ -125,6 +125,7 @@ registries:
 versions:
   prereleases: [rc, alpha, beta, rancher, security]
   majors:
+    "2.15": 110
     "2.16": 111
     "2.17": 112
     "2.18": 113

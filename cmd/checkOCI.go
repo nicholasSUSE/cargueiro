@@ -49,5 +49,5 @@ func checkOCI(cmd *cobra.Command, opts *rootOptions, fetch fetchFunc, reference,
 	if err != nil {
 		return err
 	}
-	return report(cmd, opts, files, output, noErrorHIP15)
+	return report(cmd, opts, files, files.Metadata.Version, output, noErrorHIP15)
 }

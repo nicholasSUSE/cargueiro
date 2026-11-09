@@ -54,7 +54,7 @@ func runCheckOCI(t *testing.T, fake *fakeFetcher, args ...string) (stdout, stder
 
 func validFiles() *chart.Files {
 	return &chart.Files{
-		Metadata: chart.Metadata{Name: "fleet", Version: "110.0.3"},
+		Metadata: chart.Metadata{Name: "fleet", Version: "111.0.3+up0.16.3"},
 		Annotations: map[string]string{
 			"catalog.cattle.io/certified":    "rancher",
 			"catalog.cattle.io/kube-version": ">= 1.30.0-0 < 1.35.0-0",
@@ -66,18 +66,19 @@ func TestCheckOCIValid(t *testing.T) {
 	fake := &fakeFetcher{files: validFiles()}
 
 	t.Run("text", func(t *testing.T) {
-		stdout, stderr, err := runCheckOCI(t, fake, "registry.example.com/rancher/fleet:110.0.3")
+		stdout, stderr, err := runCheckOCI(t, fake, "registry.example.com/rancher/fleet:111.0.3+up0.16.3")
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 		require.Equal(t, `valid: true
 annotations: valid
 hip15-annotations: valid
+version: valid
 chart: fleet
 kind: main
 family: fleet
 metadata:
   name: fleet
-  version: 110.0.3
+  version: 111.0.3+up0.16.3
   appVersion:
   icon:
   description:
@@ -86,7 +87,7 @@ metadata:
 	})
 
 	t.Run("json", func(t *testing.T) {
-		stdout, _, err := runCheckOCI(t, fake, "registry.example.com/rancher/fleet:110.0.3", "-o", "json")
+		stdout, _, err := runCheckOCI(t, fake, "registry.example.com/rancher/fleet:111.0.3+up0.16.3", "-o", "json")
 		require.NoError(t, err)
 
 		var got check.Result
@@ -113,9 +114,9 @@ func TestCheckOCIAsksForTheReference(t *testing.T) {
 		},
 		{
 			name: "the scheme and a plus in the version",
-			args: []string{"oci://registry.example.com/rancher/fleet:110.0.3+up0.16.3"},
+			args: []string{"oci://registry.example.com/rancher/fleet:111.0.3+up0.16.3"},
 			want: fetchCall{
-				ref:  oci.ChartRef{Host: "registry.example.com", Repository: "rancher/fleet", Tag: "110.0.3_up0.16.3"},
+				ref:  oci.ChartRef{Host: "registry.example.com", Repository: "rancher/fleet", Tag: "111.0.3_up0.16.3"},
 				opts: oci.FetchOptions{PlainHTTP: false},
 			},
 		},

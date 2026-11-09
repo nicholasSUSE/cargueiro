@@ -51,5 +51,5 @@ func checkArchive(cmd *cobra.Command, opts *rootOptions, path, output string, no
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
-	return report(cmd, opts, files, output, noErrorHIP15)
+	return report(cmd, opts, files, files.Metadata.Version, output, noErrorHIP15)
 }

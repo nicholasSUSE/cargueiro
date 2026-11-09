@@ -39,7 +39,7 @@ versions:
 
 const validChartYAML = `
 name: fleet
-version: 110.0.3
+version: 111.0.3+up0.16.3
 appVersion: 0.16.3
 icon: https://example.com/icon.png
 description: Fleet
@@ -55,7 +55,7 @@ version: 1.0.0
 
 const noCertifiedChartYAML = `
 name: fleet
-version: 110.0.3
+version: 111.0.3+up0.16.3
 `
 
 const imagesValuesYAML = `
@@ -112,12 +112,13 @@ func TestCheckChartValid(t *testing.T) {
 			want: `valid: true
 annotations: valid
 hip15-annotations: valid
+version: valid
 chart: fleet
 kind: main
 family: fleet
 metadata:
   name: fleet
-  version: 110.0.3
+  version: 111.0.3+up0.16.3
   appVersion: 0.16.3
   icon: https://example.com/icon.png
   description: Fleet
@@ -137,12 +138,16 @@ metadata:
     "valid": true,
     "errors": []
   },
+  "version": {
+    "valid": true,
+    "errors": []
+  },
   "chart": "fleet",
   "kind": "main",
   "family": "fleet",
   "metadata": {
     "name": "fleet",
-    "version": "110.0.3",
+    "version": "111.0.3+up0.16.3",
     "appVersion": "0.16.3",
     "icon": "https://example.com/icon.png",
     "description": "Fleet",
@@ -178,12 +183,13 @@ annotations: invalid
   - missing annotation catalog.cattle.io/certified
 hip15-annotations: invalid
   - values.yaml image: image "rancher/fleet:v0.16.3" is not listed in helm.sh/images
+version: valid
 chart: fleet
 kind: main
 family: fleet
 metadata:
   name: fleet
-  version: 110.0.3
+  version: 111.0.3+up0.16.3
   appVersion:
   icon:
   description:
@@ -207,12 +213,16 @@ metadata:
       "values.yaml image: image \"rancher/fleet:v0.16.3\" is not listed in helm.sh/images"
     ]
   },
+  "version": {
+    "valid": true,
+    "errors": []
+  },
   "chart": "fleet",
   "kind": "main",
   "family": "fleet",
   "metadata": {
     "name": "fleet",
-    "version": "110.0.3",
+    "version": "111.0.3+up0.16.3",
     "appVersion": "",
     "icon": "",
     "description": "",

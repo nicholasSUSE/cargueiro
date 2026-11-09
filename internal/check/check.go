@@ -5,6 +5,7 @@ import (
 	"github.com/nicholasSUSE/cargueiro/internal/annotations"
 	"github.com/nicholasSUSE/cargueiro/internal/chart"
 	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/nicholasSUSE/cargueiro/internal/version"
 )
 
 // Result is the outcome of checking one chart. The tags are the JSON the check
@@ -17,6 +18,7 @@ type Result struct {
 	Valid            bool    `json:"valid"`
 	Annotations      Section `json:"annotations"`
 	HIP15Annotations Section `json:"hip15-annotations"`
+	Version          Section `json:"version"`
 
 	Chart    string   `json:"chart"`
 	Kind     string   `json:"kind"`
@@ -43,11 +45,19 @@ type Section struct {
 	Errors []string `json:"errors"`
 }
 
-// Chart checks files against the rules of the chart that Chart.yaml names. It
-// fails when the rules file does not list that chart, because then nothing says
-// which rules apply. Violations are not failures: they are in the Result.
-func Chart(cfg *rules.Config, files *chart.Files) (*Result, error) {
+// Chart checks files against the rules of the chart that Chart.yaml names.
+// chartVersion is the version to validate: the one in Chart.yaml for a directory
+// or an archive, the one in the reference for a chart in a registry. It fails
+// when the rules file does not list the chart, because then nothing says which
+// rules apply. Violations are not failures: they are in the Result.
+func Chart(cfg *rules.Config, files *chart.Files, chartVersion string) (*Result, error) {
 	rule, err := cfg.Find(files.Metadata.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	versions := cfg.Versions()
+	policy, err := version.NewPolicy(versions.Prereleases, versions.Majors)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +76,9 @@ func Chart(cfg *rules.Config, files *chart.Files) (*Result, error) {
 		},
 		Annotations:      section(annotations.Validate(rule, files.Annotations)),
 		HIP15Annotations: section(annotations.ValidateHelmImages(files.Annotations, files.Values)),
+		Version:          section(versionProblems(policy, rule, chartVersion, files.Annotations)),
 	}
-	result.Valid = result.Annotations.Valid && result.HIP15Annotations.Valid
+	result.Valid = result.Annotations.Valid && result.HIP15Annotations.Valid && result.Version.Valid
 	return result, nil
 }
 
@@ -75,9 +86,31 @@ func Chart(cfg *rules.Config, files *chart.Files) (*Result, error) {
 // errors are left out when ignoreHIP15 is set; they stay in the result.
 func (r *Result) Fails(ignoreHIP15 bool) bool {
 	if ignoreHIP15 {
-		return !r.Annotations.Valid
+		return !r.Annotations.Valid || !r.Version.Valid
 	}
 	return !r.Valid
+}
+
+// versionProblems validates the form of chartVersion and, for a chart that
+// carries a rancher-version annotation with a lower bound, its major. A CRD
+// chart has no such annotation, and a missing or malformed one is reported by
+// the annotations, so the major is left unchecked in those cases.
+func versionProblems(policy *version.Policy, rule rules.Chart, chartVersion string, annotationMap map[string]string) []string {
+	if err := policy.Validate(chartVersion, rule.PlainVersion); err != nil {
+		return []string{err.Error()}
+	}
+
+	if rule.Kind == rules.KindCRD {
+		return nil
+	}
+	rancher := annotations.RancherVersionAnnotation(annotationMap)
+	if _, ok := version.RancherOf(rancher); !ok {
+		return nil
+	}
+	if err := policy.CheckMajor(chartVersion, rancher); err != nil {
+		return []string{err.Error()}
+	}
+	return nil
 }
 
 func section(problems []string) Section {

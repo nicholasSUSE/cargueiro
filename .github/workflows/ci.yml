@@ -2,8 +2,6 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
   # The release workflow reuses these jobs for the commit it releases.
   workflow_call:
 

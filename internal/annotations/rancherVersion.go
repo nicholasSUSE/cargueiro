@@ -6,6 +6,12 @@ import (
 	"strconv"
 )
 
+// RancherVersionAnnotation returns the rancher-version annotation, without
+// surrounding space, or "" when there is none.
+func RancherVersionAnnotation(annotations map[string]string) string {
+	return annotationValue(annotations, "rancher-version")
+}
+
 // checkRancherVersion reports a rancher-version annotation that is not a
 // bounded range of Rancher versions. An absent or blank one is left to
 // checkMissing.

@@ -101,3 +101,51 @@ func TestCheckMajor(t *testing.T) {
 		})
 	}
 }
+
+func TestRancherOf(t *testing.T) {
+	tests := []struct {
+		name       string
+		annotation string
+		want       string
+		wantOK     bool
+	}{
+		{
+			name:       "a range",
+			annotation: ">= 2.16.0-0 < 2.17.0-0",
+			want:       "2.16",
+			wantOK:     true,
+		},
+		{
+			name:       "no space after the operator, and space around",
+			annotation: "  >=2.15.1 < 2.17.0-0 ",
+			want:       "2.15",
+			wantOK:     true,
+		},
+		{
+			name:       "an upper bound only",
+			annotation: "< 2.17.0-0",
+			want:       "",
+			wantOK:     false,
+		},
+		{
+			name:       "empty",
+			annotation: "",
+			want:       "",
+			wantOK:     false,
+		},
+		{
+			name:       "not a Rancher 2 version",
+			annotation: ">= 3.1.0-0",
+			want:       "",
+			wantOK:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := RancherOf(tt.annotation)
+
+			require.Equal(t, tt.wantOK, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

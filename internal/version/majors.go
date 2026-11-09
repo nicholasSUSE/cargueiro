@@ -15,6 +15,17 @@ var (
 	rancherLowerBound = regexp.MustCompile(`^>=\s*(2\.[0-9]+)\.[0-9]+`)
 )
 
+// RancherOf returns the Rancher version of the lower bound of a
+// rancher-version annotation, such as 2.16 for ">= 2.16.0-0 < 2.17.0-0". It is
+// false when the annotation has no lower bound.
+func RancherOf(rancherVersion string) (string, bool) {
+	bound := rancherLowerBound.FindStringSubmatch(strings.TrimSpace(rancherVersion))
+	if bound == nil {
+		return "", false
+	}
+	return bound[1], true
+}
+
 // CheckMajor returns an error unless the major of version is the one the
 // Policy ties to the Rancher version in the lower bound of rancherVersion, the
 // value of the catalog.cattle.io/rancher-version annotation.
@@ -28,11 +39,10 @@ func (p *Policy) CheckMajor(version, rancherVersion string) error {
 		return fmt.Errorf("version %q has a major that is too large", version)
 	}
 
-	bound := rancherLowerBound.FindStringSubmatch(strings.TrimSpace(rancherVersion))
-	if bound == nil {
+	rancher, ok := RancherOf(rancherVersion)
+	if !ok {
 		return fmt.Errorf("rancher-version %q has no lower bound like >= 2.16.0-0", rancherVersion)
 	}
-	rancher := bound[1]
 
 	want, ok := p.majors[rancher]
 	if !ok {

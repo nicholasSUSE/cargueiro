@@ -2,7 +2,7 @@
 
 Check one chart in an OCI registry against the chart rules.
 
-The argument is a chart reference, `[oci://]host[:port]/path/chart:tag`. A `+` in the tag can be written as it is in the chart's version: the registry stores it as `_`. A reference without a tag, or pinned to a digest (`@sha256:`), is refused.
+The argument is a chart reference, `[oci://]host[:port]/path/chart:tag`. A `+` in the tag can be written as it is in the chart's version: the registry stores it as `_`. A reference without a tag, or pinned to a digest (`@sha256:`), is refused. The version checked is the one in the reference, not the one in the chart's `Chart.yaml`, and the two are not compared.
 
 The registry is read without credentials. `Chart.yaml` and `values.yaml` are taken from the chart's layer, which is read in full (at most 2 MB) and checked against its digest. They are then checked, and the result is printed and the exit code decided, exactly as `check chart` does; see `check chart` for the output and the exit codes.
 

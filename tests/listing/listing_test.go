@@ -67,15 +67,21 @@ func withVersion(t *testing.T, src, from, to string) string {
 }
 
 // pushVersions packages the chart with each of the versions and pushes them,
-// in the order given, to <address>/<path>.
+// in the order given, to <address>/<path>. The Helm CLI packages them, because
+// the versions are chosen to test the order, and cargueiro does not package a
+// chart whose version does not match its rancher-version.
 func pushVersions(t *testing.T, session harness.Session, address, path, src, from string, versions []string) {
 	t.Helper()
 
 	for _, v := range versions {
-		pkg := harness.Cargueiro(t, t.TempDir(), "package", withVersion(t, src, from, v), "--output-dir", t.TempDir())
+		out := t.TempDir()
+		pkg := harness.Helm(t, t.TempDir(), "package", withVersion(t, src, from, v), "--destination", out)
 		require.Zero(t, pkg.ExitCode, pkg.Stderr)
+		archives, err := filepath.Glob(filepath.Join(out, "*.tgz"))
+		require.NoError(t, err)
+		require.Len(t, archives, 1)
 
-		res := session.Push(t, address+"/"+path, strings.TrimSpace(pkg.Stdout))
+		res := session.Push(t, address+"/"+path, archives[0])
 		require.Zero(t, res.ExitCode, res.Stderr)
 	}
 }

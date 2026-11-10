@@ -2,6 +2,8 @@ package checkout
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -197,7 +199,7 @@ func TestVerifyFails(t *testing.T) {
 				git(t, dir, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "nowhere.git"))
 				return dir
 			},
-			wantErr: "ask the remote for its latest commit",
+			wantErr: "ask the remote origin (",
 		},
 	}
 
@@ -269,4 +271,253 @@ func fileInfo(t *testing.T, path string) string {
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	return info.ModTime().String() + " " + info.Mode().String()
+}
+
+func TestVerifyFailsWhenThereIsNoRemote(t *testing.T) {
+	dir := t.TempDir()
+	git(t, dir, "init", "--initial-branch=staging")
+	commit(t, dir, "first")
+
+	err := Verify(context.Background(), dir, "staging", Git)
+
+	require.ErrorContains(t, err, "has no git remote, so there is nothing to compare it with")
+	require.ErrorContains(t, err, "clone rancher/charts instead of copying it, or add the remote with git remote add origin <url>")
+}
+
+func TestVerifyChecksTheRemoteBeforeAnythingElse(t *testing.T) {
+	dir := t.TempDir()
+	git(t, dir, "init", "--initial-branch=other")
+	commit(t, dir, "first")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "dirty"), []byte("x"), 0o600))
+
+	err := Verify(context.Background(), dir, "staging", Git)
+
+	require.ErrorContains(t, err, "has no git remote", "not the branch, and not the changes")
+}
+
+func TestVerifyFailsWhenTheBranchHasNoUpstream(t *testing.T) {
+	remote := remoteWithStaging(t)
+
+	t.Run("with one remote, the command is spelled out", func(t *testing.T) {
+		dir := clone(t, remote)
+		git(t, dir, "branch", "--unset-upstream")
+
+		err := Verify(context.Background(), dir, "staging", Git)
+
+		require.ErrorContains(t, err, "staging has no upstream")
+		require.ErrorContains(t, err, "The remotes are: origin ("+remote+")")
+		require.ErrorContains(t, err, "git fetch origin staging && git branch --set-upstream-to=origin/staging staging")
+	})
+
+	t.Run("with several, the remote is left to fill in", func(t *testing.T) {
+		dir := clone(t, remote)
+		git(t, dir, "branch", "--unset-upstream")
+		git(t, dir, "remote", "add", "fork", "https://user:secret@github.com/someone/charts.git")
+
+		err := Verify(context.Background(), dir, "staging", Git)
+
+		require.ErrorContains(t, err, "origin ("+remote+")")
+		require.ErrorContains(t, err, "fork (https://user:xxxxx@github.com/someone/charts.git)", "a password is never printed")
+		require.NotContains(t, err.Error(), "secret")
+		require.ErrorContains(t, err, "git fetch <remote> staging && git branch --set-upstream-to=<remote>/staging staging")
+	})
+}
+
+func TestVerifyTellsWhatToDoAboutTheBranch(t *testing.T) {
+	remote := remoteWithStaging(t)
+
+	t.Run("another branch", func(t *testing.T) {
+		dir := clone(t, remote)
+		git(t, dir, "checkout", "-b", "feature")
+
+		err := Verify(context.Background(), dir, "staging", Git)
+
+		require.ErrorContains(t, err, "check it out with git checkout staging")
+	})
+
+	t.Run("no branch", func(t *testing.T) {
+		dir := clone(t, remote)
+		git(t, dir, "checkout", "--detach")
+
+		err := Verify(context.Background(), dir, "staging", Git)
+
+		require.ErrorContains(t, err, "check it out with git checkout staging")
+		require.ErrorContains(t, err, "in GitHub Actions, give actions/checkout the ref staging")
+	})
+}
+
+func TestVerifyPicksTheBranchAndNothingThatEndsLikeIt(t *testing.T) {
+	remote := remoteWithStaging(t)
+	dir := clone(t, remote)
+	// A ref whose name ends with the one asked for: ls-remote tail-matches.
+	seed := clone(t, remote)
+	commit(t, seed, "other")
+	git(t, seed, "push", "origin", "HEAD:refs/heads/a/refs/heads/staging") // sorts before the real one
+
+	require.NoError(t, Verify(context.Background(), dir, "staging", Git))
+}
+
+// scripted is a Runner that answers from a table, by the first words of the
+// command, and records what it was asked.
+type scripted struct {
+	answers map[string]answer
+	asked   []string
+}
+
+type answer struct {
+	stdout string
+	stderr string
+	err    error
+}
+
+func (s *scripted) run(_ context.Context, _ string, args ...string) (string, error) {
+	command := strings.Join(args, " ")
+	s.asked = append(s.asked, command)
+
+	// The longest prefix is the one that was meant.
+	var best string
+	for prefix := range s.answers {
+		if strings.HasPrefix(command, prefix) && len(prefix) > len(best) {
+			best = prefix
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("the test did not expect: git %s", command)
+	}
+
+	a := s.answers[best]
+	if a.err != nil || a.stderr != "" {
+		err := a.err
+		if err == nil {
+			err = errors.New("exit status 128")
+		}
+		return a.stdout, &Error{Args: args, Stderr: a.stderr, Err: err}
+	}
+	return a.stdout, nil
+}
+
+// healthy answers like a checkout that is fine, for the folder dir.
+func healthy(dir string) map[string]answer {
+	return map[string]answer{
+		"--version":                                       {stdout: "git version 2.52.0\n"},
+		"rev-parse --show-toplevel":                       {stdout: dir + "\n"},
+		"remote get-url origin":                           {stdout: "https://github.com/rancher/charts.git\n"},
+		"remote":                                          {stdout: "origin\n"},
+		"rev-parse --abbrev-ref HEAD":                     {stdout: "staging\n"},
+		"--no-optional-locks status --porcelain":          {},
+		"config --get branch.staging.remote":              {stdout: "origin\n"},
+		"config --get branch.staging.merge":               {stdout: "refs/heads/staging\n"},
+		"ls-remote --exit-code origin refs/heads/staging": {stdout: "aaaa\trefs/heads/staging\n"},
+		"rev-parse HEAD":                                  {stdout: "aaaa\n"},
+	}
+}
+
+func TestVerifyExplainsWhyTheRemoteCannotBeAsked(t *testing.T) {
+	dir := t.TempDir()
+
+	tests := []struct {
+		name   string
+		stderr string
+		want   []string
+	}{
+		{
+			name:   "credentials that are not there",
+			stderr: "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+			want: []string{
+				"ask the remote origin (https://github.com/rancher/charts.git) for its latest commit",
+				"terminal prompts disabled",
+				"needs credentials that this machine does not have",
+				"persist-credentials",
+			},
+		},
+		{
+			name:   "an ssh key that is not accepted",
+			stderr: "git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.",
+			want:   []string{"needs credentials that this machine does not have"},
+		},
+		{
+			name:   "a repository GitHub hides from those without access",
+			stderr: "remote: Repository not found.\nfatal: repository 'https://github.com/rancher/charts.git/' not found",
+			want:   []string{"needs credentials that this machine does not have"},
+		},
+		{
+			name:   "a host name that only some machines know",
+			stderr: "ssh: Could not resolve hostname github-work: Name or service not known\nfatal: Could not read from remote repository.",
+			want: []string{
+				"Could not resolve hostname github-work",
+				"cannot be reached from this machine",
+				"a host alias from ~/.ssh/config only exists on the machine that has it",
+			},
+		},
+		{
+			name:   "no network",
+			stderr: "fatal: unable to access 'https://github.com/rancher/charts.git/': Could not resolve host: github.com",
+			want:   []string{"cannot be reached from this machine"},
+		},
+		{
+			name:   "something else",
+			stderr: "fatal: the remote hung up unexpectedly",
+			want:   []string{"the remote hung up unexpectedly"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			answers := healthy(dir)
+			answers["ls-remote --exit-code origin refs/heads/staging"] = answer{stderr: tt.stderr}
+			s := &scripted{answers: answers}
+
+			err := Verify(context.Background(), dir, "staging", s.run)
+
+			for _, want := range tt.want {
+				require.ErrorContains(t, err, want)
+			}
+		})
+	}
+}
+
+func TestVerifyExplainsADubiousOwner(t *testing.T) {
+	dir := t.TempDir()
+	answers := healthy(dir)
+	answers["rev-parse --show-toplevel"] = answer{stderr: "fatal: detected dubious ownership in repository at '" + dir + "'"}
+	s := &scripted{answers: answers}
+
+	err := Verify(context.Background(), dir, "staging", s.run)
+
+	require.ErrorContains(t, err, "is not a git checkout")
+	require.ErrorContains(t, err, "dubious ownership")
+	require.ErrorContains(t, err, "git config --global --add safe.directory "+dir)
+}
+
+func TestVerifyWhenGitIsNotInstalled(t *testing.T) {
+	s := &scripted{answers: map[string]answer{"--version": {err: exec.ErrNotFound}}}
+
+	err := Verify(context.Background(), t.TempDir(), "staging", s.run)
+
+	require.ErrorContains(t, err, "cannot run git")
+	require.ErrorIs(t, err, exec.ErrNotFound)
+}
+
+func TestVerifyGivesUpOnARemoteThatDoesNotAnswer(t *testing.T) {
+	dir := t.TempDir()
+	answers := healthy(dir)
+	answers["ls-remote --exit-code origin refs/heads/staging"] = answer{err: context.DeadlineExceeded}
+	s := &scripted{answers: answers}
+
+	err := Verify(context.Background(), dir, "staging", s.run)
+
+	require.ErrorContains(t, err, "did not answer in")
+}
+
+func TestVerifyDoesNotPrintAPasswordInTheRemote(t *testing.T) {
+	dir := t.TempDir()
+	answers := healthy(dir)
+	answers["remote get-url origin"] = answer{stdout: "https://x-access-token:ghs_SECRET@github.com/rancher/charts.git\n"}
+	answers["ls-remote --exit-code origin refs/heads/staging"] = answer{stderr: "fatal: unable to access 'https://x-access-token:ghs_SECRET@github.com/rancher/charts.git/': The requested URL returned error: 403"}
+	s := &scripted{answers: answers}
+
+	err := Verify(context.Background(), dir, "staging", s.run)
+
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "ghs_SECRET")
+	require.Contains(t, err.Error(), "x-access-token:xxxxx@github.com")
 }

@@ -30,6 +30,13 @@ func SetVersion(chartYAML []byte, version string) ([]byte, error) {
 	return setScalar(chartYAML, "version", version)
 }
 
+// SetIcon returns chartYAML with its icon changed to icon, the way SetVersion
+// changes the version: only that line changes. It fails when Chart.yaml has no
+// top-level icon on one line, or has more than one.
+func SetIcon(chartYAML []byte, icon string) ([]byte, error) {
+	return setScalar(chartYAML, "icon", icon)
+}
+
 // setScalar returns chartYAML with the value of the top-level key changed to
 // value, as SetVersion does for the version.
 func setScalar(chartYAML []byte, key, value string) ([]byte, error) {

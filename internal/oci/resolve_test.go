@@ -32,18 +32,18 @@ func TestResolveDigestFails(t *testing.T) {
 			wantErr: "was not found in the registry",
 		},
 		{
-			name: "the registry asks for authentication",
+			name: "the registry does not allow reading without credentials",
 			setup: func(_ *testing.T, f *fakeRegistry) {
 				f.status["/v2/"+testRepository+"/manifests/"+testTag] = http.StatusUnauthorized
 			},
-			wantErr: "asks for authentication",
+			wantErr: "does not allow reading",
 		},
 		{
 			name: "the registry forbids the read",
 			setup: func(_ *testing.T, f *fakeRegistry) {
 				f.status["/v2/"+testRepository+"/manifests/"+testTag] = http.StatusForbidden
 			},
-			wantErr: "asks for authentication",
+			wantErr: "does not allow reading",
 		},
 	}
 	for _, tt := range tests {

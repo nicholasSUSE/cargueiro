@@ -134,7 +134,7 @@ func fetchError(what string, err error) error {
 	case errors.Is(err, errdef.ErrNotFound):
 		return fmt.Errorf("%s was not found in the registry", what)
 	case errors.As(err, &resp) && (resp.StatusCode == 401 || resp.StatusCode == 403):
-		return fmt.Errorf("the registry asks for authentication to read %s, which is not supported yet", what)
+		return fmt.Errorf("the registry does not allow reading %s without credentials: either it needs them, or the repository does not exist, which some registries answer in the same way", what)
 	default:
 		return fmt.Errorf("fetch %s: %w", what, err)
 	}

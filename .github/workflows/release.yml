@@ -102,7 +102,15 @@ jobs:
           fi
           gh release create "$VERSION" --draft --target "$GITHUB_SHA" --generate-notes "${flags[@]}"
       - name: Attach the files
-        run: gh release upload "$VERSION" bin/cargueiro_* bin/checksums.txt
+        run: gh release upload "$VERSION" bin/cargueiro_* bin/checksums.txt tools/scripts/install.sh
+      # The install command in the README downloads install.sh from the latest
+      # release, so a release without it must not go out.
+      - name: Check that the installer is attached
+        run: |
+          if ! gh release view "$VERSION" --json assets --jq '.assets[].name' | grep -qx install.sh; then
+            echo "::error::the release has no install.sh, so the install command in the README would not work"
+            exit 1
+          fi
       - name: Publish
         run: gh release edit "$VERSION" --draft=false
       # Leaves nothing half-published: only a draft this run created is removed.

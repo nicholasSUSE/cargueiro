@@ -59,7 +59,7 @@ func TestChangedRefs(t *testing.T) {
 			want:        nil,
 		},
 		{
-			name:        "a version that is gone is left to State.Added",
+			name:        "a version that is gone is left to State.Plan",
 			published:   indexOf("fleet", entry("fleet", "1", "d"), entry("fleet", "2", "d")),
 			regenerated: indexOf("fleet", entry("fleet", "1", "d")),
 			want:        nil,

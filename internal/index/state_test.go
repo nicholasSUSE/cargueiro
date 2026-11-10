@@ -15,16 +15,16 @@ func fleet(versions ...string) []Ref {
 	return refs
 }
 
-func TestAdded(t *testing.T) {
+func TestPlan(t *testing.T) {
 	tests := []struct {
 		name  string
 		state State
-		want  []Ref
+		want  Plan
 	}{
 		{
 			name:  "nothing at all",
 			state: State{},
-			want:  nil,
+			want:  Plan{},
 		},
 		{
 			name: "every version is already published",
@@ -33,7 +33,7 @@ func TestAdded(t *testing.T) {
 				Published: fleet("1", "2"),
 				Archives:  fleet("1", "2"),
 			},
-			want: nil,
+			want: Plan{},
 		},
 		{
 			name: "an entry that is not published yet",
@@ -42,14 +42,14 @@ func TestAdded(t *testing.T) {
 				Published: fleet("1"),
 				Archives:  fleet("1"),
 			},
-			want: fleet("2"),
+			want: Plan{Add: fleet("2")},
 		},
 		{
 			name: "everything is new on the first run",
 			state: State{
 				Entries: fleet("2", "1"),
 			},
-			want: fleet("1", "2"),
+			want: Plan{Add: fleet("1", "2")},
 		},
 		{
 			name: "new versions come sorted by chart and then by version",
@@ -60,24 +60,57 @@ func TestAdded(t *testing.T) {
 					{Chart: "fleet", Version: "1"},
 				},
 			},
-			want: []Ref{
+			want: Plan{Add: []Ref{
 				{Chart: "alerting", Version: "9"},
 				{Chart: "fleet", Version: "1"},
 				{Chart: "fleet", Version: "2"},
-			},
+			}},
 		},
 		{
 			name: "the same version listed twice is one version",
 			state: State{
 				Entries: fleet("1", "1"),
 			},
-			want: fleet("1"),
+			want: Plan{Add: fleet("1")},
+		},
+		{
+			name: "a published version that is hidden is taken out of the index",
+			state: State{
+				Entries:   fleet("1", "2"),
+				Hidden:    fleet("2"),
+				Published: fleet("1", "2"),
+				Archives:  fleet("1", "2"),
+			},
+			want: Plan{Hide: fleet("2")},
+		},
+		{
+			name: "a version that is hidden already is left alone",
+			state: State{
+				Entries:   fleet("1", "2"),
+				Hidden:    fleet("2"),
+				Published: fleet("1"),
+				Archives:  fleet("1", "2"),
+			},
+			want: Plan{},
+		},
+		{
+			name: "versions to add and to hide at once",
+			state: State{
+				Entries:   fleet("1", "2", "3"),
+				Hidden:    fleet("1"),
+				Published: fleet("1", "2"),
+				Archives:  fleet("1", "2"),
+			},
+			want: Plan{
+				Add:  fleet("3"),
+				Hide: fleet("1"),
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.state.Added()
+			got, err := tt.state.Plan()
 
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
@@ -85,7 +118,7 @@ func TestAdded(t *testing.T) {
 	}
 }
 
-func TestAddedFails(t *testing.T) {
+func TestPlanFails(t *testing.T) {
 	tests := []struct {
 		name    string
 		state   State
@@ -120,12 +153,29 @@ func TestAddedFails(t *testing.T) {
 			wantErr: []string{"fleet 1 is in index.yaml but has no archive in assets/"},
 		},
 		{
-			name: "a new entry that already has an archive",
+			name: "a new entry that already has an archive, which is also a hidden version that is no longer hidden",
 			state: State{
 				Entries:  fleet("1"),
 				Archives: fleet("1"),
 			},
 			wantErr: []string{"fleet 1 is not in index.yaml yet but already has an archive in assets/"},
+		},
+		{
+			name: "a hidden version that was never published",
+			state: State{
+				Entries: fleet("1"),
+				Hidden:  fleet("1"),
+			},
+			wantErr: []string{"fleet 1 is hidden but was never published: it is not in index.yaml and has no archive in assets/"},
+		},
+		{
+			name: "a hidden version that lost its archive",
+			state: State{
+				Entries:   fleet("1"),
+				Hidden:    fleet("1"),
+				Published: fleet("1"),
+			},
+			wantErr: []string{"fleet 1 is in index.yaml but has no archive in assets/"},
 		},
 		{
 			name: "every version at fault is named",
@@ -143,10 +193,10 @@ func TestAddedFails(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.state.Added()
+			got, err := tt.state.Plan()
 
 			require.Error(t, err)
-			require.Nil(t, got)
+			require.Equal(t, Plan{}, got)
 			for _, msg := range tt.wantErr {
 				require.ErrorContains(t, err, msg)
 			}

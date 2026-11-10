@@ -18,29 +18,41 @@ type Ref struct {
 type State struct {
 	// Entries are the versions that have an entry file.
 	Entries []Ref
+	// Hidden are the entries that are marked hide. They are a part of Entries.
+	Hidden []Ref
 	// Published are the versions listed in the index.yaml that is committed.
 	Published []Ref
 	// Archives are the versions that have a .tgz in assets/.
 	Archives []Ref
 }
 
-// Added returns the versions to publish: the ones with an entry that are not in
-// the index yet, sorted by chart and then by version.
+// Plan is what has to be done to the index so that it holds what the entries
+// say: the versions to add to it, and the versions to take out of it.
+type Plan struct {
+	Add  []Ref
+	Hide []Ref
+}
+
+// Plan works out what to do, with each list sorted by chart and then by version.
 //
-// A version is never removed once it is in the index, and the index and assets/
-// never hold what the entries do not, so Added fails, naming every version at
-// fault, when the three places disagree in any other way.
-func (s State) Added() ([]Ref, error) {
-	entries, published, archives := refSet(s.Entries), refSet(s.Published), refSet(s.Archives)
+// A version is never removed once it is in the index, other than by hiding it,
+// and the index and assets/ never hold what the entries do not. So Plan fails,
+// naming every version at fault, when the three places disagree in any other
+// way. Hiding is one way: a version that is out of the index but has an archive
+// and an entry that is not hidden is a new entry that already has an archive.
+func (s State) Plan() (Plan, error) {
+	entries, hidden := refSet(s.Entries), refSet(s.Hidden)
+	published, archives := refSet(s.Published), refSet(s.Archives)
 
 	all := slices.Concat(s.Entries, s.Published, s.Archives)
 	slices.SortFunc(all, compareRefs)
 	all = slices.Compact(all)
 
-	var added []Ref
+	var plan Plan
 	var problems []error
 	for _, ref := range all {
 		_, entry := entries[ref]
+		_, isHidden := hidden[ref]
 		_, indexed := published[ref]
 		_, archived := archives[ref]
 
@@ -51,16 +63,22 @@ func (s State) Added() ([]Ref, error) {
 			problems = append(problems, fmt.Errorf("assets/ has an archive of %s %s but there is no entry for it", ref.Chart, ref.Version))
 		case indexed && !archived:
 			problems = append(problems, fmt.Errorf("%s %s is in index.yaml but has no archive in assets/", ref.Chart, ref.Version))
+		case isHidden && !indexed && !archived:
+			problems = append(problems, fmt.Errorf("%s %s is hidden but was never published: it is not in index.yaml and has no archive in assets/", ref.Chart, ref.Version))
+		case isHidden && indexed:
+			plan.Hide = append(plan.Hide, ref)
+		case isHidden:
+			// Hidden already: out of the index, with its archive kept.
 		case archived && !indexed:
 			problems = append(problems, fmt.Errorf("%s %s is not in index.yaml yet but already has an archive in assets/", ref.Chart, ref.Version))
 		case !indexed:
-			added = append(added, ref)
+			plan.Add = append(plan.Add, ref)
 		}
 	}
 	if len(problems) > 0 {
-		return nil, errors.Join(problems...)
+		return Plan{}, errors.Join(problems...)
 	}
-	return added, nil
+	return plan, nil
 }
 
 func compareRefs(a, b Ref) int {

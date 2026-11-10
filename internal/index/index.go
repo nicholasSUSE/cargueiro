@@ -44,7 +44,7 @@ func Write(cfg *rules.Config, dir string) error {
 	}
 	// The versions to add are used once their archives are pulled; for now it
 	// is only checked that the entries, the index and assets/ agree.
-	if _, err := state.Added(); err != nil {
+	if _, err := state.Plan(); err != nil {
 		return err
 	}
 

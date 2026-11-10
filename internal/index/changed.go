@@ -13,7 +13,7 @@ import (
 // not exactly the same, sorted by chart and then by version. A published version
 // never changes, so any of them is an error.
 //
-// A version that regenerated does not have is not reported: State.Added does.
+// A version that regenerated does not have is not reported: State.Plan does.
 func changedRefs(published, regenerated *repo.IndexFile) ([]Ref, error) {
 	if published == nil {
 		return nil, nil

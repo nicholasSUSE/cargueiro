@@ -40,6 +40,15 @@ func (o FetchOptions) authenticated() bool {
 	return o.Username != ""
 }
 
+// credential returns the basic-auth credential in o, or the empty credential
+// for anonymous reads.
+func (o FetchOptions) credential() auth.Credential {
+	if !o.authenticated() {
+		return auth.EmptyCredential
+	}
+	return auth.Credential{Username: o.Username, Password: o.Password}
+}
+
 // FetchChart reads Chart.yaml and values.yaml of the chart at ref. The chart
 // layer is read in full and checked against the digest and the size the
 // manifest gives for it, then only the two files are taken from it.
@@ -75,7 +84,8 @@ func FetchChart(ctx context.Context, ref ChartRef, opts FetchOptions) (*chart.Fi
 	return files, nil
 }
 
-// newRepository returns the repository of ref, read without credentials.
+// newRepository returns the repository of ref, read with the credentials in
+// opts, or anonymously without them.
 func newRepository(ref ChartRef, opts FetchOptions) (*remote.Repository, error) {
 	repo, err := remote.NewRepository(ref.Host + "/" + ref.Repository)
 	if err != nil {
@@ -86,7 +96,7 @@ func newRepository(ref ChartRef, opts FetchOptions) (*remote.Repository, error) 
 	if err != nil {
 		return nil, err
 	}
-	authorizer := newAuthorizer(httpClient, auth.EmptyCredential)
+	authorizer := newAuthorizer(httpClient, opts.credential())
 	repo.Client = &authorizer
 	repo.PlainHTTP = opts.PlainHTTP
 	return repo, nil
@@ -136,14 +146,20 @@ func chartLayer(ctx context.Context, repo *remote.Repository, reference, what st
 }
 
 // fetchError says what went wrong in terms of what was read, such as a
-// reference.
-func fetchError(what string, err error, _ bool) error {
+// reference. authenticated says whether the read carried credentials, which
+// decides what a refusal means.
+func fetchError(what string, err error, authenticated bool) error {
 	var resp *errcode.ErrorResponse
 	switch {
 	case errors.Is(err, errdef.ErrNotFound):
 		return fmt.Errorf("%s was not found in the registry", what)
-	case errors.As(err, &resp) && (resp.StatusCode == 401 || resp.StatusCode == 403):
-		return fmt.Errorf("the registry does not allow reading %s without credentials: either it needs them, or the repository does not exist, which some registries answer in the same way", what)
+	// A registry that asks for basic authentication, which needs credentials.
+	case errors.Is(err, auth.ErrBasicCredentialNotFound),
+		errors.As(err, &resp) && (resp.StatusCode == 401 || resp.StatusCode == 403):
+		if authenticated {
+			return fmt.Errorf("the registry refused the credentials for %s: check the username and the password, and that the account may read this repository", what)
+		}
+		return fmt.Errorf("the registry granted no access to %s without credentials: either the repository needs them, or it does not exist, which a registry answers in the same way. Give a username with --username and the password in $CARGUEIRO_PASSWORD or --password-stdin, or save them with `cargueiro registry login`", what)
 	default:
 		return fmt.Errorf("fetch %s: %w", what, err)
 	}

@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholasSUSE/cargueiro/internal/oci"
 )
 
 // stampChartYAML is a chart as the owner's automation leaves it: an upstream
@@ -30,8 +33,16 @@ agent:
   tag: v0.16.3
 `
 
-// runStamp executes stamp with the rules in checkRules.
+// runStamp executes stamp with the rules in checkRules and a registry that must
+// not be asked.
 func runStamp(t *testing.T, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+
+	return runStampWith(t, &fakeLister{err: errors.New("the registry must not be asked")}, args...)
+}
+
+// runStampWith is runStamp with the registry given.
+func runStampWith(t *testing.T, fake *fakeLister, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
@@ -42,7 +53,7 @@ func runStamp(t *testing.T, args ...string) (stdout, stderr string, err error) {
 		prompt:    &fakePrompter{},
 		rules:     []byte(checkRules),
 	}
-	root, err := newRootCmd(&out, &errOut, opts, dependencies{})
+	root, err := newRootCmd(&out, &errOut, opts, dependencies{listTags: fake.list})
 	require.NoError(t, err)
 	root.SetArgs(append([]string{"stamp"}, args...))
 
@@ -146,14 +157,7 @@ func TestStampRefusesAndChangesNothing(t *testing.T) {
 	}
 }
 
-func TestStampNeedsAVersionAndADirectory(t *testing.T) {
-	dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
-
-	t.Run("no --version", func(t *testing.T) {
-		_, _, err := runStamp(t, dir)
-		require.ErrorContains(t, err, `required flag(s) "version" not set`)
-	})
-
+func TestStampNeedsADirectory(t *testing.T) {
 	t.Run("no directory", func(t *testing.T) {
 		_, _, err := runStamp(t, "--version", "111.0.0+up0.16.3")
 		require.ErrorContains(t, err, "accepts 1 arg(s), received 0")
@@ -163,4 +167,93 @@ func TestStampNeedsAVersionAndADirectory(t *testing.T) {
 		_, _, err := runStamp(t, filepath.Join(t.TempDir(), "nope"), "--version", "111.0.0+up0.16.3")
 		require.ErrorContains(t, err, "Chart.yaml not found")
 	})
+}
+
+func TestStampWorksOutTheVersion(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
+	fake := &fakeLister{tags: []string{"111.0.0_up0.16.1", "111.0.1_up0.16.2"}}
+
+	stdout, stderr, err := runStampWith(t, fake, dir)
+
+	require.NoError(t, err)
+	require.Empty(t, stderr)
+	require.Equal(t, "version: 0.16.3 -> 111.0.2+up0.16.3\nhelm.sh/images: added fleet-agent, fleet\n", stdout)
+	require.Equal(t, oci.ChartRepo{Host: "stgregistry.suse.com", Repository: "rancher/catalog/fleet"}, fake.repo)
+	require.Equal(t, oci.FetchOptions{PlainHTTP: false}, fake.opts)
+}
+
+func TestStampReadsTheRegistryGiven(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
+	fake := &fakeLister{}
+
+	stdout, _, err := runStampWith(t, fake, dir, "--registry", "127.0.0.1:5052/e2e", "--plain-http")
+
+	require.NoError(t, err)
+	require.Equal(t, "version: 0.16.3 -> 111.0.0+up0.16.3\nhelm.sh/images: added fleet-agent, fleet\n", stdout)
+	require.Equal(t, oci.ChartRepo{Host: "127.0.0.1:5052", Repository: "e2e/fleet"}, fake.repo)
+	require.Equal(t, oci.FetchOptions{PlainHTTP: true}, fake.opts)
+}
+
+func TestStampStartsAChartThatWasNeverPushed(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, "")
+	fake := &fakeLister{err: errors.New("not there: " + oci.ErrRepositoryNotFound.Error())}
+	fake.err = errors.Join(fake.err, oci.ErrRepositoryNotFound)
+
+	stdout, _, err := runStampWith(t, fake, dir)
+
+	require.NoError(t, err)
+	require.Equal(t, "version: 0.16.3 -> 111.0.0+up0.16.3\n", stdout)
+}
+
+func TestStampDoesNotAskTheRegistryForAGivenVersion(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, "")
+	fake := &fakeLister{err: errors.New("the registry must not be asked")}
+
+	_, _, err := runStampWith(t, fake, dir, "--version", "111.0.9+up0.16.3")
+
+	require.NoError(t, err)
+	require.False(t, fake.called)
+}
+
+func TestStampCannotWorkOutTheVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		fake    *fakeLister
+		wantErr string
+	}{
+		{
+			name:    "the registry fails",
+			fake:    &fakeLister{err: errors.New("the registry asks for authentication")},
+			wantErr: "the registry asks for authentication",
+		},
+		{
+			name:    "a tag that is not a version",
+			fake:    &fakeLister{tags: []string{"latest"}},
+			wantErr: `version "latest" must look like`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
+
+			stdout, _, err := runStampWith(t, tt.fake, dir)
+
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Empty(t, stdout)
+			onDisk, readErr := os.ReadFile(filepath.Join(dir, "Chart.yaml"))
+			require.NoError(t, readErr)
+			require.Equal(t, stampChartYAML, string(onDisk))
+		})
+	}
+}
+
+func TestStampRefusesAnEmptyVersion(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
+	fake := &fakeLister{tags: []string{"111.0.0_up0.16.1"}}
+
+	stdout, _, err := runStampWith(t, fake, dir, "--version", "")
+
+	require.ErrorContains(t, err, "--version is empty")
+	require.Empty(t, stdout)
+	require.False(t, fake.called, "an empty version that was passed must not turn into a calculation")
 }

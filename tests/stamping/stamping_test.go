@@ -7,10 +7,12 @@ package stamping
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -238,14 +240,136 @@ func TestStampAChartWithoutValues(t *testing.T) {
 	require.Contains(t, readChartYAML(t, dir), "\nversion: 111.0.0+up0.16.3\n")
 }
 
-func TestStampNeedsAVersion(t *testing.T) {
+// deadProxy makes any outbound HTTP(S) request fail locally. Without a registry
+// given, stamp reads the staging registry of SUSE, so no test that leaves the
+// version out may reach it.
+func deadProxy() []string {
+	const proxy = "http://127.0.0.1:1"
+	return []string{
+		"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "ALL_PROXY=" + proxy,
+		"http_proxy=" + proxy, "https_proxy=" + proxy, "all_proxy=" + proxy,
+		"NO_PROXY=", "no_proxy=",
+	}
+}
+
+// stampOffline runs stamp so that it cannot reach the network.
+func stampOffline(t *testing.T, dir string, args ...string) harness.Result {
+	t.Helper()
+
+	return harness.CargueiroWith(t, harness.Options{Dir: t.TempDir(), Env: deadProxy()},
+		append([]string{"stamp", dir}, args...)...)
+}
+
+func TestStampANeededRegistryIsTheStagingOneOfTheEdition(t *testing.T) {
 	dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
 	before := readChartYAML(t, dir)
 
-	res := stamp(t, dir)
+	res := stampOffline(t, dir)
 
 	require.Equal(t, 1, res.ExitCode)
 	require.Empty(t, res.Stdout)
-	require.Contains(t, res.Stderr, `required flag(s) "version" not set`)
+	require.Contains(t, res.Stderr, "stgregistry.suse.com/rancher/catalog/rancher-compliance")
 	require.Equal(t, before, readChartYAML(t, dir))
+}
+
+func TestStampAGivenVersionNeverUsesTheNetwork(t *testing.T) {
+	dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+
+	res := stampOffline(t, dir, "--version", "111.0.0+up1.5.4")
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Contains(t, res.Stdout, "version: 1.5.4 -> 111.0.0+up1.5.4\n")
+}
+
+func TestStampRefusesAnEmptyVersion(t *testing.T) {
+	dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+	before := readChartYAML(t, dir)
+
+	res := stampOffline(t, dir, "--version", "")
+
+	require.Equal(t, 1, res.ExitCode)
+	require.Empty(t, res.Stdout)
+	require.Contains(t, res.Stderr, "--version is empty")
+	require.Equal(t, before, readChartYAML(t, dir))
+}
+
+func TestStampACRDChartNeedsAVersion(t *testing.T) {
+	dir := copyChart(t, "fleet", "fleet-crd")
+	require.NoError(t, os.Remove(filepath.Join(dir, "values.yaml")))
+
+	res := stampOffline(t, dir)
+
+	require.Equal(t, 1, res.ExitCode)
+	require.Contains(t, res.Stderr, "a CRD chart has no rancher-version, so stamp cannot work out its version: give --version")
+}
+
+// TestStampWorksOutTheVersionFromTheRegistry follows a chart through its
+// releases against the local registry: a first release, two candidates and the
+// final of the next upstream version, each one stamped, packaged and pushed
+// before the next is stamped. list then puts them in order.
+func TestStampWorksOutTheVersionFromTheRegistry(t *testing.T) {
+	address := harness.OpenRegistry(t)
+	session := harness.NewSession(t)
+	login := session.Login(t, address, []string{"--plain-http"})
+	require.Zero(t, login.ExitCode, login.Stderr)
+	path := fmt.Sprintf("e2e/%d", time.Now().UnixNano())
+
+	// release stamps a copy of the chart with the appVersion, expecting the
+	// version, and pushes it.
+	release := func(t *testing.T, appVersion, want string) {
+		t.Helper()
+
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		edit(t, dir, "Chart.yaml", "appVersion: v1.5.4", "appVersion: "+appVersion)
+
+		res := stamp(t, dir, "--registry", address+"/"+path, "--plain-http")
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Contains(t, res.Stdout, "-> "+want+"\n")
+
+		pkg := harness.Cargueiro(t, t.TempDir(), "package", dir, "--output-dir", t.TempDir())
+		require.Zero(t, pkg.ExitCode, pkg.Stderr)
+		push := session.Push(t, address+"/"+path, strings.TrimSpace(pkg.Stdout))
+		require.Zero(t, push.ExitCode, push.Stderr)
+	}
+
+	release(t, "v1.5.4", "111.0.0+up1.5.4")
+	release(t, "v1.5.5-rc.1", "111.0.1+up1.5.5-rc.1")
+	release(t, "v1.5.5-rc.2", "111.0.1+up1.5.5-rc.2")
+	release(t, "v1.5.5", "111.0.1+up1.5.5")
+
+	t.Run("a candidate after the final of its upstream version takes the next counter", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		edit(t, dir, "Chart.yaml", "appVersion: v1.5.4", "appVersion: v1.5.5-rc.1")
+
+		res := stamp(t, dir, "--registry", address+"/"+path, "--plain-http")
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Contains(t, res.Stdout, "-> 111.0.2+up1.5.5-rc.1\n")
+	})
+
+	t.Run("the next upstream version takes the next counter", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		edit(t, dir, "Chart.yaml", "appVersion: v1.5.4", "appVersion: v1.5.6")
+
+		res := stamp(t, dir, "--registry", address+"/"+path, "--plain-http")
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Contains(t, res.Stdout, "-> 111.0.2+up1.5.6\n")
+	})
+
+	t.Run("list puts the releases in order", func(t *testing.T) {
+		res := harness.Cargueiro(t, t.TempDir(), "list", address+"/"+path+"/rancher-compliance", "--plain-http")
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Equal(t, "111.0.1+up1.5.5\n111.0.1+up1.5.5-rc.2\n111.0.1+up1.5.5-rc.1\n111.0.0+up1.5.4\n", res.Stdout)
+	})
+
+	t.Run("a chart that was never pushed starts at the first version", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+
+		res := stamp(t, dir, "--registry", address+"/"+path+"-never-pushed", "--plain-http")
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Contains(t, res.Stdout, "-> 111.0.0+up1.5.4\n")
+	})
 }

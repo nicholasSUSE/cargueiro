@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,20 +11,29 @@ import (
 	"github.com/nicholasSUSE/cargueiro/internal/stamp"
 )
 
-func newStampCmd(opts *rootOptions) (*cobra.Command, error) {
-	var newVersion string
+func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
+	var newVersion, registry string
+	var plainHTTP bool
 
 	cmd := &cobra.Command{
 		Use:  "stamp <chart-dir>",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return stampChart(cmd, opts, args[0], newVersion)
+			if cmd.Flags().Changed("version") && newVersion == "" {
+				return errors.New("--version is empty: give a version, or leave the flag out to work it out")
+			}
+			return stampChart(cmd, opts, args[0], stamp.Options{
+				Version:   newVersion,
+				Registry:  registry,
+				PlainHTTP: plainHTTP,
+				List:      stamp.ListFunc(list),
+			})
 		},
 	}
-	cmd.Flags().StringVar(&newVersion, "version", "", "the final version of the chart, 1XY.Z.W+upA.B.C")
-	if err := cmd.MarkFlagRequired("version"); err != nil {
-		return nil, fmt.Errorf("mark --version required: %w", err)
-	}
+	flags := cmd.Flags()
+	flags.StringVar(&newVersion, "version", "", "the final version of the chart, 1XY.Z.W+upA.B.C (default: worked out from the versions released)")
+	flags.StringVar(&registry, "registry", "", "registry path to read the released versions from, host[:port]/path, instead of the staging registry of the chart")
+	flags.BoolVar(&plainHTTP, "plain-http", false, "talk HTTP to the registry instead of HTTPS, for local registries")
 	if err := applyDoc(cmd, "stamp"); err != nil {
 		return nil, err
 	}
@@ -33,14 +43,14 @@ func newStampCmd(opts *rootOptions) (*cobra.Command, error) {
 
 // stampChart puts the version and the helm.sh/images annotation on the chart in
 // dir, and prints what changed. Nothing is written unless every check passes.
-func stampChart(cmd *cobra.Command, opts *rootOptions, dir, newVersion string) error {
+func stampChart(cmd *cobra.Command, opts *rootOptions, dir string, stampOpts stamp.Options) error {
 	cfg, err := rules.Parse(opts.rules)
 	if err != nil {
 		return err
 	}
-	opts.log.DebugContext(cmd.Context(), "stamping chart", "chart", dir, "version", newVersion)
+	opts.log.DebugContext(cmd.Context(), "stamping chart", "chart", dir, "version", stampOpts.Version)
 
-	plan, err := stamp.Build(cmd.Context(), cfg, dir, stamp.Options{Version: newVersion})
+	plan, err := stamp.Build(cmd.Context(), cfg, dir, stampOpts)
 	if err != nil {
 		return err
 	}

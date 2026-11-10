@@ -95,7 +95,7 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	stampCmd, err := newStampCmd(opts)
+	stampCmd, err := newStampCmd(opts, deps.listTags)
 	if err != nil {
 		return nil, err
 	}

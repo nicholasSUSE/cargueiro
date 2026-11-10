@@ -95,11 +95,12 @@ func readChart(cfg *rules.Config, policy *version.Policy, dir, name string) (rep
 	byVersion := map[string]*repo.ChartVersion{}
 	var problems []error
 	for _, f := range files {
-		entry, err := readEntry(filepath.Join(dir, f.Name()), name, f.Name())
+		file, err := readEntry(filepath.Join(dir, f.Name()), name, f.Name())
 		if err != nil {
 			problems = append(problems, err)
 			continue
 		}
+		entry := &file.ChartVersion
 		if _, found := byVersion[entry.Version]; found {
 			problems = append(problems, fmt.Errorf("%s version %s is in more than one entry", name, entry.Version))
 			continue
@@ -121,13 +122,22 @@ func readChart(cfg *rules.Config, policy *version.Policy, dir, name string) (rep
 	return entries, nil
 }
 
+// entryFile is an entry as it is written in entries/: the version as the index
+// lists it, and whether the version is hidden.
+type entryFile struct {
+	repo.ChartVersion
+	// Hide takes the version out of the index, without removing the entry or
+	// the archive. It is not a field of the index.
+	Hide bool `json:"hide,omitempty"`
+}
+
 // readEntry reads the entry in path, which must be the file of chart name.
-func readEntry(path, name, file string) (*repo.ChartVersion, error) {
+func readEntry(path, name, file string) (*entryFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read entry: %w", err)
 	}
-	var entry repo.ChartVersion
+	var entry entryFile
 	if err := yaml.UnmarshalStrict(data, &entry); err != nil {
 		return nil, fmt.Errorf("entry %s/%s: %w", name, file, err)
 	}

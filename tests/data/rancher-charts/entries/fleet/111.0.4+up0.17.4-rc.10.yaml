@@ -1,0 +1,12 @@
+annotations:
+  catalog.cattle.io/certified: rancher
+  catalog.cattle.io/rancher-version: '>= 2.16.0-0 < 2.17.0-0'
+  catalog.cattle.io/release-name: fleet
+apiVersion: v2
+appVersion: 0.17.4-rc.10
+description: Fixture of fleet
+icon: file://assets/logos/fleet.svg
+name: fleet
+urls:
+- oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.10@sha256:83252796ebb90d012e66cb17802d57f0dc75a12893469377f62d7e81d3c06519
+version: 111.0.4+up0.17.4-rc.10

@@ -1,0 +1,12 @@
+annotations:
+  catalog.cattle.io/certified: rancher
+  catalog.cattle.io/rancher-version: '>= 2.16.0-0 < 2.17.0-0'
+  catalog.cattle.io/release-name: longhorn
+apiVersion: v2
+appVersion: 1.10.0
+description: Fixture of longhorn
+icon: file://assets/logos/longhorn.svg
+name: longhorn
+urls:
+- oci://stgregistry.suse.com/rancher/catalog/longhorn:111.0.0+up1.10.0@sha256:0c92aeffc7b18d9e2f8ecb81204020a55d067be4ad85232886a0c3d5f35f02c0
+version: 111.0.0+up1.10.0

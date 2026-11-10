@@ -8,6 +8,8 @@ The result is printed to stdout, one line per error. Annotation values are never
 
 The exit code is 0 when the chart is valid and 1 when it is not. With `--no-error-hip-15`, errors of the `helm.sh/images` annotation do not make the exit code 1: the checks still run, the result is printed the same way, and `chart is not valid (HIP-15 errors ignored by --no-error-hip-15)` goes to stderr. Annotation and version errors still exit 1. When the directory cannot be read, a file is not valid YAML, or the chart is not listed in `rules.yaml`, nothing is printed to stdout: the error goes to stderr and the exit code is 1.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

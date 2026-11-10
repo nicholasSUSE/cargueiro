@@ -11,6 +11,8 @@
 //
 //	<long description, up to "## Examples">
 //
+//	Target-Audience: <who runs the command>
+//
 //	## Examples
 //
 //	```

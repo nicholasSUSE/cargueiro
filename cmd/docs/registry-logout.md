@@ -6,6 +6,8 @@ This removes everything `registry login` saved, including the plain HTTP or CA s
 
 It takes no arguments and makes no network call. Logging out when nothing is saved is not an error, and it also removes a login file that has become unreadable.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

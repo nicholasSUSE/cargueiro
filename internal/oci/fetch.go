@@ -40,7 +40,7 @@ func FetchChart(ctx context.Context, ref ChartRef, opts FetchOptions) (*chart.Fi
 		return nil, err
 	}
 
-	layer, err := chartLayer(ctx, repo, ref)
+	layer, err := chartLayer(ctx, repo, ref.Tag, ref.String())
 	if err != nil {
 		return nil, err
 	}
@@ -83,30 +83,31 @@ func newRepository(ref ChartRef, opts FetchOptions) (*remote.Repository, error) 
 	return repo, nil
 }
 
-// chartLayer reads the manifest of ref and returns the descriptor of its chart
-// layer. The manifest must be a Helm chart's: the Helm config and one chart
-// layer. A provenance layer next to it is ignored.
-func chartLayer(ctx context.Context, repo *remote.Repository, ref ChartRef) (ocispec.Descriptor, error) {
-	desc, rc, err := repo.FetchReference(ctx, ref.Tag)
+// chartLayer reads the manifest that reference, a tag or a digest, names in repo
+// and returns the descriptor of its chart layer. The manifest must be a Helm
+// chart's: the Helm config and one chart layer. A provenance layer next to it is
+// ignored. what says what is read, for the errors.
+func chartLayer(ctx context.Context, repo *remote.Repository, reference, what string) (ocispec.Descriptor, error) {
+	desc, rc, err := repo.FetchReference(ctx, reference)
 	if err != nil {
-		return ocispec.Descriptor{}, fetchError(ref.String(), err)
+		return ocispec.Descriptor{}, fetchError(what, err)
 	}
 	defer func() { _ = rc.Close() }()
 
 	if desc.Size > maxManifestSize {
-		return ocispec.Descriptor{}, fmt.Errorf("the manifest of %s is %d bytes, larger than the %d bytes that are read", ref, desc.Size, maxManifestSize)
+		return ocispec.Descriptor{}, fmt.Errorf("the manifest of %s is %d bytes, larger than the %d bytes that are read", what, desc.Size, maxManifestSize)
 	}
 	data, err := content.ReadAll(rc, desc)
 	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("read the manifest of %s: %w", ref, err)
+		return ocispec.Descriptor{}, fmt.Errorf("read the manifest of %s: %w", what, err)
 	}
 
 	var manifest ocispec.Manifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: its manifest cannot be read: %w", ref, err)
+		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: its manifest cannot be read: %w", what, err)
 	}
 	if manifest.Config.MediaType != helmregistry.ConfigMediaType {
-		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: its config is %q", ref, manifest.Config.MediaType)
+		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: its config is %q", what, manifest.Config.MediaType)
 	}
 
 	var layers []ocispec.Descriptor
@@ -119,9 +120,9 @@ func chartLayer(ctx context.Context, repo *remote.Repository, ref ChartRef) (oci
 	case 1:
 		return layers[0], nil
 	case 0:
-		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: it has no chart layer", ref)
+		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: it has no chart layer", what)
 	default:
-		return ocispec.Descriptor{}, fmt.Errorf("%s has more than one chart layer", ref)
+		return ocispec.Descriptor{}, fmt.Errorf("%s has more than one chart layer", what)
 	}
 }
 

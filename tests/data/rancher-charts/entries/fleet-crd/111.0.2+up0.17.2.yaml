@@ -1,0 +1,11 @@
+annotations:
+  catalog.cattle.io/certified: rancher
+  catalog.cattle.io/rancher-version: '>= 2.16.0-0 < 2.17.0-0'
+  catalog.cattle.io/release-name: fleet-crd
+apiVersion: v2
+appVersion: 0.17.2
+description: Fixture of fleet-crd
+name: fleet-crd
+urls:
+- oci://stgregistry.suse.com/rancher/catalog/fleet-crd:111.0.2+up0.17.2@sha256:0d40b1e0b15b3bd508fc5315c8a34f28a5a617aa37fa7e6f9f64968ac69b1103
+version: 111.0.2+up0.17.2

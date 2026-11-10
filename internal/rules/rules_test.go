@@ -226,6 +226,95 @@ registries:
 	}
 }
 
+func TestIconExempt(t *testing.T) {
+	const in = `
+kinds: {main: {}, crd: {}, extra: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: skipped, kind: main, edition: rancher-charts, icon: skip}
+      - {name: a-crd, kind: crd, edition: rancher-charts}
+      - {name: a-extra, kind: extra, edition: rancher-charts}
+`
+
+	tests := []struct {
+		name         string
+		chart        string
+		wantSkipIcon bool
+		wantExempt   bool
+	}{
+		{
+			name:         "a main chart needs an icon",
+			chart:        "a",
+			wantSkipIcon: false,
+			wantExempt:   false,
+		},
+		{
+			name:         "a main chart marked icon: skip",
+			chart:        "skipped",
+			wantSkipIcon: true,
+			wantExempt:   true,
+		},
+		{
+			name:         "a crd chart is exempt by its kind",
+			chart:        "a-crd",
+			wantSkipIcon: false,
+			wantExempt:   true,
+		},
+		{
+			name:         "an extra chart is exempt by its kind",
+			chart:        "a-extra",
+			wantSkipIcon: false,
+			wantExempt:   true,
+		},
+	}
+
+	cfg, err := Parse([]byte(in + registriesAndVersions))
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cfg.Find(tt.chart)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSkipIcon, got.SkipIcon)
+			require.Equal(t, tt.wantExempt, got.IconExempt())
+		})
+	}
+}
+
+func TestParseRejectsAnIcon(t *testing.T) {
+	tests := []struct {
+		name    string
+		chart   string
+		wantErr string
+	}{
+		{
+			name:    "icon: skip on a crd chart",
+			chart:   "{name: a, kind: crd, edition: rancher-charts, icon: skip}",
+			wantErr: `chart "a": icon: skip is for a main chart; a crd or extra chart is exempt already`,
+		},
+		{
+			name:    "icon: skip on an extra chart",
+			chart:   "{name: a, kind: extra, edition: rancher-charts, icon: skip}",
+			wantErr: `chart "a": icon: skip is for a main chart; a crd or extra chart is exempt already`,
+		},
+		{
+			name:    "an unknown icon value",
+			chart:   "{name: a, kind: main, edition: rancher-charts, icon: none}",
+			wantErr: `chart "a" has unknown icon "none"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := "\nkinds: {main: {}, crd: {}, extra: {}}\nfamilies:\n  - family: a\n    charts:\n      - " + tt.chart + "\n"
+
+			cfg, err := Parse([]byte(in))
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, cfg)
+		})
+	}
+}
+
 func TestParseRejectsAnUnknownChartVersion(t *testing.T) {
 	const in = `
 kinds: {main: {}}
@@ -273,6 +362,56 @@ func TestRegistriesRepositories(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, tt.got)
+		})
+	}
+}
+
+func TestStagingRepository(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+	elemental, err := cfg.Find("elemental")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		chart    Chart
+		registry string
+		want     string
+		wantErr  string
+	}{
+		{
+			name:  "the staging registry of the edition",
+			chart: elemental,
+			want:  "stgregistry.suse.com/rancher/catalog/elemental",
+		},
+		{
+			name:     "a registry given in its place",
+			chart:    elemental,
+			registry: "127.0.0.1:5050/e2e",
+			want:     "127.0.0.1:5050/e2e/elemental",
+		},
+		{
+			name:     "a registry given with a trailing slash",
+			chart:    elemental,
+			registry: "127.0.0.1:5050/e2e/",
+			want:     "127.0.0.1:5050/e2e/elemental",
+		},
+		{
+			name:    "an edition with no registry",
+			chart:   Chart{Name: "other", Edition: "other"},
+			wantErr: `the rules file has no registry for the edition "other"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cfg.StagingRepository(tt.chart, tt.registry)
+
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -599,10 +738,21 @@ func TestRepositoryConfig(t *testing.T) {
 	suc, err := cfg.Find("system-upgrade-controller")
 	require.NoError(t, err)
 	require.True(t, suc.PlainVersion)
+	require.True(t, suc.IconExempt())
 
 	fleet, err := cfg.Find("fleet")
 	require.NoError(t, err)
 	require.False(t, fleet.PlainVersion)
+	require.True(t, fleet.SkipIcon)
+
+	fleetAgent, err := cfg.Find("fleet-agent")
+	require.NoError(t, err)
+	require.False(t, fleetAgent.SkipIcon, "an extra chart is exempt by its kind")
+	require.True(t, fleetAgent.IconExempt())
+
+	monitoring, err := cfg.Find("rancher-monitoring")
+	require.NoError(t, err)
+	require.False(t, monitoring.IconExempt(), "a chart with an icon to make local")
 
 	require.Equal(t, 111, cfg.Versions().Majors["2.16"])
 }

@@ -10,6 +10,8 @@ The archive path is printed to stdout. Logs and errors go to stderr, and a failu
 
 Dependencies declared in `Chart.yaml` must already be present under the chart's `charts/` directory. Nothing is downloaded.
 
+Target-Audience: Chart Owners and Automation
+
 ## Examples
 
 ```

@@ -8,6 +8,8 @@ The argument is one chart archive, such as the ones `package` writes. `Chart.yam
 
 When the file is missing or is not a chart archive, or the chart is not listed in `rules.yaml`, nothing is printed to stdout: the error goes to stderr and the exit code is 1.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

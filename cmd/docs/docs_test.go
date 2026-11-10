@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -84,11 +85,24 @@ func TestParse(t *testing.T) {
 
 func TestLoad(t *testing.T) {
 	t.Run("embedded docs load", func(t *testing.T) {
-		for _, name := range []string{"check", "check-archive", "check-chart", "check-oci", "list", "package", "push", "stamp", "registry", "registry-login", "registry-logout", "version"} {
+		for _, name := range []string{"check", "check-archive", "check-chart", "check-oci", "index", "list", "package", "push", "stamp", "registry", "registry-login", "registry-logout", "version"} {
 			doc, err := Load(name)
 			require.NoError(t, err, name)
 			require.NotEmpty(t, doc.Short, name)
 			require.NotEmpty(t, doc.Example, name)
+		}
+	})
+
+	t.Run("every doc ends its description with the target audience", func(t *testing.T) {
+		names, err := Names()
+		require.NoError(t, err)
+		for _, name := range names {
+			doc, err := Load(name)
+			require.NoError(t, err, name)
+			paragraphs := strings.Split(doc.Long, "\n\n")
+			last := paragraphs[len(paragraphs)-1]
+			require.Truef(t, strings.HasPrefix(last, "Target-Audience: "), "%s: the last paragraph before the examples must be \"Target-Audience: ...\"", name)
+			require.Equal(t, 1, strings.Count(doc.Source, "Target-Audience: "), name)
 		}
 	})
 
@@ -101,7 +115,7 @@ func TestLoad(t *testing.T) {
 func TestNames(t *testing.T) {
 	names, err := Names()
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"check", "check-archive", "check-chart", "check-oci", "list", "package", "push", "registry", "stamp", "registry-login", "registry-logout", "version"}, names)
+	require.ElementsMatch(t, []string{"check", "check-archive", "check-chart", "check-oci", "index", "list", "package", "push", "registry", "stamp", "registry-login", "registry-logout", "version"}, names)
 }
 
 func TestParseNestedCommand(t *testing.T) {

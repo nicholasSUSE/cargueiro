@@ -277,6 +277,56 @@ func TestRegistriesRepositories(t *testing.T) {
 	}
 }
 
+func TestStagingRepository(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+	elemental, err := cfg.Find("elemental")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		chart    Chart
+		registry string
+		want     string
+		wantErr  string
+	}{
+		{
+			name:  "the staging registry of the edition",
+			chart: elemental,
+			want:  "stgregistry.suse.com/rancher/catalog/elemental",
+		},
+		{
+			name:     "a registry given in its place",
+			chart:    elemental,
+			registry: "127.0.0.1:5050/e2e",
+			want:     "127.0.0.1:5050/e2e/elemental",
+		},
+		{
+			name:     "a registry given with a trailing slash",
+			chart:    elemental,
+			registry: "127.0.0.1:5050/e2e/",
+			want:     "127.0.0.1:5050/e2e/elemental",
+		},
+		{
+			name:    "an edition with no registry",
+			chart:   Chart{Name: "other", Edition: "other"},
+			wantErr: `the rules file has no registry for the edition "other"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cfg.StagingRepository(tt.chart, tt.registry)
+
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestEditions(t *testing.T) {
 	cfg, err := Parse([]byte(valid))
 	require.NoError(t, err)

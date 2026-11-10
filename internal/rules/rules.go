@@ -128,6 +128,20 @@ func (c *Config) Registries() Registries {
 	return c.registries
 }
 
+// StagingRepository returns the repository of a chart in the staging registry:
+// host/path/name, with no scheme. registry replaces the staging registry of the
+// chart's edition when it is not empty, as host[:port]/path.
+func (c *Config) StagingRepository(chart Chart, registry string) (string, error) {
+	if registry == "" {
+		repositories := c.registries.ChartRepositories(chart.Edition)
+		if len(repositories) == 0 {
+			return "", fmt.Errorf("the rules file has no registry for the edition %q", chart.Edition)
+		}
+		registry = repositories[0]
+	}
+	return strings.TrimRight(registry, "/") + "/" + chart.Name, nil
+}
+
 // Find returns the chart called name. It fails when the rules file does not
 // list the chart, because then nothing says which rules apply to it.
 func (c *Config) Find(name string) (Chart, error) {

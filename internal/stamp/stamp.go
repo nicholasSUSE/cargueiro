@@ -244,15 +244,11 @@ func nextVersion(ctx context.Context, cfg *rules.Config, rule rules.Chart, files
 // published returns the versions of the chart that are already released. A
 // repository that does not exist has none.
 func published(ctx context.Context, cfg *rules.Config, rule rules.Chart, opts Options) ([]string, error) {
-	base := opts.Registry
-	if base == "" {
-		repositories := cfg.Registries().ChartRepositories(rule.Edition)
-		if len(repositories) == 0 {
-			return nil, fmt.Errorf("the rules file has no registry for the edition %q", rule.Edition)
-		}
-		base = repositories[0]
+	reference, err := cfg.StagingRepository(rule, opts.Registry)
+	if err != nil {
+		return nil, err
 	}
-	repo, err := oci.ParseChartRepo(strings.TrimRight(base, "/") + "/" + rule.Name)
+	repo, err := oci.ParseChartRepo(reference)
 	if err != nil {
 		return nil, err
 	}

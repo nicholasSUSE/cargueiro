@@ -18,7 +18,7 @@ REGISTRY_USER     := admin
 REGISTRY_PASSWORD := cargueiro-test
 
 .DEFAULT_GOAL := help
-.PHONY: help build release-build test test-unit test-e2e test-release registry-up registry-down registry-status vet lint fmt docs clean
+.PHONY: help build release-build test test-unit test-e2e test-release test-install registry-up registry-down registry-status vet lint lint-sh fmt docs clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -40,6 +40,9 @@ test-e2e: build ## Run e2e tests; starts and stops the local registries (needs D
 
 test-release: release-build ## Check the release binaries (builds them first)
 	go test -tags release -count=1 ./tests/building
+
+test-install: ## Run the install.sh test against a local fake release
+	go test -tags install -count=1 ./tests/installing
 
 registry-up: registry-down ## Start the local registries: two with a password (HTTP, TLS) and one without
 	@go run ./tests/gencerts $(CERTS_DIR)
@@ -85,10 +88,13 @@ registry-status: ## Show whether the local registries are up, and how to log in 
 	fi
 
 vet: ## Run go vet
-	go vet -tags e2e,release ./...
+	go vet -tags e2e,release,install ./...
 
 lint: ## Run golangci-lint (PKG=./path to scope)
 	golangci-lint run $(PKG)
+
+lint-sh: ## Lint install.sh with shellcheck
+	shellcheck tools/scripts/install.sh
 
 fmt: ## Format code with golangci-lint (PKG=./path to scope)
 	golangci-lint fmt $(PKG)

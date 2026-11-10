@@ -87,6 +87,13 @@ func TestLenOfNil(t *testing.T) {
 	var m *Manifest
 
 	require.Zero(t, m.Len())
+	require.Empty(t, m.Names())
+}
+
+func TestNamesAreSorted(t *testing.T) {
+	m := manifest(t, map[string]string{"values.yaml": "1", "Chart.yaml": "2", "templates/a.yaml": "3"})
+
+	require.Equal(t, []string{"Chart.yaml", "templates/a.yaml", "values.yaml"}, m.Names())
 }
 
 func TestCompare(t *testing.T) {

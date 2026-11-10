@@ -63,6 +63,19 @@ func (m *Manifest) Len() int {
 	return len(m.digests)
 }
 
+// Names returns the names of the entries, sorted.
+func (m *Manifest) Names() []string {
+	if m == nil {
+		return nil
+	}
+	names := make([]string, 0, len(m.digests))
+	for name := range m.digests {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // Kind says how an entry differs between two manifests.
 type Kind string
 

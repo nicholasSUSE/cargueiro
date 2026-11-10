@@ -70,3 +70,41 @@ func IgnoreMissing(err error) error {
 	}
 	return err
 }
+
+// Batch writes new files and can take every one of them back, with the folders
+// it made for them. The zero value is ready to use.
+type Batch struct {
+	files   []string
+	folders []string
+}
+
+// Write writes data to path as WriteNewFile does, after making the folders it
+// needs. When it fails, what it wrote before stays recorded: call Undo to take
+// it back.
+func (b *Batch) Write(path string, data []byte) error {
+	created, err := MakeFolders(filepath.Dir(path))
+	b.folders = append(b.folders, created...)
+	if err != nil {
+		return err
+	}
+	if err := WriteNewFile(path, data); err != nil {
+		return err
+	}
+	b.files = append(b.files, path)
+	return nil
+}
+
+// Undo removes the files the batch wrote, then the folders it made, newest
+// first. A folder that has something else in it stays. Calling it again does
+// nothing.
+func (b *Batch) Undo() error {
+	var problems []error
+	for _, file := range slices.Backward(b.files) {
+		problems = append(problems, IgnoreMissing(os.Remove(file)))
+	}
+	for _, folder := range slices.Backward(b.folders) {
+		problems = append(problems, IgnoreMissing(os.Remove(folder)))
+	}
+	b.files, b.folders = nil, nil
+	return errors.Join(problems...)
+}

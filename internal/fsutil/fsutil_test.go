@@ -82,3 +82,71 @@ func TestIgnoreMissing(t *testing.T) {
 	require.NoError(t, IgnoreMissing(&fs.PathError{Op: "remove", Path: "x", Err: fs.ErrNotExist}))
 	require.Equal(t, other, IgnoreMissing(other))
 }
+
+func TestBatch(t *testing.T) {
+	dir := t.TempDir()
+	var batch Batch
+
+	require.NoError(t, batch.Write(filepath.Join(dir, "a", "one.txt"), []byte("one")))
+	require.NoError(t, batch.Write(filepath.Join(dir, "a", "two.txt"), []byte("two")))
+	require.NoError(t, batch.Write(filepath.Join(dir, "b", "c", "three.txt"), []byte("three")))
+
+	require.FileExists(t, filepath.Join(dir, "a", "one.txt"))
+	require.FileExists(t, filepath.Join(dir, "b", "c", "three.txt"))
+
+	require.NoError(t, batch.Undo())
+
+	require.NoDirExists(t, filepath.Join(dir, "a"), "a folder the batch made is taken away")
+	require.NoDirExists(t, filepath.Join(dir, "b"))
+	require.DirExists(t, dir, "the folder it started from stays")
+}
+
+func TestBatchUndoKeepsWhatWasThere(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "a"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a", "old.txt"), []byte("old"), 0o600))
+	var batch Batch
+	require.NoError(t, batch.Write(filepath.Join(dir, "a", "new.txt"), []byte("new")))
+
+	require.NoError(t, batch.Undo())
+
+	require.FileExists(t, filepath.Join(dir, "a", "old.txt"))
+	require.NoFileExists(t, filepath.Join(dir, "a", "new.txt"))
+}
+
+func TestBatchUndoTwiceIsFine(t *testing.T) {
+	dir := t.TempDir()
+	var batch Batch
+	require.NoError(t, batch.Write(filepath.Join(dir, "a", "one.txt"), []byte("one")))
+
+	require.NoError(t, batch.Undo())
+	require.NoError(t, batch.Undo())
+}
+
+func TestBatchWriteFailsOnAFileThatIsThere(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "b"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b", "old.txt"), []byte("old"), 0o600))
+	var batch Batch
+	require.NoError(t, batch.Write(filepath.Join(dir, "a", "one.txt"), []byte("one")))
+
+	err := batch.Write(filepath.Join(dir, "b", "old.txt"), []byte("new"))
+
+	require.ErrorContains(t, err, "old.txt already exists")
+	require.NoError(t, batch.Undo())
+	require.NoDirExists(t, filepath.Join(dir, "a"), "what was written before the failure is taken away")
+	got, readErr := os.ReadFile(filepath.Join(dir, "b", "old.txt"))
+	require.NoError(t, readErr)
+	require.Equal(t, "old", string(got), "what was there is untouched")
+}
+
+func TestBatchWriteFailsWhereAFolderCannotBeMade(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "file"), nil, 0o600))
+	var batch Batch
+
+	err := batch.Write(filepath.Join(dir, "file", "inside", "x.txt"), []byte("x"))
+
+	require.Error(t, err)
+	require.NoError(t, batch.Undo())
+}

@@ -37,10 +37,11 @@ type Options struct {
 }
 
 // Write builds the index of the charts repository in dir and writes it to
-// dir/index.yaml. Nothing is written unless every entry is valid and the entries,
-// the index that is already there and assets/ agree, and no published version
-// has changed, and the URLs of the new versions are right. Hidden versions are
-// not written to the index.
+// dir/index.yaml. Hidden versions are not written to it.
+//
+// Nothing is written unless every entry is valid, the entries, the index that is
+// already there and assets/ agree, no published version has changed, and the
+// URLs and icons of the new versions are right.
 func Write(cfg *rules.Config, dir string, opts Options) error {
 	entries, err := readEntries(cfg, dir)
 	if err != nil {
@@ -62,7 +63,10 @@ func Write(cfg *rules.Config, dir string, opts Options) error {
 	if err := checkUnchanged(published, entries.all); err != nil {
 		return err
 	}
-	if err := checkURLs(cfg, opts.Registry, entries.all, plan.Add); err != nil {
+	if err := errors.Join(
+		checkURLs(cfg, opts.Registry, entries.all, plan.Add),
+		checkIcons(cfg, dir, entries.all, plan.Add),
+	); err != nil {
 		return err
 	}
 

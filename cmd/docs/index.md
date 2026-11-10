@@ -8,6 +8,8 @@ Nothing is written unless every entry is valid: the chart must be listed in `rul
 
 A new version is also checked for its URL. It has exactly one, `oci://<registry>/<chart>:<version>@sha256:<digest>`, with the version as it is in `Chart.yaml`, the digest of the manifest pinned, and the registry the staging registry of the chart's edition in `rules.yaml`. `--registry` replaces that registry, as `host[:port]/path`, for a local one. A version that is already published is not checked again.
 
+The icon of a new version of a main chart must be `file://assets/logos/<file>`, where the file exists in the repository. A `crd` or `extra` chart, and a main chart marked `icon: skip` in `rules.yaml`, are not checked.
+
 An entry with `hide: true` is a published version that must no longer be offered. It is left out of the index, and its entry and archive stay. Hiding is one way: taking `hide: true` off the entry does not publish the version again, and a version that was never published cannot be hidden.
 
 Target-Audience: Release Team and Automation

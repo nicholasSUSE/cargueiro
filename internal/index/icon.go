@@ -40,3 +40,21 @@ func checkIcon(dir string, rule rules.Chart, entry *repo.ChartVersion) error {
 	}
 	return nil
 }
+
+// checkIcons checks the icon of each of the added versions, naming every one
+// that is wrong. Versions already published are not checked: they cannot change.
+func checkIcons(cfg *rules.Config, dir string, all *repo.IndexFile, added []Ref) error {
+	byRef := versionsByRef(all)
+
+	var problems []error
+	for _, ref := range added {
+		rule, err := cfg.Find(ref.Chart)
+		if err != nil {
+			return err
+		}
+		if err := checkIcon(dir, rule, byRef[ref]); err != nil {
+			problems = append(problems, err)
+		}
+	}
+	return errors.Join(problems...)
+}

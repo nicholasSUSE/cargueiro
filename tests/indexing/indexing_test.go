@@ -429,3 +429,71 @@ func TestIndexChecksTheUrlAgainstTheRegistryGiven(t *testing.T) {
 	require.Zero(t, res.ExitCode, res.Stderr)
 	require.Contains(t, readIndex(t, repo), "- oci://"+local+"/fleet:111.0.3+up0.17.3@sha256:")
 }
+
+func TestIndexRefusesTheIconOfANewEntry(t *testing.T) {
+	tests := []struct {
+		name    string
+		edit    func(t *testing.T, repo string)
+		wantErr string
+	}{
+		{
+			name: "a logo that does not exist",
+			edit: func(t *testing.T, repo string) {
+				require.NoError(t, os.Remove(filepath.Join(repo, "assets", "logos", "longhorn.svg")))
+			},
+			wantErr: "longhorn 111.0.1+up1.10.1 has the icon \"file://assets/logos/longhorn.svg\", but assets/logos/longhorn.svg does not exist",
+		},
+		{
+			name: "an icon on the web",
+			edit: func(t *testing.T, repo string) {
+				editFile(t, filepath.Join(repo, "entries", "longhorn", "111.0.1+up1.10.1.yaml"), func(s string) string {
+					return strings.Replace(s, "file://assets/logos/longhorn.svg", "https://charts.rancher.io/assets/logos/longhorn.svg", 1)
+				})
+			},
+			wantErr: "but it must be file://assets/logos/<file>",
+		},
+		{
+			name: "no icon",
+			edit: func(t *testing.T, repo string) {
+				editFile(t, filepath.Join(repo, "entries", "longhorn", "111.0.1+up1.10.1.yaml"), func(s string) string {
+					return strings.Replace(s, "icon: file://assets/logos/longhorn.svg\n", "", 1)
+				})
+			},
+			wantErr: "longhorn 111.0.1+up1.10.1 has the icon \"\", but it must be file://assets/logos/<file>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := copyRepo(t)
+			tt.edit(t, repo)
+
+			res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+			require.NotZero(t, res.ExitCode)
+			require.Contains(t, res.Stderr, tt.wantErr)
+			require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
+		})
+	}
+}
+
+func TestIndexNeedsNoLogoForAChartThatIsExempt(t *testing.T) {
+	repo := copyRepo(t)
+	// fleet is marked icon: skip, and fleet-crd is a crd chart.
+	require.NoError(t, os.Remove(filepath.Join(repo, "assets", "logos", "fleet.svg")))
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+}
+
+func TestIndexDoesNotCheckTheIconOfAPublishedVersion(t *testing.T) {
+	repo := publishedRepo(t)
+	require.NoError(t, os.Remove(filepath.Join(repo, "assets", "logos", "longhorn.svg")))
+	before := readIndex(t, repo)
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, before, readIndex(t, repo))
+}

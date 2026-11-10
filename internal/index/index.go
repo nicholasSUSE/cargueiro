@@ -30,12 +30,24 @@ const (
 )
 
 // Write builds the index of the charts repository in dir and writes it to
-// dir/index.yaml. Nothing is written unless every entry is valid.
+// dir/index.yaml. Nothing is written unless every entry is valid and the entries,
+// the index that is already there and assets/ agree.
 func Write(cfg *rules.Config, dir string) error {
 	idx, err := Build(cfg, dir)
 	if err != nil {
 		return err
 	}
+
+	state, err := readState(dir, idx)
+	if err != nil {
+		return err
+	}
+	// The versions to add are used once their archives are pulled; for now it
+	// is only checked that the entries, the index and assets/ agree.
+	if _, err := state.Added(); err != nil {
+		return err
+	}
+
 	return idx.WriteFile(filepath.Join(dir, File), 0o600)
 }
 

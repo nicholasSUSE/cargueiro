@@ -101,3 +101,24 @@ func archiveVersion(chart, file string) (string, bool) {
 	version, ok := strings.CutSuffix(rest, archiveSuffix)
 	return version, ok && version != ""
 }
+
+// readState collects what the entries of idx, the index.yaml in dir and the
+// archives in dir say about the versions of the charts repository.
+func readState(dir string, idx *repo.IndexFile) (State, error) {
+	published, err := publishedRefs(dir)
+	if err != nil {
+		return State{}, err
+	}
+	archives, err := archiveRefs(dir)
+	if err != nil {
+		return State{}, err
+	}
+
+	var entries []Ref
+	for name, versions := range idx.Entries {
+		for _, v := range versions {
+			entries = append(entries, Ref{Chart: name, Version: v.Version})
+		}
+	}
+	return State{Entries: entries, Published: published, Archives: archives}, nil
+}

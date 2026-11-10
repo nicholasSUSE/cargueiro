@@ -20,12 +20,7 @@ func changedRefs(published, regenerated *repo.IndexFile) ([]Ref, error) {
 		return nil, nil
 	}
 
-	now := make(map[Ref]*repo.ChartVersion)
-	for name, versions := range regenerated.Entries {
-		for _, v := range versions {
-			now[Ref{Chart: name, Version: v.Version}] = v
-		}
-	}
+	now := versionsByRef(regenerated)
 
 	var changed []Ref
 	for name, versions := range published.Entries {
@@ -76,4 +71,15 @@ func checkUnchanged(published, regenerated *repo.IndexFile) error {
 		problems = append(problems, fmt.Errorf("%s %s is in index.yaml and its entry no longer matches it: a published version never changes", ref.Chart, ref.Version))
 	}
 	return errors.Join(problems...)
+}
+
+// versionsByRef returns the versions listed in idx, by chart and version.
+func versionsByRef(idx *repo.IndexFile) map[Ref]*repo.ChartVersion {
+	byRef := make(map[Ref]*repo.ChartVersion)
+	for name, versions := range idx.Entries {
+		for _, v := range versions {
+			byRef[Ref{Chart: name, Version: v.Version}] = v
+		}
+	}
+	return byRef
 }

@@ -8,5 +8,5 @@ description: Fixture of system-upgrade-controller
 icon: file://assets/logos/system-upgrade-controller.svg
 name: system-upgrade-controller
 urls:
-- oci://stgregistry.suse.com/rancher/catalog/system-upgrade-controller:111.0.0
+- oci://stgregistry.suse.com/rancher/catalog/system-upgrade-controller:111.0.0@sha256:2f38415f38fe03a5661c13c284818abcab9ac0ef7f5791a2d9724c999e69372a
 version: 111.0.0

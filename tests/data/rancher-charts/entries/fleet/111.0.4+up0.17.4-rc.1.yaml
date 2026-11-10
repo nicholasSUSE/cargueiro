@@ -8,5 +8,5 @@ description: Fixture of fleet
 icon: file://assets/logos/fleet.svg
 name: fleet
 urls:
-- oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.1
+- oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.1@sha256:e066f0c0f59633648a5123e357bc7e4e10e19b89d53a94022c0148b42c082516
 version: 111.0.4+up0.17.4-rc.1

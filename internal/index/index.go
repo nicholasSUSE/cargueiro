@@ -29,11 +29,19 @@ const (
 	File = "index.yaml"
 )
 
+// Options say how to write the index.
+type Options struct {
+	// Registry replaces the staging registry of the chart's edition that the
+	// URLs of new versions must point to, as host[:port]/path.
+	Registry string
+}
+
 // Write builds the index of the charts repository in dir and writes it to
 // dir/index.yaml. Nothing is written unless every entry is valid and the entries,
 // the index that is already there and assets/ agree, and no published version
-// has changed. Hidden versions are not written to the index.
-func Write(cfg *rules.Config, dir string) error {
+// has changed, and the URLs of the new versions are right. Hidden versions are
+// not written to the index.
+func Write(cfg *rules.Config, dir string, opts Options) error {
 	entries, err := readEntries(cfg, dir)
 	if err != nil {
 		return err
@@ -47,12 +55,14 @@ func Write(cfg *rules.Config, dir string) error {
 	if err != nil {
 		return err
 	}
-	// The versions to add are used once their archives are pulled; for now it
-	// is only checked that the entries, the index and assets/ agree.
-	if _, err := state.Plan(); err != nil {
+	plan, err := state.Plan()
+	if err != nil {
 		return err
 	}
 	if err := checkUnchanged(published, entries.all); err != nil {
+		return err
+	}
+	if err := checkURLs(cfg, opts.Registry, entries.all, plan.Add); err != nil {
 		return err
 	}
 

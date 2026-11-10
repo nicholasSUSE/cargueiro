@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -342,4 +343,89 @@ func TestIndexRefusesToChangeAPublishedVersion(t *testing.T) {
 			require.Equal(t, before, readIndex(t, repo))
 		})
 	}
+}
+
+// pinnedDigest matches the digest a URL of the fixture is pinned to.
+var pinnedDigest = regexp.MustCompile(`@sha256:[0-9a-f]{64}`)
+
+// editFile changes a file with fn.
+func editFile(t *testing.T, path string, fn func(string) string) {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, []byte(fn(string(data))), 0o600))
+}
+
+func TestIndexRefusesTheUrlOfANewEntry(t *testing.T) {
+	const version = "111.0.2+up0.17.2"
+
+	tests := []struct {
+		name    string
+		edit    func(string) string
+		wantErr string
+	}{
+		{
+			name:    "a url with no digest",
+			edit:    func(s string) string { return pinnedDigest.ReplaceAllString(s, "") },
+			wantErr: "fleet " + version + " has the url",
+		},
+		{
+			name:    "a url of another registry",
+			edit:    func(s string) string { return strings.Replace(s, "stgregistry.suse.com", "registry.suse.com", 1) },
+			wantErr: "but it must be oci://stgregistry.suse.com/rancher/catalog/fleet:" + version + "@sha256:<digest>",
+		},
+		{
+			name:    "a url that has the tag form of the version",
+			edit:    func(s string) string { return strings.Replace(s, ":111.0.2+up0.17.2@", ":111.0.2_up0.17.2@", 1) },
+			wantErr: "but it must be oci://stgregistry.suse.com/rancher/catalog/fleet:" + version + "@sha256:<digest>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := copyRepo(t)
+			editFile(t, filepath.Join(repo, "entries", "fleet", version+".yaml"), tt.edit)
+
+			res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+			require.NotZero(t, res.ExitCode)
+			require.Contains(t, res.Stderr, tt.wantErr)
+			require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
+		})
+	}
+}
+
+func TestIndexDoesNotCheckTheUrlOfAPublishedVersion(t *testing.T) {
+	repo := publishedRepo(t)
+	fleetURL := regexp.MustCompile(`(fleet:111\.0\.2\+up0\.17\.2)@sha256:[0-9a-f]{64}`)
+	dropDigest := func(s string) string { return fleetURL.ReplaceAllString(s, "$1") }
+	editFile(t, filepath.Join(repo, "entries", "fleet", "111.0.2+up0.17.2.yaml"), dropDigest)
+	editFile(t, filepath.Join(repo, "index.yaml"), dropDigest)
+	before := readIndex(t, repo)
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, before, readIndex(t, repo))
+}
+
+func TestIndexChecksTheUrlAgainstTheRegistryGiven(t *testing.T) {
+	const local = "127.0.0.1:5050/e2e"
+	repo := copyRepo(t)
+	entries, err := filepath.Glob(filepath.Join(repo, "entries", "*", "*.yaml"))
+	require.NoError(t, err)
+	for _, entry := range entries {
+		editFile(t, entry, func(s string) string {
+			return strings.Replace(s, "stgregistry.suse.com/rancher/catalog", local, 1)
+		})
+	}
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+	require.NotZero(t, res.ExitCode, "the staging registry is expected by default")
+	require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
+
+	res = harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo, "--registry", local)
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Contains(t, readIndex(t, repo), "- oci://"+local+"/fleet:111.0.3+up0.17.3@sha256:")
 }

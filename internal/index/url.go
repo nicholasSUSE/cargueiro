@@ -1,11 +1,14 @@
 package index
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	repo "helm.sh/helm/v4/pkg/repo/v1"
+
+	"github.com/nicholasSUSE/cargueiro/internal/rules"
 )
 
 // digestForm is a pinned digest: the algorithm and the hex of the sha256.
@@ -25,4 +28,28 @@ func checkURL(repository string, entry *repo.ChartVersion) error {
 		return fmt.Errorf("%s %s has the url %q, but it must be %ssha256:<digest>", entry.Name, entry.Version, entry.URLs[0], prefix)
 	}
 	return nil
+}
+
+// checkURLs checks the URL of each of the added versions, naming every one that
+// is wrong. registry replaces the staging registry of the chart's edition when
+// it is not empty, as host[:port]/path. Versions already published are not
+// checked: they cannot change.
+func checkURLs(cfg *rules.Config, registry string, all *repo.IndexFile, added []Ref) error {
+	byRef := versionsByRef(all)
+
+	var problems []error
+	for _, ref := range added {
+		rule, err := cfg.Find(ref.Chart)
+		if err != nil {
+			return err
+		}
+		repository, err := cfg.StagingRepository(rule, registry)
+		if err != nil {
+			return err
+		}
+		if err := checkURL(repository, byRef[ref]); err != nil {
+			problems = append(problems, err)
+		}
+	}
+	return errors.Join(problems...)
 }

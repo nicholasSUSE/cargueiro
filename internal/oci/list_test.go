@@ -140,12 +140,12 @@ func TestListTagsFails(t *testing.T) {
 		{
 			name:    "the registry asks for credentials",
 			status:  http.StatusUnauthorized,
-			wantErr: "the registry does not allow reading",
+			wantErr: "the registry granted no access",
 		},
 		{
 			name:    "the registry refuses",
 			status:  http.StatusForbidden,
-			wantErr: "the registry does not allow reading",
+			wantErr: "the registry granted no access",
 		},
 		{
 			name:    "the registry fails",

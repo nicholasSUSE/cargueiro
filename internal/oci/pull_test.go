@@ -91,14 +91,14 @@ func TestPullArchiveFails(t *testing.T) {
 			wantErr: "was not found in the registry",
 		},
 		{
-			name: "the registry does not allow reading without credentials",
+			name: "the registry grants no access without credentials",
 			setup: func(t *testing.T, f *fakeRegistry) string {
 				f.addChart(t, validArchive(t))
 				pinned := f.pin(t)
 				f.status["/v2/"+testRepository+"/manifests/"+pinned] = http.StatusUnauthorized
 				return pinned
 			},
-			wantErr: "does not allow reading",
+			wantErr: "granted no access",
 		},
 		{
 			name: "the registry answers with another manifest than the pinned one",

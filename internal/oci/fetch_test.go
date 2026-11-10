@@ -19,6 +19,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	helmregistry "helm.sh/helm/v4/pkg/registry"
+	"oras.land/oras-go/v2/registry/remote/errcode"
 )
 
 const (
@@ -236,18 +237,18 @@ func TestFetchChartFails(t *testing.T) {
 			wantErr: "was not found in the registry",
 		},
 		{
-			name: "the registry asks for authentication",
+			name: "the registry does not allow reading without credentials",
 			setup: func(_ *testing.T, f *fakeRegistry) {
 				f.status["/v2/"+testRepository+"/manifests/"+testTag] = http.StatusUnauthorized
 			},
-			wantErr: "asks for authentication",
+			wantErr: "does not allow reading",
 		},
 		{
 			name: "the registry forbids the read",
 			setup: func(_ *testing.T, f *fakeRegistry) {
 				f.status["/v2/"+testRepository+"/manifests/"+testTag] = http.StatusForbidden
 			},
-			wantErr: "asks for authentication",
+			wantErr: "does not allow reading",
 		},
 		{
 			name: "the artifact is not a Helm chart",
@@ -392,4 +393,22 @@ func TestFetchChartOverHTTPSNeedsHTTPS(t *testing.T) {
 
 	require.ErrorContains(t, err, "fetch ")
 	require.Nil(t, got)
+}
+
+func TestFetchErrorForARead(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{name: "unauthorized", status: http.StatusUnauthorized},
+		{name: "forbidden", status: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := fetchError("registry.example.com/rancher/catalog/fleet:1.0.0", &errcode.ErrorResponse{StatusCode: tt.status})
+
+			require.EqualError(t, err, "the registry does not allow reading registry.example.com/rancher/catalog/fleet:1.0.0 without credentials: either it needs them, or the repository does not exist, which some registries answer in the same way")
+			require.NotContains(t, err.Error(), "not supported yet", "reading without credentials is supported")
+		})
+	}
 }

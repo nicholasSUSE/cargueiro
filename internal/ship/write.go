@@ -46,7 +46,7 @@ func (s Shipment) Write(dir string) error {
 		return fmt.Errorf("%s is not a folder", dir)
 	}
 
-	entry := path.Join(EntriesDir, s.Chart, s.Version+".yaml")
+	entry := s.entryPath()
 	if _, err := os.Lstat(filepath.Join(dir, entry)); err == nil {
 		return fmt.Errorf("%s already exists: an entry is never replaced", entry)
 	} else if !errors.Is(err, fs.ErrNotExist) {
@@ -67,12 +67,29 @@ func (s Shipment) Write(dir string) error {
 		return errors.Join(err, batch.Undo())
 	}
 	if s.Logo != nil {
-		logo := filepath.Join(dir, LogosDir, s.Chart+s.Logo.Extension)
-		if err := batch.Write(logo, s.Logo.Data); err != nil {
+		if err := batch.Write(filepath.Join(dir, s.logoPath()), s.Logo.Data); err != nil {
 			return errors.Join(err, batch.Undo())
 		}
 	}
 	return nil
+}
+
+// Paths returns the files the shipment writes, relative to the charts
+// repository: the entry, then the logo if there is one.
+func (s Shipment) Paths() []string {
+	paths := []string{s.entryPath()}
+	if s.Logo != nil {
+		paths = append(paths, s.logoPath())
+	}
+	return paths
+}
+
+func (s Shipment) entryPath() string {
+	return path.Join(EntriesDir, s.Chart, s.Version+".yaml")
+}
+
+func (s Shipment) logoPath() string {
+	return path.Join(LogosDir, s.Chart+s.Logo.Extension)
 }
 
 // The folders of a charts repository that ship writes to.

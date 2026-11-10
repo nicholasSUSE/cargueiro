@@ -241,3 +241,32 @@ func TestHasLogoWithNoLogosFolder(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, got)
 }
+
+func TestShipmentPaths(t *testing.T) {
+	tests := []struct {
+		name     string
+		shipment Shipment
+		want     []string
+	}{
+		{
+			name:     "the entry and the logo",
+			shipment: fleetShipment(),
+			want:     []string{"entries/fleet/110.0.3+up0.16.3.yaml", "assets/logos/fleet.svg"},
+		},
+		{
+			name: "the entry only",
+			shipment: Shipment{
+				Chart:   "fleet",
+				Version: "110.0.3+up0.16.3",
+				Entry:   []byte("x"),
+			},
+			want: []string{"entries/fleet/110.0.3+up0.16.3.yaml"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.shipment.Paths())
+		})
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/nicholasSUSE/cargueiro/internal/chart"
 	"github.com/nicholasSUSE/cargueiro/internal/logger"
 	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/nicholasSUSE/cargueiro/internal/ship"
 )
 
 // rootOptions holds state shared by all subcommands.
@@ -35,6 +36,7 @@ type dependencies struct {
 	verifyLogin verifyFunc
 	fetchChart  fetchFunc
 	listTags    listFunc
+	prepare     prepareFunc
 }
 
 // NewRootCmd builds the root command. Output streams are injected so
@@ -53,6 +55,7 @@ func NewRootCmd(stdout, stderr io.Writer, rules []byte) (*cobra.Command, error) 
 		verifyLogin: oci.VerifyLogin,
 		fetchChart:  oci.FetchChart,
 		listTags:    oci.ListTags,
+		prepare:     ship.Prepare,
 	})
 }
 
@@ -103,7 +106,11 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd, indexCmd)
+	shipCmd, err := newShipCmd(opts, deps.prepare)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd, indexCmd, shipCmd)
 
 	return root, nil
 }

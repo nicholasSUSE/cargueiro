@@ -95,6 +95,29 @@ func pushCompliance(t *testing.T, iconURL string) (address, path, reference stri
 	return address, path, fmt.Sprintf("%s/%s/%s:%s", address, path, chartName, chartVersion)
 }
 
+// charts returns a checkout like the staging branch of rancher/charts.
+func charts(t *testing.T) string {
+	t.Helper()
+
+	dir, _ := harness.ChartsCheckout(t)
+	return dir
+}
+
+// ship runs `cargueiro ship` with the settings of git of whoever runs the tests
+// left out, and returns what it printed.
+func ship(t *testing.T, args ...string) harness.Result {
+	t.Helper()
+
+	return harness.CargueiroWith(t, harness.Options{Dir: t.TempDir(), Env: harness.GitEnv()}, append([]string{"ship"}, args...)...)
+}
+
+// requireClean fails unless nothing was written to the checkout.
+func requireClean(t *testing.T, repo string) {
+	t.Helper()
+
+	require.Empty(t, harness.Git(t, repo, "status", "--porcelain"), "the checkout is as it was")
+}
+
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 
@@ -106,10 +129,10 @@ func readFile(t *testing.T, path string) string {
 func TestShipThenIndex(t *testing.T) {
 	logo := newLogoServer(t, http.StatusOK)
 	address, path, reference := pushCompliance(t, logo.URL+"/compliance")
-	repo := t.TempDir()
+	repo := charts(t)
 	entry := filepath.Join(repo, "entries", chartName, chartVersion+".yaml")
 
-	res := harness.Cargueiro(t, t.TempDir(), "ship", reference, "--repo", repo, "--plain-http")
+	res := ship(t, reference, "--repo", repo, "--plain-http")
 
 	require.Zero(t, res.ExitCode, res.Stderr)
 	require.Equal(t, "entries/"+chartName+"/"+chartVersion+".yaml\nassets/logos/"+chartName+".svg\n", res.Stdout)
@@ -119,7 +142,7 @@ func TestShipThenIndex(t *testing.T) {
 	require.Contains(t, text, "\nversion: "+chartVersion+"\n")
 	require.Contains(t, text, "\nurls:\n- oci://"+address+"/"+path+"/"+chartName+":"+chartVersion+"@sha256:")
 	require.NoDirExists(t, filepath.Join(repo, "assets", chartName), "ship writes no archive")
-	require.NoFileExists(t, filepath.Join(repo, "index.yaml"), "and no index")
+	require.Empty(t, readFile(t, filepath.Join(repo, "index.yaml")), "and does not touch the index")
 
 	// What ship wrote is what index reads.
 	index := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo, "--registry", address+"/"+path, "--plain-http")
@@ -135,13 +158,15 @@ func TestShipThenIndex(t *testing.T) {
 func TestShipNeverReplacesAnEntry(t *testing.T) {
 	logo := newLogoServer(t, http.StatusOK)
 	_, _, reference := pushCompliance(t, logo.URL+"/compliance")
-	repo := t.TempDir()
-	first := harness.Cargueiro(t, t.TempDir(), "ship", reference, "--repo", repo, "--plain-http")
+	repo := charts(t)
+	first := ship(t, reference, "--repo", repo, "--plain-http")
 	require.Zero(t, first.ExitCode, first.Stderr)
 	entry := filepath.Join(repo, "entries", chartName, chartVersion+".yaml")
 	before := readFile(t, entry)
+	// The entry is merged: the checkout is clean and up to date again.
+	harness.CommitAndPush(t, repo, "ship "+chartVersion)
 
-	res := harness.Cargueiro(t, t.TempDir(), "ship", reference, "--repo", repo, "--plain-http")
+	res := ship(t, reference, "--repo", repo, "--plain-http")
 
 	require.NotZero(t, res.ExitCode)
 	require.Contains(t, res.Stderr, "an entry is never replaced")
@@ -152,26 +177,25 @@ func TestShipNeverReplacesAnEntry(t *testing.T) {
 func TestShipDryRunWritesNothing(t *testing.T) {
 	logo := newLogoServer(t, http.StatusOK)
 	_, _, reference := pushCompliance(t, logo.URL+"/compliance")
-	repo := t.TempDir()
+	repo := charts(t)
 
-	res := harness.Cargueiro(t, t.TempDir(), "ship", reference, "--repo", repo, "--plain-http", "--dry-run")
+	res := ship(t, reference, "--repo", repo, "--plain-http", "--dry-run")
 
 	require.Zero(t, res.ExitCode, res.Stderr)
 	require.Equal(t, "entries/"+chartName+"/"+chartVersion+".yaml\nassets/logos/"+chartName+".svg\n", res.Stdout)
-	entries, err := os.ReadDir(repo)
-	require.NoError(t, err)
-	require.Empty(t, entries)
+	requireClean(t, repo)
 }
 
 func TestShipUsesTheLogoTheRepositoryHas(t *testing.T) {
 	logo := newLogoServer(t, http.StatusOK)
 	_, _, reference := pushCompliance(t, logo.URL+"/compliance")
-	repo := t.TempDir()
+	repo := charts(t)
 	logos := filepath.Join(repo, "assets", "logos")
 	require.NoError(t, os.MkdirAll(logos, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(logos, chartName+".png"), []byte("the logo"), 0o600))
+	harness.CommitAndPush(t, repo, "the logo")
 
-	res := harness.Cargueiro(t, t.TempDir(), "ship", reference, "--repo", repo, "--plain-http")
+	res := ship(t, reference, "--repo", repo, "--plain-http")
 
 	require.Zero(t, res.ExitCode, res.Stderr)
 	require.Equal(t, "entries/"+chartName+"/"+chartVersion+".yaml\n", res.Stdout)
@@ -183,30 +207,26 @@ func TestShipUsesTheLogoTheRepositoryHas(t *testing.T) {
 func TestShipWritesNothingWhenTheLogoCannotBeDownloaded(t *testing.T) {
 	logo := newLogoServer(t, http.StatusNotFound)
 	_, _, reference := pushCompliance(t, logo.URL+"/compliance")
-	repo := t.TempDir()
+	repo := charts(t)
 
-	res := harness.Cargueiro(t, t.TempDir(), "ship", reference, "--repo", repo, "--plain-http")
+	res := ship(t, reference, "--repo", repo, "--plain-http")
 
 	require.NotZero(t, res.ExitCode)
 	require.Contains(t, res.Stderr, "the server answered 404")
 	require.Empty(t, res.Stdout)
-	entries, err := os.ReadDir(repo)
-	require.NoError(t, err)
-	require.Empty(t, entries)
+	requireClean(t, repo)
 }
 
 func TestShipRefusesAVersionThatIsNotInTheRegistry(t *testing.T) {
 	logo := newLogoServer(t, http.StatusOK)
 	address, path, _ := pushCompliance(t, logo.URL+"/compliance")
-	repo := t.TempDir()
+	repo := charts(t)
 
-	res := harness.Cargueiro(t, t.TempDir(), "ship", address+"/"+path+"/"+chartName+":111.0.9+up1.5.9", "--repo", repo, "--plain-http")
+	res := ship(t, address+"/"+path+"/"+chartName+":111.0.9+up1.5.9", "--repo", repo, "--plain-http")
 
 	require.NotZero(t, res.ExitCode)
 	require.Contains(t, res.Stderr, "was not found in the registry")
-	entries, err := os.ReadDir(repo)
-	require.NoError(t, err)
-	require.Empty(t, entries)
+	requireClean(t, repo)
 }
 
 func TestShipAChartThatIsExempt(t *testing.T) {
@@ -217,7 +237,7 @@ func TestShipAChartThatIsExempt(t *testing.T) {
 	path := registryPath()
 	pushed := session.Push(t, address+"/"+path, harness.FleetPublished(t, "fleet", "110.0.3+up0.16.3"))
 	require.Zero(t, pushed.ExitCode, pushed.Stderr)
-	repo := t.TempDir()
+	repo := charts(t)
 
 	res = harness.Cargueiro(t, t.TempDir(), "ship", address+"/"+path+"/fleet:110.0.3+up0.16.3", "--repo", repo, "--plain-http")
 
@@ -226,4 +246,123 @@ func TestShipAChartThatIsExempt(t *testing.T) {
 	text := readFile(t, filepath.Join(repo, "entries", "fleet", "110.0.3+up0.16.3.yaml"))
 	require.Contains(t, text, "\nicon: https://charts.rancher.io/assets/logos/fleet.svg\n", "the icon is as it was")
 	require.NoDirExists(t, filepath.Join(repo, "assets"))
+}
+
+func TestShipRefusesACheckoutThatIsNotRight(t *testing.T) {
+	logo := newLogoServer(t, http.StatusOK)
+	_, _, reference := pushCompliance(t, logo.URL+"/compliance")
+
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) string
+		args    []string
+		wantErr string
+	}{
+		{
+			name: "something that is not committed",
+			setup: func(t *testing.T) string {
+				repo := charts(t)
+				require.NoError(t, os.WriteFile(filepath.Join(repo, "notes.txt"), []byte("x"), 0o600))
+				return repo
+			},
+			wantErr: "has changes that are not committed",
+		},
+		{
+			name: "a commit that is not pushed",
+			setup: func(t *testing.T) string {
+				repo := charts(t)
+				require.NoError(t, os.WriteFile(filepath.Join(repo, "notes.txt"), []byte("x"), 0o600))
+				harness.Git(t, repo, "add", "-A")
+				harness.Git(t, repo, "commit", "-m", "local")
+				return repo
+			},
+			wantErr: "upstream: update it",
+		},
+		{
+			name: "behind the remote",
+			setup: func(t *testing.T) string {
+				repo, remote := harness.ChartsCheckout(t)
+				other := filepath.Join(t.TempDir(), "other")
+				harness.Git(t, t.TempDir(), "clone", "--branch", "staging", remote, other)
+				require.NoError(t, os.WriteFile(filepath.Join(other, "merged.txt"), []byte("x"), 0o600))
+				harness.CommitAndPush(t, other, "merged by someone else")
+				return repo
+			},
+			wantErr: "upstream: update it",
+		},
+		{
+			name: "another branch",
+			setup: func(t *testing.T) string {
+				repo := charts(t)
+				harness.Git(t, repo, "checkout", "-b", "feature")
+				return repo
+			},
+			wantErr: "is on the branch feature, and it must be on staging: check it out with git checkout staging",
+		},
+		{
+			name: "no upstream",
+			setup: func(t *testing.T) string {
+				repo := charts(t)
+				harness.Git(t, repo, "branch", "--unset-upstream")
+				return repo
+			},
+			wantErr: "staging has no upstream. The remotes are: origin (",
+		},
+		{
+			name: "no remote",
+			setup: func(t *testing.T) string {
+				repo := charts(t)
+				harness.Git(t, repo, "remote", "remove", "origin")
+				return repo
+			},
+			wantErr: "has no git remote",
+		},
+		{
+			name: "not a checkout",
+			setup: func(t *testing.T) string {
+				return t.TempDir()
+			},
+			wantErr: "is not a git checkout",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := tt.setup(t)
+
+			res := ship(t, reference, "--repo", repo, "--plain-http")
+
+			require.NotZero(t, res.ExitCode)
+			require.Contains(t, res.Stderr, tt.wantErr)
+			require.Empty(t, res.Stdout)
+			require.NoDirExists(t, filepath.Join(repo, "entries"))
+			require.NoDirExists(t, filepath.Join(repo, "assets"))
+		})
+	}
+}
+
+func TestShipChecksTheCheckoutOnADryRunToo(t *testing.T) {
+	logo := newLogoServer(t, http.StatusOK)
+	_, _, reference := pushCompliance(t, logo.URL+"/compliance")
+	repo := charts(t)
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "notes.txt"), []byte("x"), 0o600))
+
+	res := ship(t, reference, "--repo", repo, "--plain-http", "--dry-run")
+
+	require.NotZero(t, res.ExitCode)
+	require.Contains(t, res.Stderr, "has changes that are not committed")
+	require.Zero(t, logo.hits.Load(), "and the logo is not downloaded")
+}
+
+func TestShipTakesAnotherBranch(t *testing.T) {
+	logo := newLogoServer(t, http.StatusOK)
+	_, _, reference := pushCompliance(t, logo.URL+"/compliance")
+	repo := charts(t)
+	harness.Git(t, repo, "checkout", "-b", "release")
+	harness.Git(t, repo, "push", "--set-upstream", "origin", "release")
+
+	res := ship(t, reference, "--repo", repo, "--plain-http", "--branch", "release")
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Contains(t, res.Stdout, "entries/"+chartName+"/"+chartVersion+".yaml")
 }

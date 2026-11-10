@@ -33,6 +33,22 @@ func (f *fakePreparer) prepare(_ context.Context, _ *rules.Config, ref oci.Chart
 	return f.shipment, f.err
 }
 
+// fakeVerifier answers the check of the checkout with err and records what it was
+// asked.
+type fakeVerifier struct {
+	err error
+
+	called bool
+	dir    string
+	branch string
+}
+
+func (f *fakeVerifier) verify(_ context.Context, dir, branch string) error {
+	f.called = true
+	f.dir, f.branch = dir, branch
+	return f.err
+}
+
 func fleetShipment() ship.Shipment {
 	return ship.Shipment{
 		Chart:   "fleet",
@@ -42,8 +58,15 @@ func fleetShipment() ship.Shipment {
 	}
 }
 
-// runShip executes ship with the rules in checkRules.
+// runShip executes ship with the rules in checkRules, on a checkout that is fine.
 func runShip(t *testing.T, fake *fakePreparer, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+
+	return runShipChecking(t, fake, &fakeVerifier{}, args...)
+}
+
+// runShipChecking executes ship with verifier as the check of the checkout.
+func runShipChecking(t *testing.T, fake *fakePreparer, verifier *fakeVerifier, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
@@ -54,7 +77,7 @@ func runShip(t *testing.T, fake *fakePreparer, args ...string) (stdout, stderr s
 		prompt:    &fakePrompter{},
 		rules:     []byte(checkRules),
 	}
-	root, err := newRootCmd(&out, &errOut, opts, dependencies{prepare: fake.prepare})
+	root, err := newRootCmd(&out, &errOut, opts, dependencies{prepare: fake.prepare, verifyCheckout: verifier.verify})
 	require.NoError(t, err)
 	root.SetArgs(append([]string{"ship"}, args...))
 
@@ -192,4 +215,64 @@ func TestShipRefuses(t *testing.T) {
 			require.False(t, fake.called)
 		})
 	}
+}
+
+func TestShipChecksTheCheckoutFirst(t *testing.T) {
+	t.Run("the branch is staging by default", func(t *testing.T) {
+		fake := &fakePreparer{shipment: fleetShipment()}
+		verifier := &fakeVerifier{}
+		repo := t.TempDir()
+
+		_, _, err := runShipChecking(t, fake, verifier, shipReference, "--repo", repo)
+
+		require.NoError(t, err)
+		require.True(t, verifier.called)
+		require.Equal(t, repo, verifier.dir)
+		require.Equal(t, "staging", verifier.branch)
+	})
+
+	t.Run("--branch changes it", func(t *testing.T) {
+		fake := &fakePreparer{shipment: fleetShipment()}
+		verifier := &fakeVerifier{}
+
+		_, _, err := runShipChecking(t, fake, verifier, shipReference, "--repo", t.TempDir(), "--branch", "release")
+
+		require.NoError(t, err)
+		require.Equal(t, "release", verifier.branch)
+	})
+
+	t.Run("a dry run checks it too", func(t *testing.T) {
+		fake := &fakePreparer{shipment: fleetShipment()}
+		verifier := &fakeVerifier{}
+
+		_, _, err := runShipChecking(t, fake, verifier, shipReference, "--repo", t.TempDir(), "--dry-run")
+
+		require.NoError(t, err)
+		require.True(t, verifier.called)
+	})
+}
+
+func TestShipStopsWhenTheCheckoutIsNotRight(t *testing.T) {
+	fake := &fakePreparer{shipment: fleetShipment()}
+	verifier := &fakeVerifier{err: errors.New("the checkout is at aaa and staging is at bbb upstream: update it")}
+	repo := t.TempDir()
+
+	stdout, _, err := runShipChecking(t, fake, verifier, shipReference, "--repo", repo)
+
+	require.EqualError(t, err, "the checkout is at aaa and staging is at bbb upstream: update it")
+	require.Empty(t, stdout)
+	require.False(t, fake.called, "nothing is pulled or downloaded")
+	entries, readErr := os.ReadDir(repo)
+	require.NoError(t, readErr)
+	require.Empty(t, entries)
+}
+
+func TestShipChecksTheArgumentsBeforeTheCheckout(t *testing.T) {
+	fake := &fakePreparer{shipment: fleetShipment()}
+	verifier := &fakeVerifier{}
+
+	_, _, err := runShipChecking(t, fake, verifier, shipReference, "--repo", "charts")
+
+	require.ErrorContains(t, err, "--repo must be an absolute path")
+	require.False(t, verifier.called)
 }

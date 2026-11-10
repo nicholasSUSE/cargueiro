@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/nicholasSUSE/cargueiro/internal/auth"
 	"github.com/nicholasSUSE/cargueiro/internal/chart"
+	"github.com/nicholasSUSE/cargueiro/internal/checkout"
 	"github.com/nicholasSUSE/cargueiro/internal/logger"
 	"github.com/nicholasSUSE/cargueiro/internal/oci"
 	"github.com/nicholasSUSE/cargueiro/internal/ship"
@@ -37,6 +39,8 @@ type dependencies struct {
 	fetchChart  fetchFunc
 	listTags    listFunc
 	prepare     prepareFunc
+	// verifyCheckout checks the charts repository that ship writes to.
+	verifyCheckout verifyCheckoutFunc
 }
 
 // NewRootCmd builds the root command. Output streams are injected so
@@ -56,6 +60,9 @@ func NewRootCmd(stdout, stderr io.Writer, rules []byte) (*cobra.Command, error) 
 		fetchChart:  oci.FetchChart,
 		listTags:    oci.ListTags,
 		prepare:     ship.Prepare,
+		verifyCheckout: func(ctx context.Context, dir, branch string) error {
+			return checkout.Verify(ctx, dir, branch, checkout.Git)
+		},
 	})
 }
 
@@ -106,7 +113,7 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	shipCmd, err := newShipCmd(opts, deps.prepare)
+	shipCmd, err := newShipCmd(opts, deps.prepare, deps.verifyCheckout)
 	if err != nil {
 		return nil, err
 	}

@@ -25,10 +25,19 @@ const (
 	maxLayerSize    = 2 << 20
 )
 
-// FetchOptions tune how the registry is reached. Reads are anonymous.
+// FetchOptions tune how the registry is reached. Reads are anonymous unless a
+// username and a password are given.
 type FetchOptions struct {
+	// Username and Password authenticate with basic auth. Both or neither.
+	Username string
+	Password string
 	// PlainHTTP talks HTTP instead of HTTPS.
 	PlainHTTP bool
+}
+
+// authenticated reports whether the reads carry credentials.
+func (o FetchOptions) authenticated() bool {
+	return o.Username != ""
 }
 
 // FetchChart reads Chart.yaml and values.yaml of the chart at ref. The chart
@@ -40,7 +49,7 @@ func FetchChart(ctx context.Context, ref ChartRef, opts FetchOptions) (*chart.Fi
 		return nil, err
 	}
 
-	layer, err := chartLayer(ctx, repo, ref.Tag, ref.String())
+	layer, err := chartLayer(ctx, repo, ref.Tag, ref.String(), opts.authenticated())
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +59,7 @@ func FetchChart(ctx context.Context, ref ChartRef, opts FetchOptions) (*chart.Fi
 
 	rc, err := repo.Fetch(ctx, layer)
 	if err != nil {
-		return nil, fetchError(ref.String(), err)
+		return nil, fetchError(ref.String(), err, opts.authenticated())
 	}
 	defer func() { _ = rc.Close() }()
 
@@ -87,10 +96,10 @@ func newRepository(ref ChartRef, opts FetchOptions) (*remote.Repository, error) 
 // and returns the descriptor of its chart layer. The manifest must be a Helm
 // chart's: the Helm config and one chart layer. A provenance layer next to it is
 // ignored. what says what is read, for the errors.
-func chartLayer(ctx context.Context, repo *remote.Repository, reference, what string) (ocispec.Descriptor, error) {
+func chartLayer(ctx context.Context, repo *remote.Repository, reference, what string, authenticated bool) (ocispec.Descriptor, error) {
 	desc, rc, err := repo.FetchReference(ctx, reference)
 	if err != nil {
-		return ocispec.Descriptor{}, fetchError(what, err)
+		return ocispec.Descriptor{}, fetchError(what, err, authenticated)
 	}
 	defer func() { _ = rc.Close() }()
 
@@ -128,7 +137,7 @@ func chartLayer(ctx context.Context, repo *remote.Repository, reference, what st
 
 // fetchError says what went wrong in terms of what was read, such as a
 // reference.
-func fetchError(what string, err error) error {
+func fetchError(what string, err error, _ bool) error {
 	var resp *errcode.ErrorResponse
 	switch {
 	case errors.Is(err, errdef.ErrNotFound):

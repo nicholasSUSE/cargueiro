@@ -405,7 +405,7 @@ func TestFetchErrorForARead(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := fetchError("registry.example.com/rancher/catalog/fleet:1.0.0", &errcode.ErrorResponse{StatusCode: tt.status})
+			err := fetchError("registry.example.com/rancher/catalog/fleet:1.0.0", &errcode.ErrorResponse{StatusCode: tt.status}, false)
 
 			require.EqualError(t, err, "the registry does not allow reading registry.example.com/rancher/catalog/fleet:1.0.0 without credentials: either it needs them, or the repository does not exist, which some registries answer in the same way")
 			require.NotContains(t, err.Error(), "not supported yet", "reading without credentials is supported")

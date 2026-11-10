@@ -46,7 +46,7 @@ func listTags(ctx context.Context, repo ChartRepo, opts FetchOptions, limit int)
 		// A tag list has no not-found error of its own: the registry answers 404.
 		return nil, fmt.Errorf("%s was not found in the registry: %w", repo, ErrRepositoryNotFound)
 	case err != nil:
-		return nil, fetchError(repo.String(), err)
+		return nil, fetchError(repo.String(), err, opts.authenticated())
 	}
 	return tags, nil
 }

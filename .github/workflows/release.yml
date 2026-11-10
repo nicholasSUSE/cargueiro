@@ -24,7 +24,7 @@ concurrency:
 jobs:
   guard:
     name: guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       # The input reaches the script as an environment variable, never pasted
@@ -71,7 +71,7 @@ jobs:
   publish:
     name: publish
     needs: [guard, ci]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: write

@@ -15,6 +15,8 @@ The checks run as separate jobs, in parallel, on a Linux runner. Linux is the on
 | Unit tests | `make test-unit` | a test fails (race detector on) |
 | E2E tests | `make test-e2e` | an e2e test fails |
 | Release binaries | `make test-release` | a release target does not build, or a binary has the wrong format or architecture, or does not carry the version |
+| Shell checks | `make lint-sh` | shellcheck reports a finding in `install.sh` |
+| Install test | `make test-install` | `install.sh` fails against a local fake release, ignores the version pin, or installs on a wrong checksum |
 
 The unit tests start nothing, so they run in a job of their own and do not wait for the e2e tests. `make test-e2e` builds the binary and starts the local registries with the Docker on the runner. It stops them again, even when a test fails.
 

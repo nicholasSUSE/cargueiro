@@ -84,3 +84,33 @@ jobs:
       # break unnoticed. Nothing is published.
       - name: Release build
         run: make test-release
+
+  shell:
+    name: shell checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          version: 2026.10.8
+          install: true
+          cache: true
+      - name: Lint install.sh
+        run: make lint-sh
+
+  install:
+    name: install test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          version: 2026.10.8
+          install: true
+          cache: true
+      # Runs install.sh against a local fake release, so it needs no network and
+      # installs nothing on the runner outside a temporary directory.
+      - name: Install test
+        run: make test-install

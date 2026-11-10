@@ -2,6 +2,7 @@ package index
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -58,4 +59,21 @@ func sameEntry(a, b *repo.ChartVersion) (bool, error) {
 		return false, err
 	}
 	return bytes.Equal(x, y), nil
+}
+
+// checkUnchanged fails when an entry no longer matches the line the published
+// index has for its version, naming every version that does not.
+//
+// Only change allowed is the `hide: true` field to remove the entry from the index.yaml
+func checkUnchanged(published, regenerated *repo.IndexFile) error {
+	changed, err := changedRefs(published, regenerated)
+	if err != nil {
+		return err
+	}
+
+	problems := make([]error, 0, len(changed))
+	for _, ref := range changed {
+		problems = append(problems, fmt.Errorf("%s %s is in index.yaml and its entry no longer matches it: a published version never changes", ref.Chart, ref.Version))
+	}
+	return errors.Join(problems...)
 }

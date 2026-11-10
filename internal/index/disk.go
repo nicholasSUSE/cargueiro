@@ -48,18 +48,12 @@ func readPublished(dir string) (*repo.IndexFile, error) {
 	return &idx, nil
 }
 
-// publishedRefs returns the versions listed in the index.yaml of the charts
-// repository in dir.
-func publishedRefs(dir string) ([]Ref, error) {
-	idx, err := readPublished(dir)
-	if err != nil || idx == nil {
-		return nil, err
-	}
-	return indexRefs(idx), nil
-}
-
-// indexRefs returns the versions listed in idx.
+// indexRefs returns the versions listed in idx, which can be nil.
 func indexRefs(idx *repo.IndexFile) []Ref {
+	if idx == nil {
+		return nil
+	}
+
 	var refs []Ref
 	for name, versions := range idx.Entries {
 		for _, v := range versions {
@@ -117,13 +111,10 @@ func archiveVersion(chart, file string) (string, bool) {
 	return version, ok && version != ""
 }
 
-// readState collects what the entries, the index.yaml in dir and the archives
-// in dir say about the versions of the charts repository.
-func readState(dir string, e entries) (State, error) {
-	published, err := publishedRefs(dir)
-	if err != nil {
-		return State{}, err
-	}
+// readState collects what the entries, the published index and the archives in
+// dir say about the versions of the charts repository. The published index is
+// nil when nothing has been published yet.
+func readState(dir string, e entries, published *repo.IndexFile) (State, error) {
 	archives, err := archiveRefs(dir)
 	if err != nil {
 		return State{}, err
@@ -132,7 +123,7 @@ func readState(dir string, e entries) (State, error) {
 	return State{
 		Entries:   indexRefs(e.all),
 		Hidden:    e.hidden,
-		Published: published,
+		Published: indexRefs(published),
 		Archives:  archives,
 	}, nil
 }

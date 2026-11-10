@@ -289,3 +289,57 @@ func TestIndexDoesNotPublishAHiddenVersionAgain(t *testing.T) {
 	require.Contains(t, res.Stderr, "fleet 111.0.3+up0.17.4 is not in index.yaml yet but already has an archive in assets/")
 	require.Equal(t, hidden, readIndex(t, repo))
 }
+
+func TestIndexRefusesToChangeAPublishedVersion(t *testing.T) {
+	const version = "111.0.3+up0.17.3"
+
+	tests := []struct {
+		name string
+		old  string
+		new  string
+		hide bool
+	}{
+		{
+			name: "a description that changed",
+			old:  "description: Fixture of fleet\n",
+			new:  "description: Another description\n",
+		},
+		{
+			name: "a URL that changed",
+			old:  "oci://stgregistry.suse.com/rancher/catalog/fleet:",
+			new:  "oci://stgregistry.suse.com/rancher/catalog/fleet-other:",
+		},
+		{
+			name: "an icon that changed",
+			old:  "icon: file://assets/logos/fleet.svg\n",
+			new:  "icon: file://assets/logos/other.svg\n",
+		},
+		{
+			name: "a description that changed together with hide",
+			old:  "description: Fixture of fleet\n",
+			new:  "description: Another description\n",
+			hide: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := publishedRepo(t)
+			path := filepath.Join(repo, "entries", "fleet", version+".yaml")
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Contains(t, string(data), tt.old)
+			require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), tt.old, tt.new, 1)), 0o600))
+			if tt.hide {
+				hideEntry(t, repo, "fleet", version)
+			}
+			before := readIndex(t, repo)
+
+			res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+			require.NotZero(t, res.ExitCode)
+			require.Contains(t, res.Stderr, "fleet "+version+" is in index.yaml and its entry no longer matches it: a published version never changes")
+			require.Equal(t, before, readIndex(t, repo))
+		})
+	}
+}

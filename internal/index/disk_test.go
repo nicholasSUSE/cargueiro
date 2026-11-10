@@ -19,7 +19,7 @@ func writeFiles(t *testing.T, dir string, files map[string]string) {
 	}
 }
 
-func TestPublishedRefs(t *testing.T) {
+func TestReadPublished(t *testing.T) {
 	tests := []struct {
 		name  string
 		files map[string]string
@@ -71,15 +71,15 @@ entries:
 			dir := t.TempDir()
 			writeFiles(t, dir, tt.files)
 
-			got, err := publishedRefs(dir)
+			got, err := readPublished(dir)
 
 			require.NoError(t, err)
-			require.ElementsMatch(t, tt.want, got)
+			require.ElementsMatch(t, tt.want, indexRefs(got))
 		})
 	}
 }
 
-func TestPublishedRefsFails(t *testing.T) {
+func TestReadPublishedFails(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
@@ -113,7 +113,7 @@ entries:
 			dir := t.TempDir()
 			writeFiles(t, dir, map[string]string{File: tt.content})
 
-			got, err := publishedRefs(dir)
+			got, err := readPublished(dir)
 
 			require.ErrorContains(t, err, tt.wantErr)
 			require.Nil(t, got)

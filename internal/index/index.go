@@ -31,21 +31,28 @@ const (
 
 // Write builds the index of the charts repository in dir and writes it to
 // dir/index.yaml. Nothing is written unless every entry is valid and the entries,
-// the index that is already there and assets/ agree. Hidden versions are not
-// written to the index.
+// the index that is already there and assets/ agree, and no published version
+// has changed. Hidden versions are not written to the index.
 func Write(cfg *rules.Config, dir string) error {
 	entries, err := readEntries(cfg, dir)
 	if err != nil {
 		return err
 	}
+	published, err := readPublished(dir)
+	if err != nil {
+		return err
+	}
 
-	state, err := readState(dir, entries)
+	state, err := readState(dir, entries, published)
 	if err != nil {
 		return err
 	}
 	// The versions to add are used once their archives are pulled; for now it
 	// is only checked that the entries, the index and assets/ agree.
 	if _, err := state.Plan(); err != nil {
+		return err
+	}
+	if err := checkUnchanged(published, entries.all); err != nil {
 		return err
 	}
 

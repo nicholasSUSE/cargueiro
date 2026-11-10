@@ -115,3 +115,25 @@ func TestChangedRefs(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckUnchanged(t *testing.T) {
+	t.Run("nothing changed", func(t *testing.T) {
+		published := indexOf("fleet", entry("fleet", "1", "d"))
+
+		require.NoError(t, checkUnchanged(published, indexOf("fleet", entry("fleet", "1", "d"))))
+	})
+
+	t.Run("nothing is published yet", func(t *testing.T) {
+		require.NoError(t, checkUnchanged(nil, indexOf("fleet", entry("fleet", "1", "d"))))
+	})
+
+	t.Run("every version that changed is named", func(t *testing.T) {
+		published := indexOf("fleet", entry("fleet", "1", "d"), entry("fleet", "2", "d"))
+		regenerated := indexOf("fleet", entry("fleet", "1", "x"), entry("fleet", "2", "x"))
+
+		err := checkUnchanged(published, regenerated)
+
+		require.ErrorContains(t, err, "fleet 1 is in index.yaml and its entry no longer matches it: a published version never changes")
+		require.ErrorContains(t, err, "fleet 2 is in index.yaml and its entry no longer matches it: a published version never changes")
+	})
+}

@@ -63,17 +63,26 @@ func copyRepo(t *testing.T) string {
 
 // publishedRepo returns a copy of the fixture as a repository that has already
 // been published: it keeps the index.yaml, and every entry has an archive. The
-// archives are empty files, because only their names are looked at.
+// archives are empty files, and the index has their digest.
 func publishedRepo(t *testing.T) string {
 	t.Helper()
 
 	repo := copyRepo(t)
 	want, err := os.ReadFile(filepath.Join(fixture(t), "index.yaml"))
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "index.yaml"), want, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "index.yaml"), []byte(withDigests(string(want))), 0o600))
 
 	addArchives(t, repo)
 	return repo
+}
+
+// emptyDigest is the sha256 of nothing, which is what the empty archives of
+// these tests have.
+const emptyDigest = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+// withDigests adds the digest of an empty archive to every line of an index.
+func withDigests(index string) string {
+	return regexp.MustCompile(`(?m)^(    description: .*\n)`).ReplaceAllString(index, "${1}    digest: "+emptyDigest+"\n")
 }
 
 // addArchives adds an empty archive for every entry of the repository.
@@ -138,15 +147,17 @@ func TestIndexMatchesTheExpectedFile(t *testing.T) {
 
 func TestIndexGivesTheSameBytesEveryTime(t *testing.T) {
 	repo := copyRepo(t)
-
 	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
 	require.Zero(t, res.ExitCode, res.Stderr)
-	first := readIndex(t, repo)
-	addArchives(t, repo) // what pulling the new versions will do
+
+	// What pulling the new versions will do: they get an archive and a digest.
+	addArchives(t, repo)
+	editFile(t, filepath.Join(repo, "index.yaml"), withDigests)
+	published := readIndex(t, repo)
 
 	res = harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
 	require.Zero(t, res.ExitCode, res.Stderr)
-	require.Equal(t, first, readIndex(t, repo))
+	require.Equal(t, published, readIndex(t, repo))
 }
 
 func TestIndexRefusesTwoEntriesWithTheSameVersion(t *testing.T) {
@@ -495,5 +506,20 @@ func TestIndexDoesNotCheckTheIconOfAPublishedVersion(t *testing.T) {
 	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
 
 	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, before, readIndex(t, repo))
+}
+
+func TestIndexRefusesToChangeAPublishedArchive(t *testing.T) {
+	repo := publishedRepo(t)
+	archive := filepath.Join(repo, "assets", "fleet", "fleet-111.0.3+up0.17.3.tgz")
+	require.NoError(t, os.WriteFile(archive, []byte("not what was published"), 0o600))
+	before := readIndex(t, repo)
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.NotZero(t, res.ExitCode)
+	require.Contains(t, res.Stderr, "fleet 111.0.3+up0.17.3: assets/fleet/fleet-111.0.3+up0.17.3.tgz has changed since it was published")
+	require.Contains(t, res.Stderr, "index.yaml has the digest "+emptyDigest+" and the file has ")
+	require.Contains(t, res.Stderr, "A published archive is never allowed to change")
 	require.Equal(t, before, readIndex(t, repo))
 }

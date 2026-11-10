@@ -60,6 +60,14 @@ func Write(cfg *rules.Config, dir string, opts Options) error {
 	if err != nil {
 		return err
 	}
+	digests, err := archiveDigests(dir, entries.all)
+	if err != nil {
+		return err
+	}
+	if err := checkArchivesUnchanged(published, digests); err != nil {
+		return err
+	}
+	setDigests(entries.all, digests)
 	if err := checkUnchanged(published, entries.all); err != nil {
 		return err
 	}

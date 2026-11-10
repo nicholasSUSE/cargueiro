@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
-	"github.com/nicholasSUSE/cargueiro/internal/version"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 // fetchFunc reads Chart.yaml and values.yaml of the chart at ref.

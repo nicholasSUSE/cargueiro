@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // fakeLister serves the tags it is given and records what it was asked.

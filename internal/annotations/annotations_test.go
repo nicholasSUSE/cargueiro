@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 func TestValidate(t *testing.T) {

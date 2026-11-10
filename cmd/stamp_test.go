@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // stampChartYAML is a chart as the owner's automation leaves it: an upstream

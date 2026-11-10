@@ -8,7 +8,7 @@ import (
 
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 // digestForm is a pinned digest: the algorithm and the hex of the sha256.

@@ -7,7 +7,7 @@ Small, single-purpose tools to package Helm charts and push them to OCI registri
 cargueiro is one self-contained binary. Install the latest release with:
 
 ```
-curl -sfL https://github.com/nicholasSUSE/cargueiro/releases/latest/download/install.sh | sh -
+curl -sfL https://github.com/rancher/cargueiro/releases/latest/download/install.sh | sh -
 ```
 
 It detects your system, downloads the right binary, verifies it against
@@ -18,14 +18,14 @@ macOS (amd64 and arm64) and FreeBSD (amd64).
 Pin a version with `CARGUEIRO_VERSION`:
 
 ```
-curl -sfL https://github.com/nicholasSUSE/cargueiro/releases/latest/download/install.sh | CARGUEIRO_VERSION=v0.2.0 sh -
+curl -sfL https://github.com/rancher/cargueiro/releases/latest/download/install.sh | CARGUEIRO_VERSION=v0.2.0 sh -
 ```
 
 If you would rather not pipe `curl` into `sh`, download the script, read it,
 verify it and run it:
 
 ```
-curl -sfLO https://github.com/nicholasSUSE/cargueiro/releases/latest/download/install.sh
+curl -sfLO https://github.com/rancher/cargueiro/releases/latest/download/install.sh
 less install.sh
 sh install.sh
 ```

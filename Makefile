@@ -1,6 +1,6 @@
 BIN     := bin/cargueiro
 VERSION ?= dev
-LDFLAGS := -X github.com/nicholasSUSE/cargueiro/internal/version.version=$(VERSION)
+LDFLAGS := -X github.com/rancher/cargueiro/internal/version.version=$(VERSION)
 
 PKG     ?= ./...
 

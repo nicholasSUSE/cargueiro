@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/auth"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/auth"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 const testCAPEM = "-----BEGIN CERTIFICATE-----\nMIIBhTCCASugAwIBAgIQIRi6zePL6mKjOipn+dNuaTAKBggqhkjOPQQDAjASMRAw\n-----END CERTIFICATE-----\n"

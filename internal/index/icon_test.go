@@ -9,7 +9,7 @@ import (
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 func TestCheckIcon(t *testing.T) {

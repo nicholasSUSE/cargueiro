@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/chart"
 )
 
 func newCheckArchiveCmd(opts *rootOptions) (*cobra.Command, error) {

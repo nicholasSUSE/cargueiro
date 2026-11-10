@@ -8,7 +8,7 @@ import (
 
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // PullFunc returns the archive of the manifest that manifestDigest pins in repo.

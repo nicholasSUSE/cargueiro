@@ -16,8 +16,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/check"
-	"github.com/nicholasSUSE/cargueiro/tests/internal/harness"
+	"github.com/rancher/cargueiro/internal/check"
+	"github.com/rancher/cargueiro/tests/internal/harness"
 )
 
 func TestMain(m *testing.M) {

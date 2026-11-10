@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/chart"
 )
 
 // fakeClient records the pushes it receives.

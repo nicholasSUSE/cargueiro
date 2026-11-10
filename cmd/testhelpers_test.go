@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nicholasSUSE/cargueiro/internal/auth"
+	"github.com/rancher/cargueiro/internal/auth"
 )
 
 // newTestStore returns a login store in a temporary directory.

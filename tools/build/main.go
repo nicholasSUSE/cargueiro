@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-const module = "github.com/nicholasSUSE/cargueiro"
+const module = "github.com/rancher/cargueiro"
 
 // target is an operating system and an architecture cargueiro is released for.
 type target struct {

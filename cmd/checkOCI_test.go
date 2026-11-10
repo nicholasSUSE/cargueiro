@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/check"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/check"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // fetchCall is one call of the fake fetcher.

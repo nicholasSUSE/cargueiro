@@ -13,7 +13,7 @@ import (
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/chart"
 )
 
 // checkArchive fails unless archive is the chart the entry describes: the

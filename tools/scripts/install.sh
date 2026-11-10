@@ -2,7 +2,7 @@
 # install.sh installs cargueiro, a single self-contained binary, into
 # /usr/local/bin. Run it directly, or pipe it from a release:
 #
-#   curl -sfL https://github.com/nicholasSUSE/cargueiro/releases/latest/download/install.sh | sh -
+#   curl -sfL https://github.com/rancher/cargueiro/releases/latest/download/install.sh | sh -
 #
 # It installs the latest release, or the one named in CARGUEIRO_VERSION, for
 # example CARGUEIRO_VERSION=v0.2.0. It verifies the download against
@@ -16,7 +16,7 @@ set -eu
 # noglob: never let an unquoted expansion turn into a filename glob.
 set -o noglob
 
-REPO="nicholasSUSE/cargueiro"
+REPO="rancher/cargueiro"
 BIN_NAME="cargueiro"
 
 # fail prints a message to stderr and stops, installing nothing.

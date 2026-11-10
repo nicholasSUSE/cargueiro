@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/nicholasSUSE/cargueiro/cmd"
+	"github.com/rancher/cargueiro/cmd"
 )
 
 // rulesYAML is rules.yaml, compiled into the binary.

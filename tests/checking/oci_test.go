@@ -19,8 +19,8 @@ import (
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry/remote"
 
-	"github.com/nicholasSUSE/cargueiro/internal/check"
-	"github.com/nicholasSUSE/cargueiro/tests/internal/harness"
+	"github.com/rancher/cargueiro/internal/check"
+	"github.com/rancher/cargueiro/tests/internal/harness"
 )
 
 const fleetVersion = "110.0.3+up0.16.3"

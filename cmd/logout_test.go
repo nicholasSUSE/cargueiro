@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/auth"
+	"github.com/rancher/cargueiro/internal/auth"
 )
 
 func TestLogoutForgetsTheSavedLogin(t *testing.T) {

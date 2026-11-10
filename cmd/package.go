@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/check"
-	"github.com/nicholasSUSE/cargueiro/internal/integrity"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/check"
+	"github.com/rancher/cargueiro/internal/integrity"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 // defaultOutputDir is where archives are written unless --output-dir is set.

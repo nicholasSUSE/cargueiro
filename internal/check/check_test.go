@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 const rulesFile = `

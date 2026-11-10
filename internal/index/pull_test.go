@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // pullCall is one call to the fake pull function.

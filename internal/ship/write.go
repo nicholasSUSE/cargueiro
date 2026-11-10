@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/nicholasSUSE/cargueiro/internal/fsutil"
+	"github.com/rancher/cargueiro/internal/fsutil"
 )
 
 // nameForm is what the name of a chart and a version may be made of when they

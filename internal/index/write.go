@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/nicholasSUSE/cargueiro/internal/fsutil"
+	"github.com/rancher/cargueiro/internal/fsutil"
 )
 
 // writeArchives writes each archive to assets/<chart>/<chart>-<version>.tgz in

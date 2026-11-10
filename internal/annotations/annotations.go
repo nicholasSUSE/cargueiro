@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 // prefix starts every annotation named in the rules file.

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/cmd"
+	"github.com/rancher/cargueiro/cmd"
 )
 
 func TestTable(t *testing.T) {

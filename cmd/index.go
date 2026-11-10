@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/index"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/index"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 func newIndexCmd(opts *rootOptions) (*cobra.Command, error) {

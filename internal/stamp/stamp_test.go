@@ -11,10 +11,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/check"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/check"
+	"github.com/rancher/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 // loadRules parses the rules file of the repository, as the binary embeds it.

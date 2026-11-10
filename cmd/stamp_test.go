@@ -257,3 +257,79 @@ func TestStampRefusesAnEmptyVersion(t *testing.T) {
 	require.Empty(t, stdout)
 	require.False(t, fake.called, "an empty version that was passed must not turn into a calculation")
 }
+
+func TestStampDryRun(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
+
+	stdout, stderr, err := runStamp(t, dir, "--version", "111.0.0+up0.16.3", "--dry-run")
+
+	require.NoError(t, err)
+	require.Empty(t, stderr)
+	require.Equal(t, "--- Chart.yaml\n+++ Chart.yaml\n"+
+		"@@ -1,7 +1,12 @@\n"+
+		" apiVersion: v2\n"+
+		" name: fleet\n"+
+		"-version: 0.16.3\n"+
+		"+version: 111.0.0+up0.16.3\n"+
+		" appVersion: 0.16.3\n"+
+		" annotations:\n"+
+		"   catalog.cattle.io/certified: rancher\n"+
+		"   catalog.cattle.io/rancher-version: '>= 2.16.0-0 < 2.17.0-0'\n"+
+		"+  helm.sh/images: |\n"+
+		"+    - name: fleet-agent\n"+
+		"+      image: rancher/fleet-agent:v0.16.3\n"+
+		"+    - name: fleet\n"+
+		"+      image: rancher/fleet:v0.16.3\n", stdout)
+
+	onDisk, err := os.ReadFile(filepath.Join(dir, "Chart.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, stampChartYAML, string(onDisk), "a dry run writes nothing")
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 2, "and leaves no temporary file")
+}
+
+func TestStampDryRunWhenNothingChanges(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
+	_, _, err := runStamp(t, dir, "--version", "111.0.0+up0.16.3")
+	require.NoError(t, err)
+
+	stdout, _, err := runStamp(t, dir, "--version", "111.0.0+up0.16.3", "--dry-run")
+
+	require.NoError(t, err)
+	require.Equal(t, "nothing to change\n", stdout)
+}
+
+func TestStampDryRunStillChecksEverything(t *testing.T) {
+	t.Run("a version that breaks the rules", func(t *testing.T) {
+		dir := writeChartDir(t, stampChartYAML, stampValuesYAML)
+
+		stdout, _, err := runStamp(t, dir, "--version", "111.0.0", "--dry-run")
+
+		require.ErrorContains(t, err, `version "111.0.0" must look like 1XY.Z.W+upA.B.C`)
+		require.Empty(t, stdout)
+	})
+
+	t.Run("an image with the tag latest", func(t *testing.T) {
+		dir := writeChartDir(t, stampChartYAML, "image:\n  repository: rancher/fleet\n  tag: latest\n")
+
+		stdout, _, err := runStamp(t, dir, "--version", "111.0.0+up0.16.3", "--dry-run")
+
+		require.ErrorContains(t, err, `values.yaml image: "tag" must not be "latest"`)
+		require.Empty(t, stdout)
+	})
+}
+
+func TestStampDryRunWorksOutTheVersion(t *testing.T) {
+	dir := writeChartDir(t, stampChartYAML, "")
+	fake := &fakeLister{tags: []string{"111.0.4_up0.16.2"}}
+
+	stdout, _, err := runStampWith(t, fake, dir, "--dry-run")
+
+	require.NoError(t, err)
+	require.Contains(t, stdout, "+version: 111.0.5+up0.16.3\n")
+	require.True(t, fake.called, "the registry is read to work the version out")
+	onDisk, err := os.ReadFile(filepath.Join(dir, "Chart.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, stampChartYAML, string(onDisk))
+}

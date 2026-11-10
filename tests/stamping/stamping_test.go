@@ -373,3 +373,52 @@ func TestStampWorksOutTheVersionFromTheRegistry(t *testing.T) {
 		require.Contains(t, res.Stdout, "-> 111.0.0+up1.5.4\n")
 	})
 }
+
+// TestStampDryRunShowsWhatStampThenDoes runs the same stamp twice, first with
+// --dry-run and then for real. The dry run writes nothing, and every line it
+// puts in is in the file after the real run, every line it takes out is gone.
+func TestStampDryRunShowsWhatStampThenDoes(t *testing.T) {
+	dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+	before := readChartYAML(t, dir)
+
+	dry := stampOffline(t, dir, "--version", "111.0.0+up1.5.4", "--dry-run")
+
+	require.Zero(t, dry.ExitCode, dry.Stderr)
+	require.True(t, strings.HasPrefix(dry.Stdout, "--- Chart.yaml\n+++ Chart.yaml\n@@ "), dry.Stdout)
+	require.Equal(t, before, readChartYAML(t, dir), "a dry run writes nothing")
+
+	written := stampOffline(t, dir, "--version", "111.0.0+up1.5.4")
+	require.Zero(t, written.ExitCode, written.Stderr)
+	after := readChartYAML(t, dir)
+
+	var put, took int
+	for _, line := range strings.Split(dry.Stdout, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++"), strings.HasPrefix(line, "---"):
+		case strings.HasPrefix(line, "+"):
+			put++
+			require.Contains(t, after+"\n", line[1:]+"\n", "a line the dry run puts in")
+		case strings.HasPrefix(line, "-"):
+			took++
+			require.NotContains(t, after+"\n", "\n"+line[1:]+"\n", "a line the dry run takes out")
+		}
+	}
+	require.Equal(t, 1, took)
+	require.Equal(t, 10, put, "the version, the annotation line, and two lines for each of the four images")
+
+	again := stampOffline(t, dir, "--version", "111.0.0+up1.5.4", "--dry-run")
+	require.Zero(t, again.ExitCode, again.Stderr)
+	require.Equal(t, "nothing to change\n", again.Stdout)
+}
+
+func TestStampDryRunNeverWritesWhenItFails(t *testing.T) {
+	dir := copyChart(t, "rancher-webhook-upstream", "rancher-webhook")
+	before := readChartYAML(t, dir)
+
+	res := stampOffline(t, dir, "--version", "111.0.4+up0.11.4", "--dry-run")
+
+	require.Equal(t, 1, res.ExitCode)
+	require.Empty(t, res.Stdout)
+	require.Contains(t, res.Stderr, `values.yaml image: "tag" must not be "latest"`)
+	require.Equal(t, before, readChartYAML(t, dir))
+}

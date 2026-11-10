@@ -34,6 +34,10 @@ type Options struct {
 	// Registry replaces the staging registry of the chart's edition that the
 	// URLs of new versions must point to, as host[:port]/path.
 	Registry string
+	// PlainHTTP talks HTTP to the registry the archives are pulled from.
+	PlainHTTP bool
+	// Pull reads an archive from the registry. It defaults to oci.PullArchive.
+	Pull PullFunc
 }
 
 // Write builds the index of the charts repository in dir and writes it to

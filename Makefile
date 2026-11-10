@@ -18,7 +18,7 @@ REGISTRY_USER     := admin
 REGISTRY_PASSWORD := cargueiro-test
 
 .DEFAULT_GOAL := help
-.PHONY: help build release-build test test-unit test-e2e test-release test-install registry-up registry-down registry-status vet lint lint-sh fmt docs clean
+.PHONY: help build release-build test test-unit test-e2e test-release test-install test-sh registry-up registry-down registry-status vet lint lint-sh fmt docs clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -93,8 +93,11 @@ vet: ## Run go vet
 lint: ## Run golangci-lint (PKG=./path to scope)
 	golangci-lint run $(PKG)
 
-lint-sh: ## Lint install.sh with shellcheck
-	shellcheck tools/scripts/install.sh
+lint-sh: ## Lint the scripts in tools/scripts with shellcheck
+	shellcheck tools/scripts/*.sh
+
+test-sh: ## Test the helper scripts in tools/scripts
+	tools/scripts/mise-version_test.sh
 
 fmt: ## Format code with golangci-lint (PKG=./path to scope)
 	golangci-lint fmt $(PKG)

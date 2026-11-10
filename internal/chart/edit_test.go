@@ -434,3 +434,142 @@ func TestSetAnnotationOnRealCharts(t *testing.T) {
 		})
 	}
 }
+
+func TestSetIcon(t *testing.T) {
+	const icon = "file://assets/logos/fleet.svg"
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "a plain value",
+			in:   "name: fleet\nicon: https://charts.rancher.io/assets/logos/fleet.svg\nversion: 1.0.0\n",
+			want: "name: fleet\nicon: " + icon + "\nversion: 1.0.0\n",
+		},
+		{
+			name: "a double quoted value",
+			in:   "name: fleet\nicon: \"https://example.com/fleet.png\"\nversion: 1.0.0\n",
+			want: "name: fleet\nicon: " + icon + "\nversion: 1.0.0\n",
+		},
+		{
+			name: "a single quoted value",
+			in:   "name: fleet\nicon: 'https://example.com/fleet.png'\n",
+			want: "name: fleet\nicon: " + icon + "\n",
+		},
+		{
+			name: "a comment after the value is kept",
+			in:   "name: fleet\nicon: https://example.com/fleet.png  # the logo\n",
+			want: "name: fleet\nicon: " + icon + "  # the logo\n",
+		},
+		{
+			name: "the spacing after the colon is kept",
+			in:   "name: fleet\nicon:    https://example.com/fleet.png\n",
+			want: "name: fleet\nicon:    " + icon + "\n",
+		},
+		{
+			name: "the line endings are kept",
+			in:   "name: fleet\r\nicon: https://example.com/fleet.png\r\nversion: 1.0.0\r\n",
+			want: "name: fleet\r\nicon: " + icon + "\r\nversion: 1.0.0\r\n",
+		},
+		{
+			name: "an icon in annotations is not the icon",
+			in:   "name: fleet\nannotations:\n  icon: x\nicon: https://example.com/fleet.png\n",
+			want: "name: fleet\nannotations:\n  icon: x\nicon: " + icon + "\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SetIcon([]byte(tt.in), icon)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, string(got))
+		})
+	}
+}
+
+func TestSetIconFails(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		icon    string
+		wantErr string
+	}{
+		{
+			name:    "no icon",
+			in:      "name: fleet\nversion: 1.0.0\n",
+			icon:    "file://assets/logos/fleet.svg",
+			wantErr: "the Chart.yaml has no icon",
+		},
+		{
+			name:    "an icon only under annotations",
+			in:      "name: fleet\nannotations:\n  icon: x\n",
+			icon:    "file://assets/logos/fleet.svg",
+			wantErr: "the Chart.yaml has no icon",
+		},
+		{
+			name:    "two icons",
+			in:      "icon: a\nname: fleet\nicon: b\n",
+			icon:    "file://assets/logos/fleet.svg",
+			wantErr: "the Chart.yaml has more than one icon",
+		},
+		{
+			name:    "an icon that is not a value on one line",
+			in:      "name: fleet\nicon: >\n  https://example.com/fleet.png\n",
+			icon:    "file://assets/logos/fleet.svg",
+			wantErr: "the icon line of the Chart.yaml is not a value on one line",
+		},
+		{
+			name:    "an icon with no value",
+			in:      "name: fleet\nicon:\n",
+			icon:    "file://assets/logos/fleet.svg",
+			wantErr: "the icon line of the Chart.yaml is not a value on one line",
+		},
+		{
+			name:    "an icon that would not be read as text",
+			in:      "name: fleet\nicon: https://example.com/fleet.png\n",
+			icon:    "123",
+			wantErr: `would not read "123" as the text of the icon`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SetIcon([]byte(tt.in), tt.icon)
+
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, got)
+		})
+	}
+}
+
+func TestSetIconOnRealCharts(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		from string
+	}{
+		{
+			name: "the compliance chart",
+			path: "rancher-compliance-upstream/src/rancher-compliance/Chart.yaml",
+			from: "icon: https://charts.rancher.io/assets/logos/rancher-compliance.svg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join("..", "..", "tests", "data", "charts", tt.path))
+			require.NoError(t, err)
+			original := string(data)
+			require.Contains(t, original, "\n"+tt.from+"\n")
+
+			got, err := SetIcon(data, "file://assets/logos/rancher-compliance.svg")
+
+			require.NoError(t, err)
+			want := replaceOnce(original, "\n"+tt.from+"\n", "\nicon: file://assets/logos/rancher-compliance.svg\n")
+			require.Equal(t, want, string(got))
+		})
+	}
+}

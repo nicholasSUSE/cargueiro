@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -69,6 +70,7 @@ func (f *fakeRegistry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sent = digest.FromBytes(resp.body).String()
 		}
 		w.Header().Set("Docker-Content-Digest", sent)
+		w.Header().Set("Content-Length", strconv.Itoa(len(resp.body)))
 		if r.Method == http.MethodHead {
 			w.WriteHeader(http.StatusOK)
 			return

@@ -9,11 +9,14 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// versionLine matches the top-level version key of a Chart.yaml on one line:
-// the key, its value (plain, or in single or double quotes) and an optional
-// comment. Indented keys, such as one under annotations, do not match, and
-// neither do appVersion or kubeVersion.
-var versionLine = regexp.MustCompile(`^version:([ \t]+)("[^"]*"|'[^']*'|[^\s#"'|>][^\s#]*)([ \t]*#.*)?$`)
+// scalarLine returns the expression that matches the top-level key of a
+// Chart.yaml on one line: the key, its value (plain, or in single or double
+// quotes) and an optional comment. Indented keys, such as one under annotations,
+// do not match, and neither do keys that only start with the same letters, such
+// as appVersion for version.
+func scalarLine(key string) *regexp.Regexp {
+	return regexp.MustCompile(`^` + regexp.QuoteMeta(key) + `:([ \t]+)("[^"]*"|'[^']*'|[^\s#"'|>][^\s#]*)([ \t]*#.*)?$`)
+}
 
 // SetVersion returns chartYAML with its version changed to version. Only that
 // line changes: every other byte, comments and line endings included, stays as
@@ -24,26 +27,32 @@ var versionLine = regexp.MustCompile(`^version:([ \t]+)("[^"]*"|'[^']*'|[^\s#"'|
 // result would not read back as the text of the version asked for: a version
 // such as 123 would be a number.
 func SetVersion(chartYAML []byte, version string) ([]byte, error) {
+	return setScalar(chartYAML, "version", version)
+}
+
+// setScalar returns chartYAML with the value of the top-level key changed to
+// value, as SetVersion does for the version.
+func setScalar(chartYAML []byte, key, value string) ([]byte, error) {
 	lines := bytes.SplitAfter(chartYAML, []byte("\n"))
 
 	found := -1
 	for i, line := range lines {
-		if !bytes.HasPrefix(line, []byte("version:")) {
+		if !bytes.HasPrefix(line, []byte(key+":")) {
 			continue
 		}
 		if found >= 0 {
-			return nil, errors.New("the Chart.yaml has more than one version")
+			return nil, fmt.Errorf("the Chart.yaml has more than one %s", key)
 		}
 		found = i
 	}
 	if found < 0 {
-		return nil, errors.New("the Chart.yaml has no version")
+		return nil, fmt.Errorf("the Chart.yaml has no %s", key)
 	}
 
 	line, ending := splitEnding(lines[found])
-	match := versionLine.FindSubmatch(line)
+	match := scalarLine(key).FindSubmatch(line)
 	if match == nil {
-		return nil, fmt.Errorf("the version line of the Chart.yaml is not a value on one line: %q", line)
+		return nil, fmt.Errorf("the %s line of the Chart.yaml is not a value on one line: %q", key, line)
 	}
 
 	var edited bytes.Buffer
@@ -52,21 +61,19 @@ func SetVersion(chartYAML []byte, version string) ([]byte, error) {
 			edited.Write(l)
 			continue
 		}
-		edited.WriteString("version:")
+		edited.WriteString(key + ":")
 		edited.Write(match[1])
-		edited.WriteString(version)
+		edited.WriteString(value)
 		edited.Write(match[3])
 		edited.Write(ending)
 	}
 
-	var back struct {
-		Version yaml.Node `yaml:"version"`
-	}
+	var back map[string]yaml.Node
 	if err := yaml.Unmarshal(edited.Bytes(), &back); err != nil {
-		return nil, fmt.Errorf("the Chart.yaml would not be valid YAML with version %q: %w", version, err)
+		return nil, fmt.Errorf("the Chart.yaml would not be valid YAML with %s %q: %w", key, value, err)
 	}
-	if back.Version.Tag != "!!str" || back.Version.Value != version {
-		return nil, fmt.Errorf("the Chart.yaml would not read %q as the text of the version", version)
+	if node := back[key]; node.Tag != "!!str" || node.Value != value {
+		return nil, fmt.Errorf("the Chart.yaml would not read %q as the text of the %s", value, key)
 	}
 	return edited.Bytes(), nil
 }

@@ -3,6 +3,9 @@ package chart
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
@@ -20,7 +23,8 @@ import (
 // is what both sides of a comparison have. A dependency is a chart of its own,
 // whether it is a directory or a packaged .tgz in charts/, because Helm writes
 // every one as a directory in the archive: its files are named
-// charts/<name>/<file>.
+// charts/<name>/<file>. The provenance files (.prov) that sit next to the
+// dependencies in charts/ are kept by Helm and compared as files.
 func DirManifest(dir string) (*integrity.Manifest, error) {
 	c, err := loader.LoadDir(dir)
 	if err != nil {
@@ -61,8 +65,9 @@ func addChart(m *integrity.Manifest, c *chartv2.Chart, prefix string) error {
 
 	for _, f := range c.Raw {
 		// Chart.yaml is the metadata above, and what is under charts/ belongs to
-		// the dependencies, which are read as charts below.
-		if f.Name == "Chart.yaml" || strings.HasPrefix(f.Name, "charts/") {
+		// the dependencies, which are read as charts below. Helm keeps the .prov
+		// files of charts/ as they are, and drops everything else there.
+		if f.Name == "Chart.yaml" || (strings.HasPrefix(f.Name, "charts/") && !strings.HasSuffix(f.Name, ".prov")) {
 			continue
 		}
 		if err := m.Add(prefix+f.Name, integrity.Bytes(f.Data)); err != nil {
@@ -76,4 +81,39 @@ func addChart(m *integrity.Manifest, c *chartv2.Chart, prefix string) error {
 		}
 	}
 	return nil
+}
+
+// LeftOut returns the files of the directory that are not in the manifest of
+// the chart, and are not a dependency Helm reads as a chart: the ones that
+// .helmignore lists, and the ones Helm drops. Nothing is wrong with them, but a
+// file that is not in the archive should be seen, so the caller can say which.
+// The names are slash paths, sorted.
+func LeftOut(dir string, m *integrity.Manifest) ([]string, error) {
+	listed := make(map[string]bool, m.Len())
+	for _, name := range m.Names() {
+		listed[name] = true
+	}
+
+	var left []string
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		name := filepath.ToSlash(rel)
+		// A packaged dependency is read as a chart, so its files are in the manifest.
+		if listed[name] || (filepath.Dir(name) == "charts" && filepath.Ext(name) == ".tgz") {
+			return nil
+		}
+		left = append(left, name)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list the files in %s: %w", dir, err)
+	}
+	sort.Strings(left)
+	return left, nil
 }

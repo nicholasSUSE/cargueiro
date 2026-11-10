@@ -138,6 +138,89 @@ func TestADependencyThatIsAPackagedArchiveIsReadAsTheDirectoryHelmWrites(t *test
 	require.Equal(t, []string{"Chart.yaml", "charts/sub/Chart.yaml", "charts/sub/templates/s.yaml", "templates/a.yaml"}, got.Names())
 }
 
+func TestProvenanceFilesAreCompared(t *testing.T) {
+	sub := t.TempDir()
+	writeTree(t, sub, map[string]string{
+		"Chart.yaml":       "apiVersion: v2\nname: sub\nversion: 0.1.0\n",
+		"templates/s.yaml": "kind: S\n",
+	})
+	data, err := os.ReadFile(packageDir(t, sub))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"Chart.yaml":                "apiVersion: v2\nname: top\nversion: 1.0.0\ndependencies:\n  - name: sub\n    version: 0.1.0\n",
+		"templates/a.yaml":          "kind: A\n",
+		"charts/sub-0.1.0.tgz.prov": "a signature\n",
+		"charts/.gitkeep":           "",
+		"charts/sub-0.1.0.tgz":      string(data),
+	})
+
+	got := requireSame(t, dir)
+
+	require.Equal(t, []string{"Chart.yaml", "charts/sub-0.1.0.tgz.prov", "charts/sub/Chart.yaml", "charts/sub/templates/s.yaml", "templates/a.yaml"}, got.Names(),
+		"the .prov file is compared, the .gitkeep that Helm drops is not")
+
+	// A signature changed after the archive was made.
+	archive := packageDir(t, dir)
+	writeTree(t, dir, map[string]string{"charts/sub-0.1.0.tgz.prov": "another signature\n"})
+	fromDir, err := DirManifest(dir)
+	require.NoError(t, err)
+	fromArchive, err := ArchiveManifest(archive)
+	require.NoError(t, err)
+
+	diffs := integrity.Compare(fromDir, fromArchive)
+	require.Len(t, diffs, 1)
+	require.Equal(t, "charts/sub-0.1.0.tgz.prov", diffs[0].Name)
+	require.Equal(t, integrity.Changed, diffs[0].Kind)
+}
+
+func TestLeftOut(t *testing.T) {
+	sub := t.TempDir()
+	writeTree(t, sub, map[string]string{"Chart.yaml": "apiVersion: v2\nname: sub\nversion: 0.1.0\n"})
+	data, err := os.ReadFile(packageDir(t, sub))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"Chart.yaml":           "apiVersion: v2\nname: top\nversion: 1.0.0\ndependencies:\n  - name: sub\n    version: 0.1.0\n",
+		".helmignore":          "*.bak\nnotes/\n",
+		"values.yaml":          "a: 1\n",
+		"templates/a.yaml":     "kind: A\n",
+		"templates/a.bak":      "old\n",
+		"notes/todo.txt":       "todo\n",
+		"charts/.gitkeep":      "",
+		"charts/sub-0.1.0.tgz": string(data),
+	})
+	m, err := DirManifest(dir)
+	require.NoError(t, err)
+
+	got, err := LeftOut(dir, m)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"charts/.gitkeep", "notes/todo.txt", "templates/a.bak"}, got,
+		"the files .helmignore lists and the one Helm drops, but not the dependency or the files that are compared")
+}
+
+func TestLeftOutWhenNothingIs(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{"Chart.yaml": "apiVersion: v2\nname: top\nversion: 1.0.0\n"})
+	m, err := DirManifest(dir)
+	require.NoError(t, err)
+
+	got, err := LeftOut(dir, m)
+
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+func TestLeftOutOfADirectoryThatDoesNotExist(t *testing.T) {
+	got, err := LeftOut(filepath.Join(t.TempDir(), "nope"), integrity.NewManifest())
+
+	require.ErrorContains(t, err, "list the files in")
+	require.Nil(t, got)
+}
+
 func TestTheRealFleetChartsHaveTheSameFilesInTheirArchive(t *testing.T) {
 	for _, name := range []string{"fleet", "fleet-agent", "fleet-crd"} {
 		t.Run(name, func(t *testing.T) {

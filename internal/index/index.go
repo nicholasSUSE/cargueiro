@@ -2,11 +2,12 @@
 //
 // An entry is the file entries/<chart>/<version>.yaml: the metadata of one chart
 // version and the URL it is pulled from, as `ship` leaves it. The index is only
-// a function of the entries, so it is the same bytes every time: the entries
-// are put in a fixed order and no time of day is written.
+// a function of the entries and the archives in assets/, so it is the same bytes
+// every time: the entries are put in a fixed order and no time of day is written.
 package index
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -44,9 +45,12 @@ type Options struct {
 // dir/index.yaml. Hidden versions are not written to it.
 //
 // Nothing is written unless every entry is valid, the entries, the index that is
-// already there and assets/ agree, no published version has changed, and the
-// URLs and icons of the new versions are right.
-func Write(cfg *rules.Config, dir string, opts Options) error {
+// already there and assets/ agree, no published version or archive has changed,
+// the URLs and icons of the new versions are right, and the archive of every new
+// version has been pulled and is the chart its entry describes. The archives are
+// written to assets/ before the index is, and are taken back if the index cannot
+// be written.
+func Write(ctx context.Context, cfg *rules.Config, dir string, opts Options) error {
 	entries, err := readEntries(cfg, dir)
 	if err != nil {
 		return err
@@ -82,7 +86,24 @@ func Write(cfg *rules.Config, dir string, opts Options) error {
 		return err
 	}
 
-	return entries.visible().WriteFile(filepath.Join(dir, File), 0o600)
+	archives, err := pullAdded(ctx, entries.all, plan.Add, opts)
+	if err != nil {
+		return err
+	}
+	pulled := make(map[Ref]string, len(archives))
+	for ref, archive := range archives {
+		pulled[ref] = digestOf(archive)
+	}
+	setDigests(entries.all, pulled)
+
+	undo, err := writeArchives(dir, archives)
+	if err != nil {
+		return err
+	}
+	if err := entries.visible().WriteFile(filepath.Join(dir, File), 0o600); err != nil {
+		return errors.Join(err, undo())
+	}
+	return nil
 }
 
 // entries are the entries of a charts repository, as an index and as the

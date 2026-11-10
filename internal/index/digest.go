@@ -53,6 +53,12 @@ func fileDigest(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// digestOf returns the sha256 of data, in hex.
+func digestOf(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
 // setDigests puts the digest of each version in digests on its entry in all.
 func setDigests(all *repo.IndexFile, digests map[Ref]string) {
 	for name, versions := range all.Entries {

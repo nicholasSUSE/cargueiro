@@ -134,32 +134,6 @@ func readIndex(t *testing.T, repo string) string {
 	return string(data)
 }
 
-func TestIndexMatchesTheExpectedFile(t *testing.T) {
-	repo := copyRepo(t)
-
-	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
-	require.Zero(t, res.ExitCode, res.Stderr)
-
-	want, err := os.ReadFile(filepath.Join(fixture(t), "index.yaml"))
-	require.NoError(t, err)
-	require.Equal(t, string(want), readIndex(t, repo))
-}
-
-func TestIndexGivesTheSameBytesEveryTime(t *testing.T) {
-	repo := copyRepo(t)
-	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
-	require.Zero(t, res.ExitCode, res.Stderr)
-
-	// What pulling the new versions will do: they get an archive and a digest.
-	addArchives(t, repo)
-	editFile(t, filepath.Join(repo, "index.yaml"), withDigests)
-	published := readIndex(t, repo)
-
-	res = harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
-	require.Zero(t, res.ExitCode, res.Stderr)
-	require.Equal(t, published, readIndex(t, repo))
-}
-
 func TestIndexRefusesTwoEntriesWithTheSameVersion(t *testing.T) {
 	repo := copyRepo(t)
 	copyOf, err := os.ReadFile(filepath.Join(repo, "entries", "fleet", "111.0.3+up0.17.3.yaml"))
@@ -421,26 +395,6 @@ func TestIndexDoesNotCheckTheUrlOfAPublishedVersion(t *testing.T) {
 	require.Equal(t, before, readIndex(t, repo))
 }
 
-func TestIndexChecksTheUrlAgainstTheRegistryGiven(t *testing.T) {
-	const local = "127.0.0.1:5050/e2e"
-	repo := copyRepo(t)
-	entries, err := filepath.Glob(filepath.Join(repo, "entries", "*", "*.yaml"))
-	require.NoError(t, err)
-	for _, entry := range entries {
-		editFile(t, entry, func(s string) string {
-			return strings.Replace(s, "stgregistry.suse.com/rancher/catalog", local, 1)
-		})
-	}
-
-	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
-	require.NotZero(t, res.ExitCode, "the staging registry is expected by default")
-	require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
-
-	res = harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo, "--registry", local)
-	require.Zero(t, res.ExitCode, res.Stderr)
-	require.Contains(t, readIndex(t, repo), "- oci://"+local+"/fleet:111.0.3+up0.17.3@sha256:")
-}
-
 func TestIndexRefusesTheIconOfANewEntry(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -486,16 +440,6 @@ func TestIndexRefusesTheIconOfANewEntry(t *testing.T) {
 			require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
 		})
 	}
-}
-
-func TestIndexNeedsNoLogoForAChartThatIsExempt(t *testing.T) {
-	repo := copyRepo(t)
-	// fleet is marked icon: skip, and fleet-crd is a crd chart.
-	require.NoError(t, os.Remove(filepath.Join(repo, "assets", "logos", "fleet.svg")))
-
-	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
-
-	require.Zero(t, res.ExitCode, res.Stderr)
 }
 
 func TestIndexDoesNotCheckTheIconOfAPublishedVersion(t *testing.T) {

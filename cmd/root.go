@@ -99,7 +99,11 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd)
+	indexCmd, err := newIndexCmd(opts)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd, indexCmd)
 
 	return root, nil
 }

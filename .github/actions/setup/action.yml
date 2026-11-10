@@ -1,0 +1,69 @@
+name: Set up tools
+description: Installs the tools a job asks for, at the versions pinned in mise.toml.
+
+inputs:
+  go:
+    description: Install Go.
+    default: "false"
+  golangci-lint:
+    description: Install golangci-lint.
+    default: "false"
+  helm:
+    description: Install Helm.
+    default: "false"
+  shellcheck:
+    description: Install shellcheck.
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Read the pinned versions
+      id: versions
+      shell: bash
+      run: |
+        for tool in go golangci-lint helm shellcheck; do
+          echo "$tool=$("$GITHUB_WORKSPACE/tools/scripts/mise-version.sh" "$tool" "$GITHUB_WORKSPACE/mise.toml")" >> "$GITHUB_OUTPUT"
+        done
+
+    # go.mod and mise.toml are both read by developers, so the Go version comes
+    # from mise.toml only.
+    - if: inputs.go == 'true' || inputs.golangci-lint == 'true'
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: ${{ steps.versions.outputs.go }}
+
+    - if: inputs.golangci-lint == 'true'
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+      with:
+        version: v${{ steps.versions.outputs.golangci-lint }}
+        install-only: true
+
+    - if: inputs.helm == 'true'
+      uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+      with:
+        version: v${{ steps.versions.outputs.helm }}
+
+    # shellcheck is downloaded and checked against shellcheck.sha256, which
+    # names the archive of the version in mise.toml. Changing the pin without
+    # the checksum fails here.
+    - if: inputs.shellcheck == 'true'
+      shell: bash
+      env:
+        VERSION: ${{ steps.versions.outputs.shellcheck }}
+        CHECKSUMS: ${{ github.action_path }}/shellcheck.sha256
+      run: |
+        archive="shellcheck-v${VERSION}.linux.x86_64.tar.xz"
+        dir="$RUNNER_TEMP/shellcheck"
+        mkdir -p "$dir"
+        curl --fail --silent --show-error --location \
+          --output "$dir/$archive" \
+          "https://github.com/koalaman/shellcheck/releases/download/v${VERSION}/${archive}"
+        want=$(awk -v f="$archive" '$2 == f { print $1 }' "$CHECKSUMS")
+        if [ -z "$want" ]; then
+          echo "::error::$CHECKSUMS has no checksum for $archive; update it with the pin in mise.toml"
+          exit 1
+        fi
+        echo "$want  $dir/$archive" | sha256sum --check --strict -
+        tar -xJf "$dir/$archive" -C "$dir" --strip-components=1 "shellcheck-v${VERSION}/shellcheck"
+        echo "$dir" >> "$GITHUB_PATH"

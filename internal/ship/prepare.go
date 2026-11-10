@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/check"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
-	"github.com/nicholasSUSE/cargueiro/internal/version"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/check"
+	"github.com/rancher/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 // ResolveFunc turns the tag of ref into the digest of its manifest.

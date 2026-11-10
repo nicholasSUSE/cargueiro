@@ -15,7 +15,7 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/errcode"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/chart"
 )
 
 // What a registry may send is not trusted: the largest manifest and the

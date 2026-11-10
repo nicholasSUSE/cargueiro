@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/nicholasSUSE/cargueiro/internal/version"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 // tagForm is the form OCI allows for a tag.

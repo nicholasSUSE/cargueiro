@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart/archivetest"
+	"github.com/rancher/cargueiro/internal/chart/archivetest"
 )
 
 // binEnv names the environment variable holding the path of the cargueiro

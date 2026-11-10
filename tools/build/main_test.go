@@ -33,7 +33,7 @@ func TestCommand(t *testing.T) {
 		"go", "build",
 		"-trimpath",
 		"-buildvcs=false",
-		"-ldflags", "-s -w -X github.com/nicholasSUSE/cargueiro/internal/version.version=v0.1.0",
+		"-ldflags", "-s -w -X github.com/rancher/cargueiro/internal/version.version=v0.1.0",
 		"-o", filepath.Join("out", "cargueiro_darwin_arm64"),
 		".",
 	}, cmd.Args)

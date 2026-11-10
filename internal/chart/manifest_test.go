@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/integrity"
+	"github.com/rancher/cargueiro/internal/integrity"
 )
 
 // writeTree writes files, named by their path inside dir.

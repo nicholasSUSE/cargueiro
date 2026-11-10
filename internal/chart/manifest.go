@@ -11,7 +11,7 @@ import (
 	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 	"helm.sh/helm/v4/pkg/chart/v2/loader"
 
-	"github.com/nicholasSUSE/cargueiro/internal/integrity"
+	"github.com/rancher/cargueiro/internal/integrity"
 )
 
 // DirManifest returns the digest of every file that Helm puts in the archive of

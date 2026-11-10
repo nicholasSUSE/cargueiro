@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/nicholasSUSE/cargueiro/internal/auth"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/auth"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // credentials are the registry credentials a command will use.

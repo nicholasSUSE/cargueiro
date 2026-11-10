@@ -19,13 +19,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Tool versions come from mise.toml; the version of mise itself is pinned
-      # here so a new release of mise cannot change a run.
-      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+      - uses: ./.github/actions/setup
         with:
-          version: 2026.10.8
-          install: true
-          cache: true
+          golangci-lint: true
       - name: Format
         run: make fmt
       - name: Format changed nothing
@@ -45,11 +41,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+      - uses: ./.github/actions/setup
         with:
-          version: 2026.10.8
-          install: true
-          cache: true
+          go: true
       - name: Unit tests
         run: make test-unit
 
@@ -59,11 +53,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+      - uses: ./.github/actions/setup
         with:
-          version: 2026.10.8
-          install: true
-          cache: true
+          go: true
+          helm: true
       # Starts the local registries with the Docker on the runner, and stops
       # them again.
       - name: E2E tests
@@ -75,11 +68,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+      - uses: ./.github/actions/setup
         with:
-          version: 2026.10.8
-          install: true
-          cache: true
+          go: true
       # Builds every release target and checks each binary, so a target cannot
       # break unnoticed. Nothing is published.
       - name: Release build
@@ -91,13 +82,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+      - uses: ./.github/actions/setup
         with:
-          version: 2026.10.8
-          install: true
-          cache: true
-      - name: Lint install.sh
+          shellcheck: true
+      - name: Lint the scripts
         run: make lint-sh
+      - name: Test the scripts
+        run: make test-sh
 
   install:
     name: install test
@@ -105,11 +96,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+      - uses: ./.github/actions/setup
         with:
-          version: 2026.10.8
-          install: true
-          cache: true
+          go: true
       # Runs install.sh against a local fake release, so it needs no network and
       # installs nothing on the runner outside a temporary directory.
       - name: Install test

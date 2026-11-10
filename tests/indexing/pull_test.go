@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/tests/internal/harness"
+	"github.com/rancher/cargueiro/tests/internal/harness"
 )
 
 // chartRef names one version of one chart of the fixture.

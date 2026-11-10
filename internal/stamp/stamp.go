@@ -14,11 +14,11 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/nicholasSUSE/cargueiro/internal/annotations"
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
-	"github.com/nicholasSUSE/cargueiro/internal/version"
+	"github.com/rancher/cargueiro/internal/annotations"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 // helmImages is the annotation that lists the images of a chart.

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/version"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 func newVersionCmd() (*cobra.Command, error) {

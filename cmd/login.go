@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/auth"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/auth"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // verifyFunc checks credentials against the registry at host.

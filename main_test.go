@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 // TestEmbeddedRules makes sure the binary carries the rules file at the root of

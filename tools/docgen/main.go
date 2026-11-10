@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/nicholasSUSE/cargueiro/cmd"
-	"github.com/nicholasSUSE/cargueiro/internal/docgen"
+	"github.com/rancher/cargueiro/cmd"
+	"github.com/rancher/cargueiro/internal/docgen"
 )
 
 func main() {

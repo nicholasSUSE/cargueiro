@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/cmd/docs"
+	"github.com/rancher/cargueiro/cmd/docs"
 )
 
 // isBuiltin reports whether name is a command added by cobra itself, which

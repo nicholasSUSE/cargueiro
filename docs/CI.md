@@ -41,9 +41,9 @@ Only the publishing job can write to the repository. The input is passed to the 
 
 ## Tool versions
 
-`mise.toml` is the only place with tool versions. The workflow installs them with `jdx/mise-action`, so Go, golangci-lint and Helm are the ones you use locally. There is no `go-version` in the workflow. Helm has to be the version of the `helm.sh/helm/v4` library in `go.mod`, and a test fails if it is not.
+`mise.toml` is the only place with tool versions. A local action, `.github/actions/setup`, reads them with `tools/scripts/mise-version.sh` and installs Go, golangci-lint and Helm with their own setup actions, so the ones in CI are the ones you use locally. There is no version in the workflows. Helm has to be the version of the `helm.sh/helm/v4` library in `go.mod`, and a test fails if it is not.
 
-The version of mise itself is pinned in the workflow (`version:` of the action), so a new mise release cannot change a run. Raise it by hand when needed.
+shellcheck is downloaded from its release and checked against a sha256 kept next to the action. The checksum names the archive of one version, so changing the pin in `mise.toml` without the checksum fails the job. The actions the setup uses are pinned by commit, and the organization only allows some actions, which is why mise has no action of its own here.
 
 ## Pinned actions
 

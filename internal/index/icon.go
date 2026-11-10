@@ -10,7 +10,7 @@ import (
 
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/rules"
 )
 
 // iconPrefix starts the icon of an entry whose logo is kept in the repository.

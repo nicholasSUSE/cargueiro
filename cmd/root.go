@@ -9,12 +9,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/auth"
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/checkout"
-	"github.com/nicholasSUSE/cargueiro/internal/logger"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
-	"github.com/nicholasSUSE/cargueiro/internal/ship"
+	"github.com/rancher/cargueiro/internal/auth"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/checkout"
+	"github.com/rancher/cargueiro/internal/logger"
+	"github.com/rancher/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/ship"
 )
 
 // rootOptions holds state shared by all subcommands.

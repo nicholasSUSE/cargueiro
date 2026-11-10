@@ -1,4 +1,4 @@
-module github.com/nicholasSUSE/cargueiro
+module github.com/rancher/cargueiro
 
 go 1.27.2
 

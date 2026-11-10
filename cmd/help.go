@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/cmd/docs"
+	"github.com/rancher/cargueiro/cmd/docs"
 )
 
 // applyDoc sets the help text of cmd from the embedded doc named name.

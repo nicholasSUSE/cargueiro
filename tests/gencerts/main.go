@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nicholasSUSE/cargueiro/tests/internal/certs"
+	"github.com/rancher/cargueiro/tests/internal/certs"
 )
 
 func main() {

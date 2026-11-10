@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/check"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
-	"github.com/nicholasSUSE/cargueiro/internal/ship"
+	"github.com/rancher/cargueiro/internal/check"
+	"github.com/rancher/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/ship"
 )
 
 // fakePreparer answers with the shipment it is given and records what it was asked.

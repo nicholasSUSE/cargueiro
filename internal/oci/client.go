@@ -14,7 +14,7 @@ import (
 	"oras.land/oras-go/v2/errdef"
 	"oras.land/oras-go/v2/registry/remote/auth"
 
-	"github.com/nicholasSUSE/cargueiro/internal/version"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 // ErrInvalidOptions is returned when client options contradict each other.

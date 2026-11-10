@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/auth"
-	"github.com/nicholasSUSE/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/auth"
+	"github.com/rancher/cargueiro/internal/oci"
 )
 
 // fakePusher records pushes and fails for archives listed in failing.

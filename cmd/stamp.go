@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
-	"github.com/nicholasSUSE/cargueiro/internal/stamp"
+	"github.com/rancher/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/stamp"
 )
 
 func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/chart"
 )
 
 // stampedChartYAML is stampChartYAML after stamp: the final version, and the

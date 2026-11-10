@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholasSUSE/cargueiro/tests/internal/harness"
+	"github.com/rancher/cargueiro/tests/internal/harness"
 )
 
 const fleetVersion = "110.0.3+up0.16.3"

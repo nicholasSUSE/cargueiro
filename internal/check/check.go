@@ -2,10 +2,10 @@
 package check
 
 import (
-	"github.com/nicholasSUSE/cargueiro/internal/annotations"
-	"github.com/nicholasSUSE/cargueiro/internal/chart"
-	"github.com/nicholasSUSE/cargueiro/internal/rules"
-	"github.com/nicholasSUSE/cargueiro/internal/version"
+	"github.com/rancher/cargueiro/internal/annotations"
+	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/rules"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 // Result is the outcome of checking one chart. The tags are the JSON the check

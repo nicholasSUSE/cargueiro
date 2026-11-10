@@ -5,7 +5,7 @@ annotations:
 apiVersion: v2
 appVersion: 0.16.0
 description: Fixture of system-upgrade-controller
-icon: assets/logos/system-upgrade-controller.svg
+icon: file://assets/logos/system-upgrade-controller.svg
 name: system-upgrade-controller
 urls:
 - oci://stgregistry.suse.com/rancher/catalog/system-upgrade-controller:111.0.0

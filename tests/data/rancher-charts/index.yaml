@@ -9,7 +9,7 @@ entries:
     appVersion: 0.17.4-rc.10
     created: "0001-01-01T00:00:00Z"
     description: Fixture of fleet
-    icon: assets/logos/fleet.svg
+    icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.10
@@ -22,7 +22,7 @@ entries:
     appVersion: 0.17.4-rc.2
     created: "0001-01-01T00:00:00Z"
     description: Fixture of fleet
-    icon: assets/logos/fleet.svg
+    icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.2
@@ -35,7 +35,7 @@ entries:
     appVersion: 0.17.4-rc.1
     created: "0001-01-01T00:00:00Z"
     description: Fixture of fleet
-    icon: assets/logos/fleet.svg
+    icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.1
@@ -48,7 +48,7 @@ entries:
     appVersion: 0.17.4
     created: "0001-01-01T00:00:00Z"
     description: Fixture of fleet
-    icon: assets/logos/fleet.svg
+    icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.3+up0.17.4
@@ -61,7 +61,7 @@ entries:
     appVersion: 0.17.3
     created: "0001-01-01T00:00:00Z"
     description: Fixture of fleet
-    icon: assets/logos/fleet.svg
+    icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.3+up0.17.3
@@ -74,7 +74,7 @@ entries:
     appVersion: 0.17.2
     created: "0001-01-01T00:00:00Z"
     description: Fixture of fleet
-    icon: assets/logos/fleet.svg
+    icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.2+up0.17.2
@@ -113,7 +113,7 @@ entries:
     appVersion: 0.16.1
     created: "0001-01-01T00:00:00Z"
     description: Fixture of system-upgrade-controller
-    icon: assets/logos/system-upgrade-controller.svg
+    icon: file://assets/logos/system-upgrade-controller.svg
     name: system-upgrade-controller
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/system-upgrade-controller:111.0.1
@@ -126,7 +126,7 @@ entries:
     appVersion: 0.16.0
     created: "0001-01-01T00:00:00Z"
     description: Fixture of system-upgrade-controller
-    icon: assets/logos/system-upgrade-controller.svg
+    icon: file://assets/logos/system-upgrade-controller.svg
     name: system-upgrade-controller
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/system-upgrade-controller:111.0.0

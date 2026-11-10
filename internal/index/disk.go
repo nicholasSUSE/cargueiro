@@ -117,9 +117,9 @@ func archiveVersion(chart, file string) (string, bool) {
 	return version, ok && version != ""
 }
 
-// readState collects what the entries of idx, the index.yaml in dir and the
-// archives in dir say about the versions of the charts repository.
-func readState(dir string, idx *repo.IndexFile) (State, error) {
+// readState collects what the entries, the index.yaml in dir and the archives
+// in dir say about the versions of the charts repository.
+func readState(dir string, e entries) (State, error) {
 	published, err := publishedRefs(dir)
 	if err != nil {
 		return State{}, err
@@ -129,6 +129,10 @@ func readState(dir string, idx *repo.IndexFile) (State, error) {
 		return State{}, err
 	}
 
-	entries := indexRefs(idx)
-	return State{Entries: entries, Published: published, Archives: archives}, nil
+	return State{
+		Entries:   indexRefs(e.all),
+		Hidden:    e.hidden,
+		Published: published,
+		Archives:  archives,
+	}, nil
 }

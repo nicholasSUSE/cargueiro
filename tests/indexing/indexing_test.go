@@ -95,6 +95,27 @@ func addArchive(t *testing.T, repo, chart, version string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, chart+"-"+version+".tgz"), nil, 0o600))
 }
 
+// hideEntry marks the entry of a version of a chart as hidden.
+func hideEntry(t *testing.T, repo, chart, version string) {
+	t.Helper()
+
+	path := filepath.Join(repo, "entries", chart, version+".yaml")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, append(data, "hide: true\n"...), 0o600))
+}
+
+// unhideEntry takes the hide mark off the entry of a version of a chart.
+func unhideEntry(t *testing.T, repo, chart, version string) {
+	t.Helper()
+
+	path := filepath.Join(repo, "entries", chart, version+".yaml")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "hide: true\n")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), "hide: true\n", "", 1)), 0o600))
+}
+
 func readIndex(t *testing.T, repo string) string {
 	t.Helper()
 
@@ -219,4 +240,52 @@ func TestIndexRefusesWhenTheThreePlacesDisagree(t *testing.T) {
 			require.Equal(t, before, after, "the index.yaml is not changed")
 		})
 	}
+}
+
+func TestIndexHidesAPublishedVersion(t *testing.T) {
+	repo := publishedRepo(t)
+	before := readIndex(t, repo)
+	hideEntry(t, repo, "fleet", "111.0.3+up0.17.4")
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	after := readIndex(t, repo)
+	require.NotContains(t, after, "version: 111.0.3+up0.17.4\n")
+	require.Contains(t, after, "version: 111.0.3+up0.17.3\n")
+	require.Equal(t, strings.Count(before, "    version: ")-1, strings.Count(after, "    version: "))
+	require.NotContains(t, after, "hide", "hide is not a field of the index")
+	require.FileExists(t, filepath.Join(repo, "entries", "fleet", "111.0.3+up0.17.4.yaml"))
+	require.FileExists(t, filepath.Join(repo, "assets", "fleet", "fleet-111.0.3+up0.17.4.tgz"))
+
+	res = harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, after, readIndex(t, repo), "a hidden version stays hidden")
+}
+
+func TestIndexRefusesToHideAVersionThatWasNeverPublished(t *testing.T) {
+	repo := copyRepo(t)
+	hideEntry(t, repo, "fleet", "111.0.3+up0.17.4")
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.NotZero(t, res.ExitCode)
+	require.Contains(t, res.Stderr, "fleet 111.0.3+up0.17.4 is hidden but was never published")
+	require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
+}
+
+func TestIndexDoesNotPublishAHiddenVersionAgain(t *testing.T) {
+	repo := publishedRepo(t)
+	hideEntry(t, repo, "fleet", "111.0.3+up0.17.4")
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+	require.Zero(t, res.ExitCode, res.Stderr)
+	hidden := readIndex(t, repo)
+	unhideEntry(t, repo, "fleet", "111.0.3+up0.17.4")
+
+	res = harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.NotZero(t, res.ExitCode)
+	require.Contains(t, res.Stderr, "fleet 111.0.3+up0.17.4 is not in index.yaml yet but already has an archive in assets/")
+	require.Equal(t, hidden, readIndex(t, repo))
 }

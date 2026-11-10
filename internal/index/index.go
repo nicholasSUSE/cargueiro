@@ -31,14 +31,15 @@ const (
 
 // Write builds the index of the charts repository in dir and writes it to
 // dir/index.yaml. Nothing is written unless every entry is valid and the entries,
-// the index that is already there and assets/ agree.
+// the index that is already there and assets/ agree. Hidden versions are not
+// written to the index.
 func Write(cfg *rules.Config, dir string) error {
-	idx, err := Build(cfg, dir)
+	entries, err := readEntries(cfg, dir)
 	if err != nil {
 		return err
 	}
 
-	state, err := readState(dir, idx)
+	state, err := readState(dir, entries)
 	if err != nil {
 		return err
 	}
@@ -48,51 +49,77 @@ func Write(cfg *rules.Config, dir string) error {
 		return err
 	}
 
-	return idx.WriteFile(filepath.Join(dir, File), 0o600)
+	return entries.visible().WriteFile(filepath.Join(dir, File), 0o600)
 }
 
-// Build reads the entries of the charts repository in dir and returns its
-// index, with the versions of each chart newest first.
-func Build(cfg *rules.Config, dir string) (*repo.IndexFile, error) {
+// entries are the entries of a charts repository, as an index and as the
+// versions among them that are hidden.
+type entries struct {
+	// all holds every entry, hidden or not.
+	all    *repo.IndexFile
+	hidden []Ref
+}
+
+// visible returns the index to publish: all the entries but the hidden ones.
+func (e entries) visible() *repo.IndexFile {
+	hidden := refSet(e.hidden)
+
+	idx := &repo.IndexFile{APIVersion: e.all.APIVersion, Entries: map[string]repo.ChartVersions{}}
+	for name, versions := range e.all.Entries {
+		for _, v := range versions {
+			if _, isHidden := hidden[Ref{Chart: name, Version: v.Version}]; !isHidden {
+				idx.Entries[name] = append(idx.Entries[name], v)
+			}
+		}
+	}
+	return idx
+}
+
+// readEntries reads the entries of the charts repository in dir, with the
+// versions of each chart newest first.
+func readEntries(cfg *rules.Config, dir string) (entries, error) {
 	versions := cfg.Versions()
 	policy, err := version.NewPolicy(versions.Prereleases, versions.Majors)
 	if err != nil {
-		return nil, err
+		return entries{}, err
 	}
 
 	charts, err := os.ReadDir(filepath.Join(dir, EntriesDir))
 	if err != nil {
-		return nil, fmt.Errorf("read entries: %w", err)
+		return entries{}, fmt.Errorf("read entries: %w", err)
 	}
 
 	// The time of day is left out: the zero time is what Rancher writes too.
-	idx := &repo.IndexFile{APIVersion: "v1", Entries: map[string]repo.ChartVersions{}}
+	read := entries{all: &repo.IndexFile{APIVersion: "v1", Entries: map[string]repo.ChartVersions{}}}
 	for _, c := range charts {
 		if !c.IsDir() {
-			return nil, fmt.Errorf("%s/%s is not a chart directory", EntriesDir, c.Name())
+			return entries{}, fmt.Errorf("%s/%s is not a chart directory", EntriesDir, c.Name())
 		}
-		entries, err := readChart(cfg, policy, filepath.Join(dir, EntriesDir, c.Name()), c.Name())
+		versions, hidden, err := readChart(cfg, policy, filepath.Join(dir, EntriesDir, c.Name()), c.Name())
 		if err != nil {
-			return nil, err
+			return entries{}, err
 		}
-		idx.Entries[c.Name()] = entries
+		read.all.Entries[c.Name()] = versions
+		read.hidden = append(read.hidden, hidden...)
 	}
-	return idx, nil
+	return read, nil
 }
 
-// readChart reads the entries of one chart and returns them newest first.
-func readChart(cfg *rules.Config, policy *version.Policy, dir, name string) (repo.ChartVersions, error) {
+// readChart reads the entries of one chart and returns them newest first, and
+// the versions among them that are hidden.
+func readChart(cfg *rules.Config, policy *version.Policy, dir, name string) (repo.ChartVersions, []Ref, error) {
 	rule, err := cfg.Find(name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("read entries of %s: %w", name, err)
+		return nil, nil, fmt.Errorf("read entries of %s: %w", name, err)
 	}
 
 	byVersion := map[string]*repo.ChartVersion{}
+	var hidden []Ref
 	var problems []error
 	for _, f := range files {
 		file, err := readEntry(filepath.Join(dir, f.Name()), name, f.Name())
@@ -106,20 +133,23 @@ func readChart(cfg *rules.Config, policy *version.Policy, dir, name string) (rep
 			continue
 		}
 		byVersion[entry.Version] = entry
+		if file.Hide {
+			hidden = append(hidden, Ref{Chart: name, Version: entry.Version})
+		}
 	}
 	if len(problems) > 0 {
-		return nil, errors.Join(problems...)
+		return nil, nil, errors.Join(problems...)
 	}
 
 	ordered, err := policy.SortNewestFirst(slices.Collect(maps.Keys(byVersion)), rule.PlainVersion)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, err)
+		return nil, nil, fmt.Errorf("%s: %w", name, err)
 	}
-	entries := make(repo.ChartVersions, 0, len(ordered))
+	versions := make(repo.ChartVersions, 0, len(ordered))
 	for _, v := range ordered {
-		entries = append(entries, byVersion[v])
+		versions = append(versions, byVersion[v])
 	}
-	return entries, nil
+	return versions, hidden, nil
 }
 
 // entryFile is an entry as it is written in entries/: the version as the index

@@ -22,10 +22,11 @@ const (
 	archiveSuffix = ".tgz"
 )
 
-// publishedRefs returns the versions listed in the index.yaml of the charts
-// repository in dir. A missing or empty file lists none, because then nothing
-// has been published yet.
-func publishedRefs(dir string) ([]Ref, error) {
+// readPublished returns the index.yaml of the charts repository in dir, as it
+// is committed. A missing or empty file gives nil, because then nothing has been
+// published yet. Fields it does not know are an error: they would be lost when
+// the index is written again, and a published version never changes.
+func readPublished(dir string) (*repo.IndexFile, error) {
 	data, err := os.ReadFile(filepath.Join(dir, File))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -38,20 +39,34 @@ func publishedRefs(dir string) ([]Ref, error) {
 	}
 
 	var idx repo.IndexFile
-	if err := yaml.Unmarshal(data, &idx); err != nil {
+	if err := yaml.UnmarshalStrict(data, &idx); err != nil {
 		return nil, fmt.Errorf("read %s: %w", File, err)
 	}
 	if idx.APIVersion == "" {
 		return nil, fmt.Errorf("read %s: it has no apiVersion", File)
 	}
+	return &idx, nil
+}
 
+// publishedRefs returns the versions listed in the index.yaml of the charts
+// repository in dir.
+func publishedRefs(dir string) ([]Ref, error) {
+	idx, err := readPublished(dir)
+	if err != nil || idx == nil {
+		return nil, err
+	}
+	return indexRefs(idx), nil
+}
+
+// indexRefs returns the versions listed in idx.
+func indexRefs(idx *repo.IndexFile) []Ref {
 	var refs []Ref
 	for name, versions := range idx.Entries {
 		for _, v := range versions {
 			refs = append(refs, Ref{Chart: name, Version: v.Version})
 		}
 	}
-	return refs, nil
+	return refs
 }
 
 // archiveRefs returns the versions that have an archive,
@@ -114,11 +129,6 @@ func readState(dir string, idx *repo.IndexFile) (State, error) {
 		return State{}, err
 	}
 
-	var entries []Ref
-	for name, versions := range idx.Entries {
-		for _, v := range versions {
-			entries = append(entries, Ref{Chart: name, Version: v.Version})
-		}
-	}
+	entries := indexRefs(idx)
 	return State{Entries: entries, Published: published, Archives: archives}, nil
 }

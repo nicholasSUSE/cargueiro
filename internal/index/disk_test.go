@@ -91,6 +91,17 @@ func TestPublishedRefsFails(t *testing.T) {
 			wantErr: "read index.yaml",
 		},
 		{
+			name: "a field that Helm's index does not know",
+			content: `apiVersion: v1
+entries:
+  fleet:
+  - name: fleet
+    version: 1
+    hide: true
+`,
+			wantErr: `unknown field "hide"`,
+		},
+		{
 			name:    "no apiVersion",
 			content: "entries: {}\n",
 			wantErr: "read index.yaml: it has no apiVersion",

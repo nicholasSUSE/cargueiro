@@ -192,6 +192,17 @@ func TestFetchChart(t *testing.T) {
 	}, got.Values)
 }
 
+func TestFetchChartWithoutValues(t *testing.T) {
+	f := newFakeRegistry()
+	f.addChart(t, tgz(t, map[string]string{"fleet-crd/Chart.yaml": "name: fleet-crd\n"}))
+
+	got, err := FetchChart(context.Background(), serve(t, f), FetchOptions{PlainHTTP: true})
+
+	require.NoError(t, err)
+	require.Equal(t, "fleet-crd", got.Metadata.Name)
+	require.Empty(t, got.Values)
+}
+
 func TestFetchChartIgnoresAProvenanceLayer(t *testing.T) {
 	f := newFakeRegistry()
 	config := f.addBlob(helmregistry.ConfigMediaType, []byte(`{}`))
@@ -335,13 +346,6 @@ func TestFetchChartFails(t *testing.T) {
 				f.addChart(t, []byte("this is not an archive"))
 			},
 			wantErr: "the archive is not gzip",
-		},
-		{
-			name: "the chart has no values.yaml",
-			setup: func(t *testing.T, f *fakeRegistry) {
-				f.addChart(t, tgz(t, map[string]string{"fleet/Chart.yaml": "name: fleet\n"}))
-			},
-			wantErr: "the archive has no values.yaml",
 		},
 	}
 	for _, tt := range tests {

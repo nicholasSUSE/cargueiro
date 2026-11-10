@@ -123,8 +123,12 @@ func TestCheckDependenciesAnnotationStandardValid(t *testing.T) {
 			value: "- name: a\n  image: rancher/a:110.0.3_up0.16.3\n",
 		},
 		{
-			name:  "tag latest",
-			value: "- name: a\n  image: rancher/a:latest\n",
+			name:  "a tag that only starts with latest",
+			value: "- name: a\n  image: rancher/a:latest-1\n",
+		},
+		{
+			name:  "latest in the repository, not the tag",
+			value: "- name: a\n  image: rancher/latest:v1\n",
 		},
 
 		// Not this check's concern.
@@ -283,6 +287,16 @@ func TestCheckDependenciesAnnotationStandardInvalid(t *testing.T) {
 			name:  "image with a registry port but no tag",
 			value: "- name: a\n  image: localhost:5000/rancher/a\n",
 			want:  []string{key + ` entry 1: image "localhost:5000/rancher/a" must look like "repository:tag"`},
+		},
+		{
+			name:  "image with the tag latest",
+			value: "- name: a\n  image: rancher/a:latest\n",
+			want:  []string{key + ` entry 1: image "rancher/a:latest" must not have the tag "latest"`},
+		},
+		{
+			name:  "image with a registry port and the tag latest",
+			value: "- name: a\n  image: localhost:5000/rancher/a:latest\n",
+			want:  []string{key + ` entry 1: image "localhost:5000/rancher/a:latest" must not have the tag "latest"`},
 		},
 		{
 			name:  "image with no repository",

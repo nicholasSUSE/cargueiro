@@ -118,9 +118,13 @@ func parseHelmImages(value string) ([]*helmImageEntry, error) {
 	return entries, nil
 }
 
+// latestTag is the tag no chart may ship: it names no version.
+const latestTag = "latest"
+
 // helmImage returns an error unless image is written repository:tag, with a
-// tag and no empty part between slashes in the repository. The registry is
-// not looked at. Requiring the tag is Rancher policy.
+// tag that is not latest and no empty part between slashes in the repository.
+// The registry is not looked at. Requiring the tag, and refusing latest, are
+// Rancher policy.
 func helmImage(image string) error {
 	if strings.ContainsAny(image, " \t\r\n") {
 		return fmt.Errorf(`must look like "repository:tag" without spaces`)
@@ -133,6 +137,9 @@ func helmImage(image string) error {
 	repository := image[:colon]
 	if strings.HasPrefix(repository, "/") || strings.HasSuffix(repository, "/") || strings.Contains(repository, "//") {
 		return fmt.Errorf(`must look like "repository:tag" with no empty part in the repository`)
+	}
+	if image[colon+1:] == latestTag {
+		return fmt.Errorf(`must not have the tag %q`, latestTag)
 	}
 	return nil
 }

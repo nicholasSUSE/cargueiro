@@ -101,6 +101,21 @@ func runCheck(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	return out.String(), errOut.String(), err
 }
 
+// TestCheckChartWithoutValues makes sure a chart with no values.yaml is checked:
+// it has no images, so there is nothing to list in helm.sh/images.
+func TestCheckChartWithoutValues(t *testing.T) {
+	dir := writeChartDir(t, validChartYAML, "")
+
+	stdout, stderr, err := runCheck(t, dir, "--output", "json")
+
+	require.NoError(t, err)
+	require.Empty(t, stderr)
+	require.Contains(t, stdout, `"hip15-annotations": {
+    "valid": true,
+    "errors": []
+  }`)
+}
+
 func TestCheckChartValid(t *testing.T) {
 	dir := writeChartDir(t, validChartYAML, "a: 1\n")
 
@@ -256,13 +271,6 @@ func TestCheckChartFailsWithoutPrinting(t *testing.T) {
 				return []string{filepath.Join(t.TempDir(), "nope")}
 			},
 			wantErr: "Chart.yaml not found",
-		},
-		{
-			name: "no values.yaml",
-			args: func(t *testing.T) []string {
-				return []string{writeChartDir(t, validChartYAML, "")}
-			},
-			wantErr: "values.yaml not found",
 		},
 		{
 			name: "Chart.yaml is not yaml",

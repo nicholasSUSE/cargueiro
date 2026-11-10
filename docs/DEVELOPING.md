@@ -146,7 +146,7 @@ Each kind has one function in `internal/annotations` (`ValidateMainChart`, `Vali
 
 ### check chart
 
-`cargueiro check chart <chart-dir>` ties the pieces together: `internal/chart` reads `Chart.yaml` and `values.yaml` into memory (nothing else in the directory is read), `internal/check` finds the chart in the rules and runs the annotation checks, the `helm.sh/images` checks and the version checks, and `cmd` prints the result.
+`cargueiro check chart <chart-dir>` ties the pieces together: `internal/chart` reads `Chart.yaml` and `values.yaml` into memory (nothing else in the directory is read; a chart with no `values.yaml` has no values and no images), `internal/check` finds the chart in the rules and runs the annotation checks, the `helm.sh/images` checks and the version checks, and `cmd` prints the result.
 
 | Outcome | stdout | stderr | Exit |
 |---------|--------|--------|------|
@@ -168,6 +168,10 @@ The result has the same fields as text and as JSON (`--output json`): `valid`, t
 ### list
 
 `cargueiro list <registry/path/chart>` prints the versions of a chart that is in a registry, newest first. `internal/oci` reads every tag anonymously, following the registry's pages, and `cmd` turns each tag back into a version with `version.FromOCITag`. `version.Policy.SortNewestFirst` orders them: by `1XY.Z.W`, then by the upstream version after `+up`, then by the prerelease, where a release is newer than its prereleases. The numbers are compared with the semver library. The rank of the prerelease names is the order of `versions.prereleases` in `rules.yaml`, not an alphabetical one. The chart must be listed in `rules.yaml`, which says whether its versions have a `+up` part. A tag that is not a version that follows the rules is an error, and nothing is printed.
+
+### stamp
+
+`cargueiro stamp <chart-dir>` puts the final version and the `helm.sh/images` annotation on a chart before it is packaged. `internal/stamp` builds a plan that validates everything and writes nothing: the chart must be in `rules.yaml`, the version goes through the version policy, the chart must be for a Rancher version the new system supports, and the images in `values.yaml` become the annotation (`annotations.GenerateHelmImages`, which reuses the scan of the check commands). Only then does `Plan.Write` replace `Chart.yaml`, through a temporary file. `internal/chart` changes the version line and the annotation as text, so the rest of the file stays byte for byte. `--version` overrides the calculation: it is not compared with anything, so whoever gives it owns it. Without it, `version.Next` works the version out from the `appVersion`, the `rancher-version` and the versions already released, read the way `list` reads them; a registry error, a tag that is not a version, or a version already released is an error. `--dry-run` prints `Plan.Diff` and writes nothing.
 
 ### helm.sh/images
 
@@ -342,6 +346,8 @@ E2E tests build `bin/cargueiro` themselves (or use the binary in `CARGUEIRO_BIN`
 `tests/login` logs in and out of the local registries over HTTP and TLS and checks what `push` does with what was saved: a second login is refused until logout, explicit credentials win, a wrong password saves nothing, logout forgets everything, and the file is private.
 
 `tests/checking` runs `check chart`, `check archive` and `check oci` on real SUSE charts and checks the exact output; `check oci` is run against the local registry that asks for no password, after pushing the charts to it, and its report must equal the one for the source directory. The fleet charts pass. `rancher-monitoring` (the largest `values.yaml`), `rancher-monitoring-crd`, `longhorn`, `rancher-webhook` and `system-upgrade-controller` fail, because they carry no `helm.sh/images` annotation, and `longhorn` and `rancher-webhook` also have a `kube-version` without both bounds. Their fixtures keep only `Chart.yaml` and `values.yaml`, the two files `check` reads. It also covers the text output and every case that prints nothing on stdout.
+
+`tests/stamping` runs `stamp` on copies of two charts as their upstream keeps them, and follows the result through `check chart`, `package` and `check archive`. It also stamps against the local registry release after release, for a first version, the candidates and the final of the next one, and checks the order with `list`. Without a registry given, `stamp` reads the staging registry of SUSE, so the tests that leave the version out run behind a dead proxy and cannot reach it.
 
 `tests/listing` pushes real charts, with only the version changed, to the local registry that asks for no password, in an order that is not the right one, and checks that `list` puts them newest first, as text and JSON. It compares the tags with the ones the registry itself gives, and covers every case that prints nothing on stdout.
 

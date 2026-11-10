@@ -91,6 +91,8 @@ func (s *valuesScan) imageBlock(block map[string]any, path string) {
 		s.problems = append(s.problems, valuesProblem(path, `"repository" is set but "tag" is empty`))
 	case blank(repository):
 		s.problems = append(s.problems, valuesProblem(path, `"tag" is set but "repository" is empty`))
+	case tag == latestTag:
+		s.problems = append(s.problems, valuesProblem(path, `"tag" must not be %q`, latestTag))
 	default:
 		repositoryText, _ := repository.(string)
 		tagText, _ := tag.(string)

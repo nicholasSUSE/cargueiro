@@ -84,6 +84,15 @@ func TestLoadArchive(t *testing.T) {
 			wantValues: map[string]any{"a": 1},
 		},
 		{
+			name: "no values.yaml, as in most CRD charts",
+			entries: []entry{
+				{name: "fleet-crd/Chart.yaml", body: "name: fleet-crd\n"},
+				{name: "fleet-crd/templates/crds.yaml", body: "b: 2\n"},
+			},
+			wantName:   "fleet-crd",
+			wantValues: nil,
+		},
+		{
 			name: "values.yaml before Chart.yaml",
 			entries: []entry{
 				{name: "fleet/values.yaml", body: "a: 1\n"},
@@ -182,14 +191,6 @@ func TestLoadArchiveRejects(t *testing.T) {
 			},
 			lim:     defaultLimits(),
 			wantErr: "the archive has no Chart.yaml",
-		},
-		{
-			name: "no values.yaml",
-			data: func(t *testing.T) []byte {
-				return buildArchive(t, []entry{{name: "fleet/Chart.yaml", body: "name: fleet\n"}})
-			},
-			lim:     defaultLimits(),
-			wantErr: "the archive has no values.yaml",
 		},
 		{
 			name: "the files are not inside a chart directory",

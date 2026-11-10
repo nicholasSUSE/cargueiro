@@ -22,6 +22,17 @@ func writeChart(t *testing.T, chartYAML, valuesYAML string) string {
 	return dir
 }
 
+func TestLoadWithoutValues(t *testing.T) {
+	dir := writeChart(t, "name: fleet-crd\nannotations:\n  catalog.cattle.io/hidden: \"true\"\n", "")
+
+	got, err := Load(dir)
+
+	require.NoError(t, err)
+	require.Equal(t, "fleet-crd", got.Metadata.Name)
+	require.Equal(t, map[string]string{"catalog.cattle.io/hidden": "true"}, got.Annotations)
+	require.Empty(t, got.Values)
+}
+
 func TestLoad(t *testing.T) {
 	dir := writeChart(t, `
 name: fleet
@@ -86,11 +97,6 @@ func TestLoadRejects(t *testing.T) {
 			name:    "no Chart.yaml",
 			values:  "a: 1\n",
 			wantErr: "Chart.yaml not found",
-		},
-		{
-			name:    "no values.yaml",
-			chart:   "name: a\n",
-			wantErr: "values.yaml not found",
 		},
 		{
 			name:    "Chart.yaml is not yaml",

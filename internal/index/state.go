@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // Ref names one version of one chart.
@@ -31,6 +32,23 @@ type State struct {
 type Plan struct {
 	Add  []Ref
 	Hide []Ref
+}
+
+// Report says what the plan does, one version to a line: the ones to add, then
+// the ones to hide. A plan that does nothing says so.
+func (p Plan) Report() string {
+	if len(p.Add) == 0 && len(p.Hide) == 0 {
+		return "nothing to change\n"
+	}
+
+	var report strings.Builder
+	for _, ref := range p.Add {
+		fmt.Fprintf(&report, "add %s %s\n", ref.Chart, ref.Version)
+	}
+	for _, ref := range p.Hide {
+		fmt.Fprintf(&report, "hide %s %s\n", ref.Chart, ref.Version)
+	}
+	return report.String()
 }
 
 // Plan works out what to do, with each list sorted by chart and then by version.

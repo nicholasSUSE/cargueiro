@@ -140,6 +140,7 @@ func TestIndexPullsTheNewVersions(t *testing.T) {
 	res := runIndex(t, repo, registry)
 
 	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, allAdded(), res.Stdout)
 	require.Equal(t, expectedIndex(t, string(mustRead(t, filepath.Join(fixture(t), "index.yaml"))), pushed), readIndex(t, repo))
 	for ref, p := range pushed {
 		got := mustRead(t, filepath.Join(repo, "assets", ref.chart, ref.chart+"-"+ref.version+".tgz"))
@@ -246,4 +247,58 @@ func mustRead(t *testing.T, path string) []byte {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return data
+}
+
+// allAdded is what index prints when every version of the fixture is new.
+func allAdded() string {
+	return `add fleet 111.0.2+up0.17.2
+add fleet 111.0.3+up0.17.3
+add fleet 111.0.3+up0.17.4
+add fleet 111.0.4+up0.17.4-rc.1
+add fleet 111.0.4+up0.17.4-rc.10
+add fleet 111.0.4+up0.17.4-rc.2
+add fleet-crd 111.0.2+up0.17.2
+add fleet-crd 111.0.3+up0.17.3
+add longhorn 111.0.0+up1.10.0
+add longhorn 111.0.1+up1.10.1
+add system-upgrade-controller 111.0.0
+add system-upgrade-controller 111.0.1
+`
+}
+
+func TestIndexDryRunSaysWhatItWouldDoAndChangesNothing(t *testing.T) {
+	repo := copyRepo(t)
+	// The registry is never reached: none of these digests is in a registry.
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo, "--dry-run")
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, allAdded(), res.Stdout)
+	require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
+	require.NoDirExists(t, filepath.Join(repo, "assets", "fleet"))
+	require.NoDirExists(t, filepath.Join(repo, "assets", "longhorn"))
+}
+
+func TestIndexDryRunStillChecks(t *testing.T) {
+	repo := copyRepo(t)
+	editFile(t, filepath.Join(repo, "entries", "fleet", "111.0.2+up0.17.2.yaml"), func(s string) string {
+		return pinnedDigest.ReplaceAllString(s, "")
+	})
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo, "--dry-run")
+
+	require.NotZero(t, res.ExitCode)
+	require.Contains(t, res.Stderr, "fleet 111.0.2+up0.17.2 has the url")
+	require.Empty(t, res.Stdout)
+}
+
+func TestIndexSaysThereIsNothingToChange(t *testing.T) {
+	repo := publishedRepo(t)
+
+	for _, args := range [][]string{{"--dry-run"}, {}} {
+		res := harness.Cargueiro(t, t.TempDir(), append([]string{"index", "--repo", repo}, args...)...)
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Equal(t, "nothing to change\n", res.Stdout)
+	}
 }

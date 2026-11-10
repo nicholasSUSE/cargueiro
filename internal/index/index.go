@@ -39,10 +39,14 @@ type Options struct {
 	PlainHTTP bool
 	// Pull reads an archive from the registry. It defaults to oci.PullArchive.
 	Pull PullFunc
+	// DryRun makes Write check, and report what it would do, without pulling
+	// or writing anything.
+	DryRun bool
 }
 
 // Write builds the index of the charts repository in dir and writes it to
-// dir/index.yaml. Hidden versions are not written to it.
+// dir/index.yaml. Hidden versions are not written to it. It returns what it did:
+// the versions it added to the index and the ones it left out of it.
 //
 // Nothing is written unless every entry is valid, the entries, the index that is
 // already there and assets/ agree, no published version or archive has changed,
@@ -50,45 +54,51 @@ type Options struct {
 // version has been pulled and is the chart its entry describes. The archives are
 // written to assets/ before the index is, and are taken back if the index cannot
 // be written.
-func Write(ctx context.Context, cfg *rules.Config, dir string, opts Options) error {
+//
+// With Options.DryRun it does every check that needs no registry, pulls and
+// writes nothing, and returns what it would do.
+func Write(ctx context.Context, cfg *rules.Config, dir string, opts Options) (Plan, error) {
 	entries, err := readEntries(cfg, dir)
 	if err != nil {
-		return err
+		return Plan{}, err
 	}
 	published, err := readPublished(dir)
 	if err != nil {
-		return err
+		return Plan{}, err
 	}
 
 	state, err := readState(dir, entries, published)
 	if err != nil {
-		return err
+		return Plan{}, err
 	}
 	plan, err := state.Plan()
 	if err != nil {
-		return err
+		return Plan{}, err
 	}
 	digests, err := archiveDigests(dir, entries.all)
 	if err != nil {
-		return err
+		return Plan{}, err
 	}
 	if err := checkArchivesUnchanged(published, digests); err != nil {
-		return err
+		return Plan{}, err
 	}
 	setDigests(entries.all, digests)
 	if err := checkUnchanged(published, entries.all); err != nil {
-		return err
+		return Plan{}, err
 	}
 	if err := errors.Join(
 		checkURLs(cfg, opts.Registry, entries.all, plan.Add),
 		checkIcons(cfg, dir, entries.all, plan.Add),
 	); err != nil {
-		return err
+		return Plan{}, err
+	}
+	if opts.DryRun {
+		return plan, nil
 	}
 
 	archives, err := pullAdded(ctx, entries.all, plan.Add, opts)
 	if err != nil {
-		return err
+		return Plan{}, err
 	}
 	pulled := make(map[Ref]string, len(archives))
 	for ref, archive := range archives {
@@ -98,12 +108,12 @@ func Write(ctx context.Context, cfg *rules.Config, dir string, opts Options) err
 
 	undo, err := writeArchives(dir, archives)
 	if err != nil {
-		return err
+		return Plan{}, err
 	}
 	if err := entries.visible().WriteFile(filepath.Join(dir, File), 0o600); err != nil {
-		return errors.Join(err, undo())
+		return Plan{}, errors.Join(err, undo())
 	}
-	return nil
+	return plan, nil
 }
 
 // entries are the entries of a charts repository, as an index and as the

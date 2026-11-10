@@ -70,7 +70,8 @@ func TestWrite(t *testing.T) {
 	cfg := loadRules(t)
 
 	t.Run("a new version is pulled, written and indexed with the digest of its archive", func(t *testing.T) {
-		require.NoError(t, Write(context.Background(), cfg, dir, opts))
+		_, err := Write(context.Background(), cfg, dir, opts)
+		require.NoError(t, err)
 
 		got, err := os.ReadFile(filepath.Join(dir, "assets", "fleet", "fleet-"+first+".tgz"))
 		require.NoError(t, err)
@@ -86,7 +87,8 @@ func TestWrite(t *testing.T) {
 		require.NoError(t, err)
 		fake.calls = nil
 
-		require.NoError(t, Write(context.Background(), cfg, dir, opts))
+		_, err = Write(context.Background(), cfg, dir, opts)
+		require.NoError(t, err)
 
 		after, err := os.ReadFile(filepath.Join(dir, "index.yaml"))
 		require.NoError(t, err)
@@ -98,7 +100,8 @@ func TestWrite(t *testing.T) {
 		writeFiles(t, dir, map[string]string{"entries/fleet/" + second + ".yaml": entryText(second, pinnedTwo)})
 		fake.calls = nil
 
-		require.NoError(t, Write(context.Background(), cfg, dir, opts))
+		_, err := Write(context.Background(), cfg, dir, opts)
+		require.NoError(t, err)
 
 		require.Len(t, fake.calls, 1)
 		require.Equal(t, pinnedTwo, fake.calls[0].digest)
@@ -121,7 +124,7 @@ func TestWriteWritesNothingWhenAPullFails(t *testing.T) {
 		"entries/fleet/" + second + ".yaml": entryText(second, pinnedTwo),
 	})
 
-	err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, Pull: fake.pull})
+	_, err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, Pull: fake.pull})
 
 	require.ErrorContains(t, err, "fleet "+second+": pull the archive: the registry is down")
 	require.NoDirExists(t, filepath.Join(dir, "assets"), "the version that was pulled is not kept either")
@@ -143,10 +146,57 @@ func TestWriteTakesTheArchivesBackWhenTheIndexCannotBeWritten(t *testing.T) {
 	require.NoError(t, os.Chmod(dir, 0o500))
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
-	err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, Pull: fake.pull})
+	_, err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, Pull: fake.pull})
 
 	require.Error(t, err)
 	require.Len(t, fake.calls, 1, "the archive was pulled before the index failed")
 	require.NoFileExists(t, filepath.Join(dir, "assets", "fleet", "fleet-"+version+".tgz"), "the archive is taken back")
 	require.NoDirExists(t, filepath.Join(dir, "assets", "fleet"))
+}
+
+func TestWriteReturnsWhatItDid(t *testing.T) {
+	const version = "111.0.3+up0.17.3"
+	fake := &fakePull{archives: map[string][]byte{pinnedOne: archiveOf(t, chartYAMLOf(version))}}
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entryText(version, pinnedOne)})
+	cfg := loadRules(t)
+	opts := Options{Registry: testRegistry, Pull: fake.pull}
+
+	plan, err := Write(context.Background(), cfg, dir, opts)
+	require.NoError(t, err)
+	require.Equal(t, Plan{Add: []Ref{{Chart: "fleet", Version: version}}}, plan)
+
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entryText(version, pinnedOne) + "hide: true\n"})
+	plan, err = Write(context.Background(), cfg, dir, opts)
+	require.NoError(t, err)
+	require.Equal(t, Plan{Hide: []Ref{{Chart: "fleet", Version: version}}}, plan)
+}
+
+func TestWriteDryRun(t *testing.T) {
+	const version = "111.0.3+up0.17.3"
+	fake := &fakePull{archives: map[string][]byte{pinnedOne: archiveOf(t, chartYAMLOf(version))}}
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entryText(version, pinnedOne)})
+
+	plan, err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, Pull: fake.pull, DryRun: true})
+
+	require.NoError(t, err)
+	require.Equal(t, Plan{Add: []Ref{{Chart: "fleet", Version: version}}}, plan)
+	require.Empty(t, fake.calls, "nothing is pulled")
+	require.NoFileExists(t, filepath.Join(dir, "index.yaml"))
+	require.NoDirExists(t, filepath.Join(dir, "assets"))
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "only entries/ is there")
+}
+
+func TestWriteDryRunStillChecks(t *testing.T) {
+	const version = "111.0.3+up0.17.3"
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": strings.Replace(entryText(version, pinnedOne), "@"+pinnedOne, "", 1)})
+
+	plan, err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, DryRun: true})
+
+	require.ErrorContains(t, err, "fleet "+version+" has the url")
+	require.Equal(t, Plan{}, plan)
 }

@@ -236,6 +236,7 @@ func TestIndexHidesAPublishedVersion(t *testing.T) {
 	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
 
 	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, "hide fleet 111.0.3+up0.17.4\n", res.Stdout)
 	after := readIndex(t, repo)
 	require.NotContains(t, after, "version: 111.0.3+up0.17.4\n")
 	require.Contains(t, after, "version: 111.0.3+up0.17.3\n")
@@ -247,6 +248,7 @@ func TestIndexHidesAPublishedVersion(t *testing.T) {
 	res = harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
 
 	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, "nothing to change\n", res.Stdout, "a hidden version is hidden once")
 	require.Equal(t, after, readIndex(t, repo), "a hidden version stays hidden")
 }
 

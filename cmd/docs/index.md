@@ -14,6 +14,8 @@ A new version is then pulled: the archive of the manifest its URL pins is read f
 
 An entry with `hide: true` is a published version that must no longer be offered. It is left out of the index, and its entry and archive stay. Hiding is one way: taking `hide: true` off the entry does not publish the version again, and a version that was never published cannot be hidden.
 
+The command prints what it did, one version to a line: `add <chart> <version>` for each version added to the index, then `hide <chart> <version>` for each one left out of it, or `nothing to change`. `--dry-run` prints the same lines for what it would do, and pulls and writes nothing. It does every check that needs no registry, so it cannot check the manifest digest or the archive of a new version. The exit code is 0, or 1 when a check fails.
+
 Target-Audience: Release Team and Automation
 
 ## Examples
@@ -21,4 +23,9 @@ Target-Audience: Release Team and Automation
 ```
 # write the index of a charts repository
 cargueiro index --repo ~/charts
+```
+
+```
+# see what would be added or hidden, and change nothing
+cargueiro index --repo ~/charts --dry-run
 ```

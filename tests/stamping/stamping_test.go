@@ -135,6 +135,34 @@ func TestStampThenCheckAndPackage(t *testing.T) {
 	})
 }
 
+// TestPackageNeedsAStampedChart packages the compliance chart as its upstream
+// keeps it, and then stamped: only the second gives an archive.
+func TestPackageNeedsAStampedChart(t *testing.T) {
+	dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+	out := filepath.Join(t.TempDir(), "out")
+
+	t.Run("before stamp it is refused and nothing is built", func(t *testing.T) {
+		res := harness.Cargueiro(t, t.TempDir(), "package", dir, "--output-dir", out)
+
+		require.Equal(t, 1, res.ExitCode)
+		require.Empty(t, res.Stdout)
+		require.Contains(t, res.Stderr, "version: invalid")
+		require.Contains(t, res.Stderr, "hip15-annotations: invalid")
+		require.Contains(t, res.Stderr, "the chart is not valid, so it was not packaged")
+		require.NoDirExists(t, out)
+	})
+
+	t.Run("after stamp it gives an archive with nothing else on stdout", func(t *testing.T) {
+		require.Zero(t, stamp(t, dir, "--version", "111.0.0+up1.5.4").ExitCode)
+
+		res := harness.Cargueiro(t, t.TempDir(), "package", dir, "--output-dir", out)
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Empty(t, res.Stderr)
+		require.Equal(t, filepath.Join(out, "rancher-compliance-111.0.0+up1.5.4.tgz")+"\n", res.Stdout)
+	})
+}
+
 func TestStampTheWebhookChart(t *testing.T) {
 	t.Run("as upstream keeps it, the tag latest is refused and nothing changes", func(t *testing.T) {
 		dir := copyChart(t, "rancher-webhook-upstream", "rancher-webhook")

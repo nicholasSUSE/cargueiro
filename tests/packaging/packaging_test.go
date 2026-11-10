@@ -117,7 +117,7 @@ func TestFailures(t *testing.T) {
 
 		require.NotZero(t, res.ExitCode)
 		require.Empty(t, res.Stdout)
-		require.Contains(t, res.Stderr, "no Chart.yaml found")
+		require.Contains(t, res.Stderr, "Chart.yaml not found")
 	})
 
 	t.Run("two charts", func(t *testing.T) {

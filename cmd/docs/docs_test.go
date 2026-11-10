@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -89,6 +90,19 @@ func TestLoad(t *testing.T) {
 			require.NoError(t, err, name)
 			require.NotEmpty(t, doc.Short, name)
 			require.NotEmpty(t, doc.Example, name)
+		}
+	})
+
+	t.Run("every doc ends its description with the target audience", func(t *testing.T) {
+		names, err := Names()
+		require.NoError(t, err)
+		for _, name := range names {
+			doc, err := Load(name)
+			require.NoError(t, err, name)
+			paragraphs := strings.Split(doc.Long, "\n\n")
+			last := paragraphs[len(paragraphs)-1]
+			require.Truef(t, strings.HasPrefix(last, "Target-Audience: "), "%s: the last paragraph before the examples must be \"Target-Audience: ...\"", name)
+			require.Equal(t, 1, strings.Count(doc.Source, "Target-Audience: "), name)
 		}
 	})
 

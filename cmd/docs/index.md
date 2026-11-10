@@ -6,6 +6,8 @@ Write the `index.yaml` of a charts repository from its `entries/`.
 
 Nothing is written unless every entry is valid: the chart must be listed in `rules.yaml`, the file must be called after the version it holds, and no version may be in two entries.
 
+Target-Audience: Release Team and Automation
+
 ## Examples
 
 ```

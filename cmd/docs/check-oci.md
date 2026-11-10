@@ -10,6 +10,8 @@ The registry is read without credentials. `Chart.yaml` and `values.yaml` (if the
 
 When the registry cannot be reached, the chart is not found, the registry asks for credentials, or what is there is not a Helm chart, nothing is printed to stdout: the error goes to stderr and the exit code is 1.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

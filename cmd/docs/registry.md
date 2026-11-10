@@ -6,6 +6,8 @@ Manage the registry login cargueiro saves.
 
 The login is a file of its own in your user config directory (`$CARGUEIRO_CONFIG_DIR` overrides the directory). Docker's and Helm's saved credentials are never read.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

@@ -12,6 +12,8 @@ The credentials are checked against the registry before anything is saved, and a
 
 Everything is saved in `login.json`, mode 0600, in your user config directory (`$CARGUEIRO_CONFIG_DIR` overrides the directory). The password is stored there in plain text, and a warning says so.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

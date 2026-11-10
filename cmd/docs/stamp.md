@@ -10,6 +10,8 @@ The `helm.sh/images` annotation is made by going through the images in `values.y
 
 Only the `version` line and the `helm.sh/images` annotation of `Chart.yaml` change; everything else in it, and `values.yaml`, stay as they are. Every check runs before anything is written: when one fails, nothing is changed, the errors go to stderr and the exit code is 1. What changed is printed to stdout, or `nothing to change` when the chart already has the version and the images. With `--dry-run` every check runs, the version is worked out, and what would change is printed as a diff, but nothing is written.
 
+Target-Audience: Chart Owners and Automation
+
 ## Examples
 
 ```

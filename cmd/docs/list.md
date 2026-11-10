@@ -10,6 +10,8 @@ The registry is read without credentials. `--plain-http` talks HTTP to the regis
 
 The exit code is 0, or 1 when the registry cannot be reached, the chart is not found, the registry asks for credentials, the chart is not listed in `rules.yaml`, or a tag is not a version that follows the rules. In every failure nothing is printed to stdout and the error goes to stderr.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

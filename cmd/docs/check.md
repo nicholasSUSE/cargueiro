@@ -4,6 +4,8 @@ Check that a chart follows the Rancher chart rules.
 
 `cargueiro check chart` checks a chart directory, `cargueiro check archive` a packaged chart (`.tgz`), and `cargueiro check oci` a chart in an OCI registry, against `rules.yaml`, which is compiled into the binary: the annotations the chart carries and the `helm.sh/images` annotation (HIP-15). Nothing is changed.
 
+Target-Audience: Chart Owners, Release Team and Automation
+
 ## Examples
 
 ```

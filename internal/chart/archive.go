@@ -34,16 +34,32 @@ func LoadArchive(r io.Reader) (*Files, error) {
 	return loadArchive(r, defaultLimits())
 }
 
+// ArchiveChartYAML returns Chart.yaml as it is written in a chart archive
+// (.tgz), with every field it has. It is read the way LoadArchive reads it.
+func ArchiveChartYAML(r io.Reader) ([]byte, error) {
+	chartData, _, err := readArchive(r, defaultLimits())
+	return chartData, err
+}
+
 func loadArchive(r io.Reader, lim limits) (*Files, error) {
+	chartData, valuesData, err := readArchive(r, lim)
+	if err != nil {
+		return nil, err
+	}
+	return newFiles("Chart.yaml", chartData, "values.yaml", valuesData)
+}
+
+// readArchive returns the content of Chart.yaml and values.yaml at the top of a
+// chart archive. values.yaml is empty when the chart has none.
+func readArchive(r io.Reader, lim limits) (chartData, valuesData []byte, err error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("the archive is not gzip: %w", err)
+		return nil, nil, fmt.Errorf("the archive is not gzip: %w", err)
 	}
 	defer func() { _ = gz.Close() }() // nothing to flush: the archive is only read
 
 	tr := tar.NewReader(&cappedReader{r: gz, left: lim.stream})
 
-	var chartData, valuesData []byte
 	var haveChart, haveValues bool
 	for !haveChart || !haveValues {
 		hdr, err := tr.Next()
@@ -51,7 +67,7 @@ func loadArchive(r io.Reader, lim limits) (*Files, error) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("read the archive: %w", err)
+			return nil, nil, fmt.Errorf("read the archive: %w", err)
 		}
 		if hdr.Typeflag != tar.TypeReg {
 			continue
@@ -68,24 +84,23 @@ func loadArchive(r io.Reader, lim limits) (*Files, error) {
 			continue
 		}
 		if *have {
-			return nil, fmt.Errorf("%s appears twice in the archive", hdr.Name)
+			return nil, nil, fmt.Errorf("%s appears twice in the archive", hdr.Name)
 		}
 
 		data, err := io.ReadAll(io.LimitReader(tr, lim.file+1))
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", hdr.Name, err)
+			return nil, nil, fmt.Errorf("read %s: %w", hdr.Name, err)
 		}
 		if int64(len(data)) > lim.file {
-			return nil, fmt.Errorf("%s is larger than %d bytes", hdr.Name, lim.file)
+			return nil, nil, fmt.Errorf("%s is larger than %d bytes", hdr.Name, lim.file)
 		}
 		*dst, *have = data, true
 	}
 
 	if !haveChart {
-		return nil, errors.New("the archive has no Chart.yaml")
+		return nil, nil, errors.New("the archive has no Chart.yaml")
 	}
-
-	return newFiles("Chart.yaml", chartData, "values.yaml", valuesData)
+	return chartData, valuesData, nil
 }
 
 // topLevelFile returns the file name of an archive entry that is directly

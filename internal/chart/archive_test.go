@@ -268,3 +268,83 @@ func TestLoadArchiveRejects(t *testing.T) {
 		})
 	}
 }
+
+func TestArchiveChartYAML(t *testing.T) {
+	const chartYAML = "name: fleet\nversion: 1.0.0\ndependencies:\n- name: sub\n  version: 2.0.0\n"
+
+	tests := []struct {
+		name    string
+		entries []entry
+	}{
+		{
+			name: "the file as it is, with fields LoadArchive does not keep",
+			entries: []entry{
+				{name: "fleet/Chart.yaml", body: chartYAML},
+				{name: "fleet/values.yaml", body: "a: 1\n"},
+			},
+		},
+		{
+			name: "a chart with no values.yaml",
+			entries: []entry{
+				{name: "fleet/Chart.yaml", body: chartYAML},
+				{name: "fleet/templates/x.yaml", body: "b: 2\n"},
+			},
+		},
+		{
+			name: "values.yaml before Chart.yaml",
+			entries: []entry{
+				{name: "fleet/values.yaml", body: "a: 1\n"},
+				{name: "fleet/Chart.yaml", body: chartYAML},
+			},
+		},
+		{
+			name: "the same name in a subchart is ignored",
+			entries: []entry{
+				{name: "fleet/charts/sub/Chart.yaml", body: "name: sub\n"},
+				{name: "fleet/Chart.yaml", body: chartYAML},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ArchiveChartYAML(bytes.NewReader(buildArchive(t, tt.entries)))
+
+			require.NoError(t, err)
+			require.Equal(t, chartYAML, string(got))
+		})
+	}
+}
+
+func TestArchiveChartYAMLFails(t *testing.T) {
+	tests := []struct {
+		name    string
+		archive []byte
+		wantErr string
+	}{
+		{
+			name:    "no Chart.yaml",
+			archive: buildArchive(t, []entry{{name: "fleet/values.yaml", body: "a: 1\n"}}),
+			wantErr: "the archive has no Chart.yaml",
+		},
+		{
+			name:    "not an archive",
+			archive: []byte("this is not an archive"),
+			wantErr: "the archive is not gzip",
+		},
+		{
+			name: "a Chart.yaml that is too large",
+			archive: buildArchive(t, []entry{
+				{name: "fleet/Chart.yaml", body: strings.Repeat("a", int(defaultLimits().file)+1)},
+			}),
+			wantErr: "is larger than",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ArchiveChartYAML(bytes.NewReader(tt.archive))
+
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, got)
+		})
+	}
+}

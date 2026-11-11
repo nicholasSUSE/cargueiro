@@ -38,18 +38,27 @@ func checkArchive(cmd *cobra.Command, opts *rootOptions, path, output string, no
 	}
 	opts.log.DebugContext(cmd.Context(), "checking chart", "archive", path, "output", output)
 
+	files, err := loadArchive(path)
+	if err != nil {
+		return err
+	}
+	return report(cmd, opts, files, files.Metadata.Version, output, noErrorHIP15)
+}
+
+// loadArchive reads the chart archive at path.
+func loadArchive(path string) (*chart.Files, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("%s not found", path)
+			return nil, fmt.Errorf("%s not found", path)
 		}
-		return fmt.Errorf("open %s: %w", path, err)
+		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
 
 	files, err := chart.LoadArchive(f)
 	if err != nil {
-		return fmt.Errorf("%s: %w", path, err)
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return report(cmd, opts, files, files.Metadata.Version, output, noErrorHIP15)
+	return files, nil
 }

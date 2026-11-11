@@ -366,3 +366,26 @@ func TestShipFamilyReadsEveryChartWithTheSameCredentials(t *testing.T) {
 		})
 	}
 }
+
+func TestShipFamilyWritesTheLogoOfEveryChartThatHasOne(t *testing.T) {
+	shipments := fleetFamilyShipments()
+	agent := shipments["fleet-agent"]
+	agent.Logo = &ship.Logo{Data: []byte("<svg id=\"agent\"/>"), Extension: ".svg"}
+	shipments["fleet-agent"] = agent
+	repo := t.TempDir()
+
+	stdout, _, err := runShipFamily(t, &familyPreparer{shipments: shipments}, &fakeVerifier{}, familyArgs(repo)...)
+
+	require.NoError(t, err)
+	require.Equal(t, strings.Join([]string{
+		"entries/fleet/" + familyVersion + ".yaml",
+		"assets/logos/fleet.svg",
+		"entries/fleet-crd/" + familyVersion + ".yaml",
+		"entries/fleet-agent/" + familyVersion + ".yaml",
+		"assets/logos/fleet-agent.svg",
+	}, "\n")+"\n", stdout)
+	got, readErr := os.ReadFile(filepath.Join(repo, "assets", "logos", "fleet-agent.svg"))
+	require.NoError(t, readErr)
+	require.Equal(t, `<svg id="agent"/>`, string(got))
+	require.FileExists(t, filepath.Join(repo, "assets", "logos", "fleet.svg"))
+}

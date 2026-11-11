@@ -335,6 +335,20 @@ func TestWriteAllReportsEveryShipmentThatCannotBeWritten(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(dir, "entries", "fleet-crd", "110.0.3+up0.16.3.yaml"))
 }
 
+func TestWriteAllWritesNothingWhenALaterChartHasItsLogoAlready(t *testing.T) {
+	dir := t.TempDir()
+	shipments := familyShipments()
+	shipments[2].Logo = &Logo{Data: []byte("<svg/>"), Extension: ".svg"}
+	writeFiles(t, dir, map[string]string{"assets/logos/fleet-agent.png": "old"})
+
+	err := WriteAll(dir, shipments)
+
+	require.ErrorContains(t, err, "is the logo of fleet-agent already")
+	require.NoFileExists(t, filepath.Join(dir, "entries", "fleet", "110.0.3+up0.16.3.yaml"))
+	require.NoFileExists(t, filepath.Join(dir, "assets", "logos", "fleet.svg"), "the logo of the first chart is not left behind")
+	require.Equal(t, "old", readFile(t, filepath.Join(dir, "assets", "logos", "fleet-agent.png")))
+}
+
 func TestWriteAllTakesBackWhatItWroteWhenALaterOneFails(t *testing.T) {
 	dir := t.TempDir()
 	// entries/fleet-agent is a file, so its folder cannot be made.

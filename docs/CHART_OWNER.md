@@ -2,7 +2,7 @@
 
 For chart owners. This is how a chart gets from your repository to the staging registry, and from there to the `staging` branch of `rancher/charts`. The steps run in the GitHub Actions workflow of your repository. Each one is a cargueiro command that exits with 1 and says why on stderr when something is wrong, so a step that fails stops the workflow and nothing after it runs.
 
-How cargueiro gets installed in the workflow is not covered here yet.
+Install cargueiro in the workflow with `curl -fsSL https://github.com/rancher/cargueiro/releases/latest/download/install.sh | sh -`. It checks the download against the checksums of the release, and `CARGUEIRO_VERSION` names a release to pin.
 
 ## The whole path
 
@@ -22,7 +22,7 @@ flowchart TD
     registry[("<b>Staging registry</b><br/>stgregistry.suse.com<br/>rancher/catalog/my-chart")]
     trigger{{"<b>Start the workflow</b><br/>in rancher/charts"}}
 
-    subgraph charts["rancher/charts · GitHub Actions · to be created"]
+    subgraph charts["rancher/charts · GitHub Actions"]
         ship["<b>cargueiro ship</b><br/>the entry and the logo"]
         index["<b>cargueiro index</b><br/>pull the archive,<br/>build index.yaml"]
         ship --> index
@@ -98,7 +98,24 @@ The registry is the staging registry of the chart's edition. The username and th
 
 ## 5. Ship it to rancher/charts
 
-After the push, the chart is in the staging registry, but not in `rancher/charts`. Your workflow starts a workflow in that repository, which runs `cargueiro ship` for the chart you pushed and then `cargueiro index`. `ship` writes the entry of the version and its logo, and `index` pulls the archive and builds the index. This workflow does not exist yet; this part of the page will say how to call it when it does.
+After the push, the chart is in the staging registry, but not in `rancher/charts`. Your workflow tells `rancher/charts` that a chart was staged, with a `repository_dispatch` of type `chart-staged` that has two fields in its `client_payload`: `chart`, the name, and `version`, as in its `Chart.yaml` with the `+`. Nothing else is read from the event, because `rancher/charts` takes the rest from the registry. There it runs `cargueiro ship` for that version and then `cargueiro index`, which write the entry, the logo, the archive and the index to the `staging` branch. A version that was shipped already fails there, on purpose.
+
+```
+gh api "repos/rancher/charts/dispatches" \
+  -f event_type=chart-staged \
+  -f "client_payload[chart]=my-chart" \
+  -f "client_payload[version]=112.0.0+up0.13.0"
+```
+
+A shared action that does steps 1 to 5 in your workflow is planned (see rancher/cargueiro#54). Until it exists, you send the event yourself, as above.
+
+## What your repository needs
+
+The event is sent with a token that can write to `rancher/charts`. These are the things to have, and to ask the infrastructure team (EIO) for what is missing. The answers to the open questions in rancher/cargueiro#54 will be written here.
+
+- A GitHub App installed on `rancher/charts` with the repository permission Contents: write, and its `appId` and `privateKey` in Vault under your repository (`github/app-credentials`). `rancher/webhook` is the example to follow.
+- The staging registry credentials in Vault under your repository, for `push` (`rancher-prime-stg-registry/credentials`).
+- Your workflow job has the `id-token: write` permission, so it can log in to Vault.
 
 ## All together
 
@@ -107,4 +124,6 @@ cargueiro stamp charts/my-chart --version "$CHART_VERSION"
 cargueiro check chart charts/my-chart
 archive=$(cargueiro package charts/my-chart --output-dir dist)
 cargueiro push "$archive" --registry stgregistry.suse.com/rancher/catalog
+gh api "repos/rancher/charts/dispatches" -f event_type=chart-staged \
+  -f "client_payload[chart]=my-chart" -f "client_payload[version]=$CHART_VERSION"
 ```

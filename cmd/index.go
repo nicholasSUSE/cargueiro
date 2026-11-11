@@ -13,6 +13,7 @@ import (
 func newIndexCmd(opts *rootOptions) (*cobra.Command, error) {
 	var repoDir, registry string
 	var plainHTTP, dryRun bool
+	var creds credentialFlags
 
 	cmd := &cobra.Command{
 		Use:  "index",
@@ -25,8 +26,17 @@ func newIndexCmd(opts *rootOptions) (*cobra.Command, error) {
 			if err != nil {
 				return err
 			}
+			given, err := creds.read(cmd, opts)
+			if err != nil {
+				return err
+			}
 			opts.log.DebugContext(cmd.Context(), "writing index", "repo", repoDir)
-			plan, err := index.Write(cmd.Context(), cfg, repoDir, index.Options{Registry: registry, PlainHTTP: plainHTTP, DryRun: dryRun})
+			plan, err := index.Write(cmd.Context(), cfg, repoDir, index.Options{
+				Registry:    registry,
+				PlainHTTP:   plainHTTP,
+				Credentials: given.credentialFunc(cmd.Context()),
+				DryRun:      dryRun,
+			})
 			if err != nil {
 				return err
 			}
@@ -41,6 +51,7 @@ func newIndexCmd(opts *rootOptions) (*cobra.Command, error) {
 	flags.StringVar(&registry, "registry", "", "registry path the URLs of new versions must point to, host[:port]/path, instead of the staging registry of the chart")
 	flags.BoolVar(&dryRun, "dry-run", false, "check and print what would be added or hidden, and pull and write nothing")
 	flags.BoolVar(&plainHTTP, "plain-http", false, "talk HTTP to the registry instead of HTTPS, for local registries")
+	creds.addFlags(flags)
 	if err := applyDoc(cmd, "index"); err != nil {
 		return nil, err
 	}

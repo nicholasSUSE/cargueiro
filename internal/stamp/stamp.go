@@ -39,6 +39,9 @@ type Options struct {
 	Registry string
 	// PlainHTTP talks HTTP to that registry.
 	PlainHTTP bool
+	// Credentials gives the credentials to read from that registry. Without it
+	// the read is anonymous.
+	Credentials oci.CredentialFunc
 	// List reads the tags of the registry. It is only used to work out the
 	// version.
 	List ListFunc
@@ -253,7 +256,11 @@ func published(ctx context.Context, cfg *rules.Config, rule rules.Chart, opts Op
 		return nil, err
 	}
 
-	tags, err := opts.List(ctx, repo, oci.FetchOptions{PlainHTTP: opts.PlainHTTP})
+	fetch, err := opts.Credentials.FetchOptions(repo.Host, opts.PlainHTTP)
+	if err != nil {
+		return nil, err
+	}
+	tags, err := opts.List(ctx, repo, fetch)
 	if err != nil {
 		if errors.Is(err, oci.ErrRepositoryNotFound) {
 			return nil, nil

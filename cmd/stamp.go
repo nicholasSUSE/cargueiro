@@ -14,6 +14,7 @@ import (
 func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 	var newVersion, registry string
 	var plainHTTP, dryRun bool
+	var creds credentialFlags
 
 	cmd := &cobra.Command{
 		Use:  "stamp <chart-dir>",
@@ -22,11 +23,16 @@ func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 			if cmd.Flags().Changed("version") && newVersion == "" {
 				return errors.New("--version is empty: give a version, or leave the flag out to work it out")
 			}
+			given, err := creds.read(cmd, opts)
+			if err != nil {
+				return err
+			}
 			return stampChart(cmd, opts, args[0], dryRun, stamp.Options{
-				Version:   newVersion,
-				Registry:  registry,
-				PlainHTTP: plainHTTP,
-				List:      stamp.ListFunc(list),
+				Version:     newVersion,
+				Registry:    registry,
+				PlainHTTP:   plainHTTP,
+				Credentials: given.credentialFunc(cmd.Context()),
+				List:        stamp.ListFunc(list),
 			})
 		},
 	}
@@ -34,6 +40,7 @@ func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 	flags.StringVar(&newVersion, "version", "", "the final version of the chart, 1XY.Z.W+upA.B.C (default: worked out from the versions released)")
 	flags.StringVar(&registry, "registry", "", "registry path to read the released versions from, host[:port]/path, instead of the staging registry of the chart")
 	flags.BoolVar(&plainHTTP, "plain-http", false, "talk HTTP to the registry instead of HTTPS, for local registries")
+	creds.addFlags(flags)
 	flags.BoolVar(&dryRun, "dry-run", false, "print what would change as a diff, and write nothing")
 	if err := applyDoc(cmd, "stamp"); err != nil {
 		return nil, err

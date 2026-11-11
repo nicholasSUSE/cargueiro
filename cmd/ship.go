@@ -27,12 +27,13 @@ const defaultBranch = "staging"
 func newShipCmd(opts *rootOptions, prepare prepareFunc, verifyCheckout verifyCheckoutFunc) (*cobra.Command, error) {
 	var repoDir, branch string
 	var plainHTTP, dryRun bool
+	var creds credentialFlags
 
 	cmd := &cobra.Command{
 		Use:  "ship <registry/path/chart:tag>",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return shipChart(cmd, opts, prepare, verifyCheckout, args[0], repoDir, branch, plainHTTP, dryRun)
+			return shipChart(cmd, opts, prepare, verifyCheckout, args[0], repoDir, branch, plainHTTP, dryRun, &creds)
 		},
 	}
 	flags := cmd.Flags()
@@ -40,6 +41,7 @@ func newShipCmd(opts *rootOptions, prepare prepareFunc, verifyCheckout verifyChe
 	flags.StringVar(&branch, "branch", defaultBranch, "the branch of the charts repository that --repo must be on, and be up to date with")
 	flags.BoolVar(&plainHTTP, "plain-http", false, "talk HTTP to the registry instead of HTTPS, for local registries")
 	flags.BoolVar(&dryRun, "dry-run", false, "print the files that would be written, and write nothing")
+	creds.addFlags(flags)
 	if err := cmd.MarkFlagRequired("repo"); err != nil {
 		return nil, fmt.Errorf("mark --repo required: %w", err)
 	}
@@ -52,7 +54,7 @@ func newShipCmd(opts *rootOptions, prepare prepareFunc, verifyCheckout verifyChe
 
 // shipChart writes the entry, and the logo if there is one, of the chart at
 // reference to the charts repository in repoDir, and prints the files.
-func shipChart(cmd *cobra.Command, opts *rootOptions, prepare prepareFunc, verifyCheckout verifyCheckoutFunc, reference, repoDir, branch string, plainHTTP, dryRun bool) error {
+func shipChart(cmd *cobra.Command, opts *rootOptions, prepare prepareFunc, verifyCheckout verifyCheckoutFunc, reference, repoDir, branch string, plainHTTP, dryRun bool, creds *credentialFlags) error {
 	if !filepath.IsAbs(repoDir) {
 		return fmt.Errorf("--repo must be an absolute path, got %q", repoDir)
 	}
@@ -70,7 +72,12 @@ func shipChart(cmd *cobra.Command, opts *rootOptions, prepare prepareFunc, verif
 		return err
 	}
 
-	shipment, err := prepare(cmd.Context(), cfg, ref, repoDir, ship.Options{PlainHTTP: plainHTTP})
+	given, err := creds.read(cmd, opts)
+	if err != nil {
+		return err
+	}
+
+	shipment, err := prepare(cmd.Context(), cfg, ref, repoDir, ship.Options{PlainHTTP: plainHTTP, Credentials: given.credentialFunc(cmd.Context())})
 	var invalid *ship.InvalidChartError
 	if errors.As(err, &invalid) {
 		if _, werr := fmt.Fprint(cmd.ErrOrStderr(), resultText(invalid.Result)); werr != nil {

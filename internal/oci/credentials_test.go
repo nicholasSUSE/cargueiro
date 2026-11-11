@@ -2,6 +2,7 @@ package oci
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -232,4 +233,37 @@ func TestFetchErrorForAReadWithCredentials(t *testing.T) {
 			require.EqualError(t, err, "the registry refused the credentials for registry.example.com/rancher/catalog/fleet:1.0.0: check the username and the password, and that the account may read this repository")
 		})
 	}
+}
+
+func TestCredentialFuncFetchOptions(t *testing.T) {
+	t.Run("nil is anonymous", func(t *testing.T) {
+		var c CredentialFunc
+
+		got, err := c.FetchOptions("registry.example.com", true)
+
+		require.NoError(t, err)
+		require.Equal(t, FetchOptions{PlainHTTP: true}, got)
+	})
+
+	t.Run("the credentials are asked for the host", func(t *testing.T) {
+		var asked string
+		c := CredentialFunc(func(host string) (string, string, error) {
+			asked = host
+			return testUser, testPassword, nil
+		})
+
+		got, err := c.FetchOptions("registry.example.com", false)
+
+		require.NoError(t, err)
+		require.Equal(t, "registry.example.com", asked)
+		require.Equal(t, FetchOptions{Username: testUser, Password: testPassword}, got)
+	})
+
+	t.Run("an error is returned", func(t *testing.T) {
+		c := CredentialFunc(func(string) (string, string, error) { return "", "", errors.New("no store") })
+
+		_, err := c.FetchOptions("registry.example.com", false)
+
+		require.EqualError(t, err, "no store")
+	})
 }

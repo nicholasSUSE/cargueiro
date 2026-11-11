@@ -79,6 +79,18 @@ func (g given) connection(ctx context.Context, host string) (connection, error) 
 	return resolveConnection(ctx, g.opts, host, g.username, g.password)
 }
 
+// credentialFunc returns the credentials for the host that is read, so that
+// nothing is sent to a host it was not given for.
+func (g given) credentialFunc(ctx context.Context) oci.CredentialFunc {
+	return func(host string) (string, string, error) {
+		conn, err := g.connection(ctx, host)
+		if err != nil {
+			return "", "", err
+		}
+		return conn.Username, conn.Password, nil
+	}
+}
+
 // defaultStore opens the login file in the user's config directory.
 func defaultStore() (*auth.Store, error) {
 	path, err := auth.DefaultPath()

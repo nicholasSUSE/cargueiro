@@ -69,7 +69,7 @@ make test-e2e
 make test-release
 ```
 
-Start from a clean tree, so that `git diff` shows only what the commands changed. `make test-e2e` needs Docker, and the pinned `helm` first on `PATH` (see "Editor (VSCode)" in [DEVELOPING.md](DEVELOPING.md) if another Helm shadows it).
+Start from a clean tree, so that `git diff` shows only what the commands changed. `make test-e2e` needs Docker, and the pinned `helm` first on `PATH` (see [DEV_ENV.md](DEV_ENV.md) if another Helm shadows it).
 
 ## Branch protection
 

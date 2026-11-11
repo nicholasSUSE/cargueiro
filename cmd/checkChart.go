@@ -21,16 +21,22 @@ const (
 )
 
 func newCheckChartCmd(opts *rootOptions) (*cobra.Command, error) {
-	var output string
+	var output, familyName string
 	var noErrorHIP15 bool
 
 	cmd := &cobra.Command{
-		Use:  "chart <chart-dir>",
-		Args: cobra.ExactArgs(1),
+		Use: "chart <chart-dir>",
+		Args: func(cmd *cobra.Command, args []string) error {
+			return checkArgs(familyName)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if familyName != "" {
+				return checkFamily(cmd, opts, familyName, args, chart.Load, output, noErrorHIP15)
+			}
 			return checkChart(cmd, opts, args[0], output, noErrorHIP15)
 		},
 	}
+	cmd.Flags().StringVar(&familyName, "family", "", "check every chart of this family, one folder for each")
 	cmd.Flags().StringVarP(&output, "output", "o", outputText, "output format: text or json")
 	cmd.Flags().BoolVar(&noErrorHIP15, "no-error-hip-15", false, "do not fail because of helm.sh/images (HIP-15) errors")
 	if err := applyDoc(cmd, "check-chart"); err != nil {

@@ -11,17 +11,23 @@ import (
 )
 
 func newCheckArchiveCmd(opts *rootOptions) (*cobra.Command, error) {
-	var output string
+	var output, familyName string
 	var noErrorHIP15 bool
 
 	cmd := &cobra.Command{
-		Use:  "archive <chart.tgz>",
-		Args: cobra.ExactArgs(1),
+		Use: "archive <chart.tgz>",
+		Args: func(cmd *cobra.Command, args []string) error {
+			return checkArgs(familyName)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if familyName != "" {
+				return checkFamily(cmd, opts, familyName, args, loadArchive, output, noErrorHIP15)
+			}
 			return checkArchive(cmd, opts, args[0], output, noErrorHIP15)
 		},
 	}
 	flags := cmd.Flags()
+	flags.StringVar(&familyName, "family", "", "check every chart of this family, one archive for each")
 	flags.StringVarP(&output, "output", "o", outputText, "output format: text or json")
 	flags.BoolVar(&noErrorHIP15, "no-error-hip-15", false, "do not fail because of helm.sh/images (HIP-15) errors")
 	if err := applyDoc(cmd, "check-archive"); err != nil {

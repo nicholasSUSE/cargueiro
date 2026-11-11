@@ -6,14 +6,31 @@ For chart owners. This is how a chart gets from your repository to the staging r
 
 The `ship-staged` action only runs the commands. What it needs from you comes first: the access it reads from Vault, the chart folder it is given, and the rules that folder has to follow.
 
-### What to ask for
+### What you need, and from whom
 
-The action reads everything it needs from Vault, under the path of your repository, so a repository that releases a chart needs four things. The first is for the release team, and the other three are an EIO request.
+A repository that releases a chart needs things from three places: cargueiro, `rancher/charts` and EIO. The action reads the credentials from Vault, under the path of your repository.
 
-- **The chart in [`rules.yaml`](https://github.com/rancher/cargueiro/blob/main/rules.yaml)**, which is compiled into cargueiro. It says what each chart must be: its kind, its family and the annotations it needs. A chart that is not listed is refused by every command.
-- **A Vault role for the repository.** The job logs in with its OIDC token, and the role is named after the repository. A repository that already reads secrets from Vault has it.
-- **The staging registry credentials** at `github/repo/rancher/<repository>/rancher-prime-stg-registry/credentials`, with the fields `username`, `password` and `registry` (`stgregistry.suse.com`). The account has to be able to push to `stgregistry.suse.com/rancher/catalog`.
-- **A GitHub App installed on `rancher/charts`** with the repository permission Contents: write, and its credentials at `github/repo/rancher/<repository>/github/app-credentials`, with the fields `appId` and `privateKey`. The action uses it to send the event to `rancher/charts`. `rancher/webhook` has one.
+#### From cargueiro
+
+| What | What it is for | What you do |
+|------|----------------|-------------|
+| The chart in [`rules.yaml`](https://github.com/rancher/cargueiro/blob/main/rules.yaml) | It says what each chart must be: its kind, its family and the annotations it needs. A chart that is not listed is refused by every command. | Add it yourself with a pull request to `rancher/cargueiro`, and ask the release team to review it. |
+
+#### From rancher/charts
+
+| What | What it is for | What you do |
+|------|----------------|-------------|
+| The `ship-staged` action | The steps your workflow calls: it checks and pushes the chart, and sends the event. | Add a job to your workflow that calls it with `uses: rancher/charts/.github/actions/ship-staged@staging`, after the checkout and the preparation of the chart folder. The repository is public, so there is nothing to request. Example: [`stage-chart.yaml`](https://github.com/rancher/webhook/blob/main/.github/workflows/stage-chart.yaml) and [`prepare-chart.sh`](https://github.com/rancher/webhook/blob/main/.github/workflows/scripts/prepare-chart.sh) in `rancher/webhook`. |
+| The `chart-staged` workflow | It ships and indexes the chart when the event arrives, and opens the pull request against `staging`. | Nothing to write: the action sends the `repository_dispatch` of type `chart-staged` that starts it. You run your workflow when you release, as `rancher/webhook` does in the step [`Trigger Stage chart workflow`](https://github.com/rancher/webhook/blob/main/.github/workflows/cut-release.yaml#L120). |
+| An approval of the pull request | The `staging` branch takes no direct pushes. | Review/Approve/Merge. Example: [rancher/charts#9390](https://github.com/rancher/charts/pull/9390), the pull request for `rancher-webhook` `112.0.0+up0.13.0-rc.4`. |
+
+#### From EIO
+
+| What | What it is for | What you ask for |
+|------|----------------|------------------|
+| A Vault role for the repository | The job logs in with its OIDC token, and the role is named after the repository. A repository that already reads secrets from Vault has it. | The role, if the repository has none. |
+| The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. |
+| A GitHub App on `rancher/charts` | It makes the token that sends the event. `rancher/webhook` has one. | The App installed on `rancher/charts` with the repository permission Contents: write, and its `appId` and `privateKey` at `github/repo/rancher/<repository>/github/app-credentials`. |
 
 For the EIO request, this is enough:
 

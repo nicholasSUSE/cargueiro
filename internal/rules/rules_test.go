@@ -132,6 +132,8 @@ families:
   - family: a
     charts:
       - {name: a, kind: main, edition: rancher-charts, version: plain}
+  - family: b
+    charts:
       - {name: b, kind: main, edition: rancher-charts}
 `
 	cfg, err := Parse([]byte(charts + registriesAndVersions))
@@ -233,9 +235,11 @@ families:
   - family: a
     charts:
       - {name: a, kind: main, edition: rancher-charts}
-      - {name: skipped, kind: main, edition: rancher-charts, icon: skip}
       - {name: a-crd, kind: crd, edition: rancher-charts}
       - {name: a-extra, kind: extra, edition: rancher-charts}
+  - family: skipped
+    charts:
+      - {name: skipped, kind: main, edition: rancher-charts, icon: skip}
 `
 
 	tests := []struct {
@@ -591,6 +595,43 @@ families:
 			wantErr: `family "a" mixes editions "rancher-charts" and "prime-charts"`,
 		},
 		{
+			name: "family without a main chart",
+			in: `
+kinds: {main: {}, crd: {}}
+families:
+  - family: a
+    charts:
+      - {name: a-crd, kind: crd, edition: rancher-charts}
+`,
+			wantErr: `family "a" must have exactly one main chart, it has 0`,
+		},
+		{
+			name: "family with two main charts",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+      - {name: b, kind: main, edition: rancher-charts}
+`,
+			wantErr: `family "a" must have exactly one main chart, it has 2`,
+		},
+		{
+			name: "family listed twice",
+			in: `
+kinds: {main: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts}
+  - family: a
+    charts:
+      - {name: b, kind: main, edition: rancher-charts}
+`,
+			wantErr: `family "a" is listed twice`,
+		},
+		{
 			name: "chart listed twice in one family",
 			in: `
 kinds: {main: {}}
@@ -785,6 +826,8 @@ families:
   - family: a
     charts:
       - {name: a, kind: main, edition: rancher-charts}
+  - family: b
+    charts:
       - {name: b, kind: main, edition: rancher-charts}
 registries:
   rancher-charts:
@@ -812,4 +855,90 @@ versions:
 
 	a.Required[0] = "changed"
 	require.Equal(t, []string{"release-name"}, b.Required)
+}
+
+func TestFamily(t *testing.T) {
+	const in = `
+kinds: {main: {}, crd: {}, extra: {}}
+families:
+  - family: fleet
+    charts:
+      - {name: fleet-crd, kind: crd, edition: rancher-charts}
+      - {name: fleet-agent, kind: extra, edition: rancher-charts}
+      - {name: fleet, kind: main, edition: rancher-charts}
+  - family: alone
+    charts:
+      - {name: alone, kind: main, edition: prime-charts}
+`
+	cfg, err := Parse([]byte(in + registriesAndVersions))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		family      string
+		wantNames   []string
+		wantMain    string
+		wantEdition string
+	}{
+		{
+			name:        "the main chart comes first, the others keep their order",
+			family:      "fleet",
+			wantNames:   []string{"fleet", "fleet-crd", "fleet-agent"},
+			wantMain:    "fleet",
+			wantEdition: EditionRancherCharts,
+		},
+		{
+			name:        "a family of one chart",
+			family:      "alone",
+			wantNames:   []string{"alone"},
+			wantMain:    "alone",
+			wantEdition: EditionPrimeCharts,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cfg.Family(tt.family)
+			require.NoError(t, err)
+			require.Equal(t, tt.family, got.Name)
+			require.Equal(t, tt.wantEdition, got.Edition)
+			require.Equal(t, tt.wantNames, got.Names())
+			require.Equal(t, tt.wantMain, got.Main().Name)
+		})
+	}
+}
+
+func TestFamilyUnlisted(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+
+	_, err = cfg.Family("nope")
+
+	require.EqualError(t, err, `family "nope" is not listed in the rules file (rules.yaml)`)
+}
+
+func TestFamilyIsACopy(t *testing.T) {
+	cfg, err := Parse([]byte(valid))
+	require.NoError(t, err)
+	first, err := cfg.Family("elemental")
+	require.NoError(t, err)
+
+	first.Charts[0] = Chart{Name: "changed"}
+
+	again, err := cfg.Family("elemental")
+	require.NoError(t, err)
+	require.Equal(t, []string{"elemental", "elemental-crd"}, again.Names())
+}
+
+// Every family of the rules file that cargueiro ships has exactly one main
+// chart, first, and one edition.
+func TestShippedRulesFamilies(t *testing.T) {
+	data, err := os.ReadFile("../../rules.yaml")
+	require.NoError(t, err)
+	cfg, err := Parse(data)
+	require.NoError(t, err)
+
+	fleet, err := cfg.Family("fleet")
+	require.NoError(t, err)
+	require.Equal(t, []string{"fleet", "fleet-agent", "fleet-crd"}, fleet.Names())
+	require.Equal(t, KindMain, fleet.Main().Kind)
 }

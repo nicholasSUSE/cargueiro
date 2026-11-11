@@ -73,10 +73,17 @@ func fleetFamilyShipments() map[string]ship.Shipment {
 func runShipFamily(t *testing.T, fake *familyPreparer, verifier *fakeVerifier, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 
+	return runShipFamilyWith(t, fake, verifier, nil, args...)
+}
+
+// runShipFamilyWith is runShipFamily with the given environment.
+func runShipFamilyWith(t *testing.T, fake *familyPreparer, verifier *fakeVerifier, env map[string]string, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+
 	var out, errOut bytes.Buffer
 	opts := &rootOptions{
 		stderr:    &errOut,
-		getenv:    func(string) string { return "" },
+		getenv:    func(k string) string { return env[k] },
 		openStore: openerFor(newTestStore(t)),
 		prompt:    &fakePrompter{},
 		rules:     []byte(familyRules()),
@@ -302,4 +309,60 @@ func requireEmptyDir(t *testing.T, dir string) {
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	require.Empty(t, entries)
+}
+
+func TestShipFamilyReadsEveryChartWithTheSameCredentials(t *testing.T) {
+	const host = "127.0.0.1:5052"
+
+	tests := []struct {
+		name         string
+		env          map[string]string
+		args         []string
+		wantUsername string
+		wantPassword string
+		wantErr      string
+	}{
+		{
+			name: "none stays anonymous",
+		},
+		{
+			name:         "username flag and password from the environment",
+			env:          map[string]string{envPassword: "from-env"},
+			args:         []string{"--username", "reader"},
+			wantUsername: "reader",
+			wantPassword: "from-env",
+		},
+		{
+			name:         "both from the environment",
+			env:          map[string]string{envUsername: "reader", envPassword: "from-env"},
+			wantUsername: "reader",
+			wantPassword: "from-env",
+		},
+		{
+			name:    "a username without a password",
+			args:    []string{"--username", "reader"},
+			wantErr: "a password is required",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &familyPreparer{shipments: fleetFamilyShipments()}
+
+			_, _, err := runShipFamilyWith(t, fake, &fakeVerifier{}, tt.env, familyArgs(t.TempDir(), tt.args...)...)
+
+			require.NoError(t, err)
+			require.Len(t, fake.opts, 3, "every chart is read")
+			for _, opts := range fake.opts {
+				require.NotNil(t, opts.Credentials)
+				username, password, credErr := opts.Credentials(host)
+				if tt.wantErr != "" {
+					require.ErrorContains(t, credErr, tt.wantErr)
+					continue
+				}
+				require.NoError(t, credErr)
+				require.Equal(t, tt.wantUsername, username)
+				require.Equal(t, tt.wantPassword, password)
+			}
+		})
+	}
 }

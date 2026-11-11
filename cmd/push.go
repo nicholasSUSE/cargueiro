@@ -40,9 +40,8 @@ func newOCIPusher(target oci.Target, guard *oci.Guard, opts oci.ClientOptions) (
 
 func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, error) {
 	var (
-		registry      string
-		username      string
-		passwordStdin bool
+		registry string
+		creds    credentialFlags
 	)
 
 	cmd := &cobra.Command{
@@ -68,15 +67,11 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				}
 			}
 
-			if username == "" {
-				username = opts.getenv(envUsername)
-			}
-			password, err := readPassword(cmd.InOrStdin(), passwordStdin, opts.getenv)
+			given, err := creds.read(cmd, opts)
 			if err != nil {
 				return err
 			}
-
-			conn, err := resolveConnection(cmd.Context(), opts, target.Host, username, password)
+			conn, err := given.connection(cmd.Context(), target.Host)
 			if err != nil {
 				return err
 			}
@@ -102,8 +97,7 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 
 	flags := cmd.Flags()
 	flags.StringVar(&registry, "registry", "", "destination registry: host[:port][/path]")
-	flags.StringVarP(&username, "username", "u", "", "registry username (default: $"+envUsername+")")
-	flags.BoolVar(&passwordStdin, "password-stdin", false, "read the password from standard input instead of $"+envPassword)
+	creds.addFlags(flags)
 	if err := cmd.MarkFlagRequired("registry"); err != nil {
 		return nil, fmt.Errorf("mark --registry required: %w", err)
 	}

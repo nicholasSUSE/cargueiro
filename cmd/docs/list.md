@@ -6,7 +6,7 @@ The argument is the repository of one chart, `[oci://]host[:port]/path/chart`, w
 
 `--output json` prints a list of objects with the `version` and the `tag` it is stored under. A repository with no tags prints nothing, or `[]` in JSON.
 
-Credentials are optional. Without them the registry is read anonymously, which is right for a public path. To give them, use `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD` or `--password-stdin`; otherwise the login saved by `cargueiro registry login` is used when it is for this registry. They are sent only to that registry, and over HTTP only with `--plain-http`. `--plain-http` talks HTTP to the registry instead of HTTPS, for local registries.
+Credentials are optional. Without them the registry is read anonymously, which is right for a public path. To give them, use `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD`; otherwise the login saved by `cargueiro registry login` is used when it is for this registry. They are sent only to that registry, and over HTTP only with `--plain-http`. `--plain-http` talks HTTP to the registry instead of HTTPS, for local registries.
 
 The exit code is 0, or 1 when the registry cannot be reached, the chart is not found, the registry refuses the read, the chart is not listed in `rules.yaml`, or a tag is not a version that follows the rules. In every failure nothing is printed to stdout and the error goes to stderr.
 

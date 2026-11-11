@@ -407,7 +407,7 @@ func TestFetchErrorForARead(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := fetchError("registry.example.com/rancher/catalog/fleet:1.0.0", statusError(tt.status), false)
 
-			require.EqualError(t, err, "the registry granted no access to registry.example.com/rancher/catalog/fleet:1.0.0 without credentials: either the repository needs them, or it does not exist, which a registry answers in the same way. Give a username with --username and the password in $CARGUEIRO_PASSWORD or --password-stdin, or save them with `cargueiro registry login`")
+			require.EqualError(t, err, "the registry granted no access to registry.example.com/rancher/catalog/fleet:1.0.0 without credentials: either the repository needs them, or it does not exist, which a registry answers in the same way. Give a username with --username and the password in $CARGUEIRO_PASSWORD, or save them with `cargueiro registry login`")
 			require.NotContains(t, err.Error(), "not supported yet", "reading without credentials is supported")
 		})
 	}

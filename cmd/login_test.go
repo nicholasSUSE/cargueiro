@@ -257,6 +257,7 @@ func TestLoginMissingInput(t *testing.T) {
 		{name: "stdin carries the password so the username must be given", prompter: &fakePrompter{interactive: true},
 			stdin: "pw\n", args: []string{"--password-stdin"}, wantErr: "because standard input carries the password"},
 		{name: "empty password on stdin", prompter: &fakePrompter{}, stdin: "\n", args: []string{"-u", "admin", "--password-stdin"}, wantErr: "a password is required"},
+		{name: "password on stdin too long", prompter: &fakePrompter{}, stdin: strings.Repeat("x", 5000), args: []string{"-u", "admin", "--password-stdin"}, wantErr: "longer than"},
 		{name: "empty password typed", prompter: &fakePrompter{interactive: true, secret: ""}, args: []string{"-u", "admin"}, wantErr: "a password is required"},
 		{name: "password flag and stdin together", prompter: &fakePrompter{}, args: []string{"-u", "admin", "--password", "p", "--password-stdin"}, wantErr: "none of the others can be"},
 	}

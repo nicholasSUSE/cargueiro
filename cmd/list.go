@@ -72,10 +72,7 @@ func listVersions(cmd *cobra.Command, opts *rootOptions, list listFunc, referenc
 	}
 	opts.log.DebugContext(cmd.Context(), "listing versions", "repository", repo.String(), "output", output)
 
-	given, err := creds.read(cmd, opts)
-	if err != nil {
-		return err
-	}
+	given := creds.read(opts)
 	fetch, err := given.credentialFunc(cmd.Context()).FetchOptions(repo.Host, plainHTTP)
 	if err != nil {
 		return err

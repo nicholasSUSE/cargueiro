@@ -106,14 +106,14 @@ func TestPushAfterPackage(t *testing.T) {
 		"package then push must give back the chart published in rancher/charts")
 }
 
-func TestPushPasswordFromStdin(t *testing.T) {
+func TestPushPasswordFromEnvironment(t *testing.T) {
 	tr := harness.Transports()[0]
 	s := harness.NewSession(t)
 	address, path := s.LoginVia(t, tr), repoPath()
 
-	res := s.Run(t, harness.RegistryPassword+"\n", nil,
+	res := s.Run(t, "", []string{"CARGUEIRO_PASSWORD=" + harness.RegistryPassword},
 		"push", published(t, "fleet-crd"), "--registry", address+"/"+path,
-		"--username", harness.RegistryUser, "--password-stdin")
+		"--username", harness.RegistryUser)
 
 	requireNoPassword(t, res)
 	require.Zero(t, res.ExitCode, res.Stderr)

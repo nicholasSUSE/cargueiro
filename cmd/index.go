@@ -26,10 +26,7 @@ func newIndexCmd(opts *rootOptions) (*cobra.Command, error) {
 			if err != nil {
 				return err
 			}
-			given, err := creds.read(cmd, opts)
-			if err != nil {
-				return err
-			}
+			given := creds.read(opts)
 			opts.log.DebugContext(cmd.Context(), "writing index", "repo", repoDir)
 			plan, err := index.Write(cmd.Context(), cfg, repoDir, index.Options{
 				Registry:    registry,

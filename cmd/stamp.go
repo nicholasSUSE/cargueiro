@@ -23,10 +23,7 @@ func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 			if cmd.Flags().Changed("version") && newVersion == "" {
 				return errors.New("--version is empty: give a version, or leave the flag out to work it out")
 			}
-			given, err := creds.read(cmd, opts)
-			if err != nil {
-				return err
-			}
+			given := creds.read(opts)
 			return stampChart(cmd, opts, args[0], dryRun, stamp.Options{
 				Version:     newVersion,
 				Registry:    registry,

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -122,7 +124,7 @@ func loginCredentials(cmd *cobra.Command, opts *rootOptions, username, password 
 			"and is visible in the process list; use --password-stdin or the prompt")
 	case fromStdin:
 		var err error
-		if password, err = readPassword(cmd.InOrStdin(), true, opts.getenv); err != nil {
+		if password, err = readPasswordStdin(cmd.InOrStdin()); err != nil {
 			return credentials{}, err
 		}
 	default:
@@ -152,4 +154,20 @@ func readCA(path string) ([]byte, error) {
 		return nil, fmt.Errorf("read CA file: %w", err)
 	}
 	return pem, nil
+}
+
+// maxPasswordSize bounds what --password-stdin reads.
+const maxPasswordSize = 4096
+
+// readPasswordStdin reads the password from standard input, without the line
+// ending.
+func readPasswordStdin(stdin io.Reader) (string, error) {
+	data, err := io.ReadAll(io.LimitReader(stdin, maxPasswordSize+1))
+	if err != nil {
+		return "", fmt.Errorf("read password from stdin: %w", err)
+	}
+	if len(data) > maxPasswordSize {
+		return "", fmt.Errorf("password from stdin is longer than %d bytes", maxPasswordSize)
+	}
+	return strings.TrimRight(string(data), "\r\n"), nil
 }

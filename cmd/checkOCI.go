@@ -48,10 +48,7 @@ func checkOCI(cmd *cobra.Command, opts *rootOptions, fetch fetchFunc, reference,
 	}
 	opts.log.DebugContext(cmd.Context(), "checking chart", "reference", ref.String(), "output", output)
 
-	given, err := creds.read(cmd, opts)
-	if err != nil {
-		return err
-	}
+	given := creds.read(opts)
 	fetchOpts, err := given.credentialFunc(cmd.Context()).FetchOptions(ref.Host, plainHTTP)
 	if err != nil {
 		return err

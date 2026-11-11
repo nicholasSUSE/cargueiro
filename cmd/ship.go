@@ -72,10 +72,7 @@ func shipChart(cmd *cobra.Command, opts *rootOptions, prepare prepareFunc, verif
 		return err
 	}
 
-	given, err := creds.read(cmd, opts)
-	if err != nil {
-		return err
-	}
+	given := creds.read(opts)
 
 	shipment, err := prepare(cmd.Context(), cfg, ref, repoDir, ship.Options{PlainHTTP: plainHTTP, Credentials: given.credentialFunc(cmd.Context())})
 	var invalid *ship.InvalidChartError

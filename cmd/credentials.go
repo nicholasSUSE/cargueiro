@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/rancher/cargueiro/internal/auth"
@@ -40,37 +39,32 @@ func (c connection) clientOptions() oci.ClientOptions {
 }
 
 // credentialFlags are the flags that give registry credentials. The username
-// and the password can also come from the environment.
+// can also come from the environment. The password only does: to give it any
+// other way, run `registry login` first.
 type credentialFlags struct {
-	username      string
-	passwordStdin bool
+	username string
 }
 
-// addFlags registers --username and --password-stdin.
+// addFlags registers --username.
 func (c *credentialFlags) addFlags(flags *pflag.FlagSet) {
 	flags.StringVarP(&c.username, "username", "u", "", "registry username (default: $"+envUsername+")")
-	flags.BoolVar(&c.passwordStdin, "password-stdin", false, "read the password from standard input instead of $"+envPassword)
 }
 
-// given are the credentials the command line and the environment give, read
-// once because standard input can be read once.
+// given are the credentials the command line and the environment give.
 type given struct {
 	opts     *rootOptions
 	username string
 	password string
 }
 
-// read takes the username and the password from the flags and the environment.
-func (c *credentialFlags) read(cmd *cobra.Command, opts *rootOptions) (given, error) {
+// read takes the username from the flag or the environment, and the password
+// from the environment.
+func (c *credentialFlags) read(opts *rootOptions) given {
 	username := c.username
 	if username == "" {
 		username = opts.getenv(envUsername)
 	}
-	password, err := readPassword(cmd.InOrStdin(), c.passwordStdin, opts.getenv)
-	if err != nil {
-		return given{}, err
-	}
-	return given{opts: opts, username: username, password: password}, nil
+	return given{opts: opts, username: username, password: opts.getenv(envPassword)}
 }
 
 // connection works out how to reach host from what was given and the saved
@@ -129,7 +123,7 @@ func resolveConnection(ctx context.Context, opts *rootOptions, host, username, p
 		case username == "":
 			return connection{}, fmt.Errorf("a username is required: give --username or set $%s", envUsername)
 		case password == "":
-			return connection{}, fmt.Errorf("a password is required: use --password-stdin or set $%s", envPassword)
+			return connection{}, fmt.Errorf("a password is required: set $%s or run `cargueiro registry login`", envPassword)
 		}
 		conn.Username, conn.Password = username, password
 		return conn, nil

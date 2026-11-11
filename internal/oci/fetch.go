@@ -159,7 +159,7 @@ func fetchError(what string, err error, authenticated bool) error {
 		if authenticated {
 			return fmt.Errorf("the registry refused the credentials for %s: check the username and the password, and that the account may read this repository", what)
 		}
-		return fmt.Errorf("the registry granted no access to %s without credentials: either the repository needs them, or it does not exist, which a registry answers in the same way. Give a username with --username and the password in $CARGUEIRO_PASSWORD or --password-stdin, or save them with `cargueiro registry login`", what)
+		return fmt.Errorf("the registry granted no access to %s without credentials: either the repository needs them, or it does not exist, which a registry answers in the same way. Give a username with --username and the password in $CARGUEIRO_PASSWORD, or save them with `cargueiro registry login`", what)
 	default:
 		return fmt.Errorf("fetch %s: %w", what, err)
 	}

@@ -3,8 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -15,9 +13,6 @@ import (
 const (
 	envUsername = "CARGUEIRO_USERNAME"
 	envPassword = "CARGUEIRO_PASSWORD"
-
-	// maxPasswordSize bounds what --password-stdin reads.
-	maxPasswordSize = 4096
 )
 
 // archivePusher pushes one chart archive and returns the reference it was
@@ -67,10 +62,7 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 				}
 			}
 
-			given, err := creds.read(cmd, opts)
-			if err != nil {
-				return err
-			}
+			given := creds.read(opts)
 			conn, err := given.connection(cmd.Context(), target.Host)
 			if err != nil {
 				return err
@@ -125,21 +117,4 @@ func newGuard(data []byte) (*oci.Guard, error) {
 		},
 		Editions: cfg.Editions(),
 	})
-}
-
-// readPassword returns the registry password: from stdin when asked to,
-// otherwise from the environment. It returns "" when none is set.
-func readPassword(stdin io.Reader, fromStdin bool, getenv func(string) string) (string, error) {
-	if !fromStdin {
-		return getenv(envPassword), nil
-	}
-
-	data, err := io.ReadAll(io.LimitReader(stdin, maxPasswordSize+1))
-	if err != nil {
-		return "", fmt.Errorf("read password from stdin: %w", err)
-	}
-	if len(data) > maxPasswordSize {
-		return "", fmt.Errorf("password from stdin is longer than %d bytes", maxPasswordSize)
-	}
-	return strings.TrimRight(string(data), "\r\n"), nil
 }

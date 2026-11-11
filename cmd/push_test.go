@@ -128,19 +128,6 @@ func TestPushCmdCredentials(t *testing.T) {
 			args: []string{"--registry", "r", "-u", "flag-user"},
 			want: oci.ClientOptions{Username: "flag-user", Password: "env-secret"},
 		},
-		{
-			name:  "password from stdin, trailing newline removed",
-			stdin: "stdin-secret\n",
-			args:  []string{"--registry", "r", "--username", "admin", "--password-stdin"},
-			want:  oci.ClientOptions{Username: "admin", Password: "stdin-secret"},
-		},
-		{
-			name:  "stdin beats environment password",
-			env:   map[string]string{"CARGUEIRO_PASSWORD": "env-secret"},
-			stdin: "stdin-secret\r\n",
-			args:  []string{"--registry", "r", "--username", "admin", "--password-stdin"},
-			want:  oci.ClientOptions{Username: "admin", Password: "stdin-secret"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -167,7 +154,7 @@ func TestPushCmdRejectsBadInput(t *testing.T) {
 		{name: "invalid registry", args: []string{"a.tgz", "--registry", "host/a//b"}, wantErr: "invalid registry"},
 		{name: "username without password", args: []string{"a.tgz", "--registry", "r", "-u", "admin"}, wantErr: "a password is required"},
 		{name: "password without username", args: []string{"a.tgz", "--registry", "r"}, env: map[string]string{"CARGUEIRO_PASSWORD": "p"}, wantErr: "a username is required"},
-		{name: "password too long", args: []string{"a.tgz", "--registry", "r", "--password-stdin"}, stdin: strings.Repeat("x", 5000), wantErr: "longer than"},
+		{name: "password on stdin is not offered", args: []string{"a.tgz", "--registry", "r", "--password-stdin"}, wantErr: "unknown flag: --password-stdin"},
 	}
 
 	for _, tt := range tests {

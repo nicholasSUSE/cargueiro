@@ -270,3 +270,100 @@ func TestShipmentPaths(t *testing.T) {
 		})
 	}
 }
+
+func familyShipments() []Shipment {
+	crd := Shipment{Chart: "fleet-crd", Version: "110.0.3+up0.16.3", Entry: []byte("name: fleet-crd\n")}
+	agent := Shipment{Chart: "fleet-agent", Version: "110.0.3+up0.16.3", Entry: []byte("name: fleet-agent\n")}
+	return []Shipment{fleetShipment(), crd, agent}
+}
+
+func TestWriteAll(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, WriteAll(dir, familyShipments()))
+
+	for _, chart := range []string{"fleet", "fleet-crd", "fleet-agent"} {
+		require.Equal(t, "name: "+chart+"\n", readFile(t, filepath.Join(dir, "entries", chart, "110.0.3+up0.16.3.yaml")))
+	}
+	require.Equal(t, "<svg/>", readFile(t, filepath.Join(dir, "assets", "logos", "fleet.svg")))
+}
+
+func TestWriteAllWritesNothingWhenOneCannotBeWritten(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string]string
+		wantErr string
+	}{
+		{
+			name:    "an entry is there already",
+			files:   map[string]string{"entries/fleet-agent/110.0.3+up0.16.3.yaml": "old\n"},
+			wantErr: "already exists",
+		},
+		{
+			name:    "a chart has its logo already",
+			files:   map[string]string{"assets/logos/fleet.png": "old"},
+			wantErr: "is the logo of fleet already",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFiles(t, dir, tt.files)
+
+			err := WriteAll(dir, familyShipments())
+
+			require.ErrorContains(t, err, tt.wantErr)
+			require.NoFileExists(t, filepath.Join(dir, "entries", "fleet", "110.0.3+up0.16.3.yaml"))
+			require.NoFileExists(t, filepath.Join(dir, "entries", "fleet-crd", "110.0.3+up0.16.3.yaml"))
+			require.NoFileExists(t, filepath.Join(dir, "assets", "logos", "fleet.svg"))
+		})
+	}
+}
+
+func TestWriteAllReportsEveryShipmentThatCannotBeWritten(t *testing.T) {
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"entries/fleet/110.0.3+up0.16.3.yaml":       "old\n",
+		"entries/fleet-agent/110.0.3+up0.16.3.yaml": "old\n",
+	})
+
+	err := WriteAll(dir, familyShipments())
+
+	require.ErrorContains(t, err, "entries/fleet/110.0.3+up0.16.3.yaml already exists")
+	require.ErrorContains(t, err, "entries/fleet-agent/110.0.3+up0.16.3.yaml already exists")
+	require.NotContains(t, err.Error(), "fleet-crd", "the one that can be written is not reported")
+	require.NoFileExists(t, filepath.Join(dir, "entries", "fleet-crd", "110.0.3+up0.16.3.yaml"))
+}
+
+func TestWriteAllWritesNothingWhenALaterChartHasItsLogoAlready(t *testing.T) {
+	dir := t.TempDir()
+	shipments := familyShipments()
+	shipments[2].Logo = &Logo{Data: []byte("<svg/>"), Extension: ".svg"}
+	writeFiles(t, dir, map[string]string{"assets/logos/fleet-agent.png": "old"})
+
+	err := WriteAll(dir, shipments)
+
+	require.ErrorContains(t, err, "is the logo of fleet-agent already")
+	require.NoFileExists(t, filepath.Join(dir, "entries", "fleet", "110.0.3+up0.16.3.yaml"))
+	require.NoFileExists(t, filepath.Join(dir, "assets", "logos", "fleet.svg"), "the logo of the first chart is not left behind")
+	require.Equal(t, "old", readFile(t, filepath.Join(dir, "assets", "logos", "fleet-agent.png")))
+}
+
+func TestWriteAllTakesBackWhatItWroteWhenALaterOneFails(t *testing.T) {
+	dir := t.TempDir()
+	// entries/fleet-agent is a file, so its folder cannot be made.
+	writeFiles(t, dir, map[string]string{"entries/fleet-agent": "in the way"})
+
+	err := WriteAll(dir, familyShipments())
+
+	require.Error(t, err)
+	require.NoFileExists(t, filepath.Join(dir, "entries", "fleet", "110.0.3+up0.16.3.yaml"))
+	require.NoFileExists(t, filepath.Join(dir, "entries", "fleet-crd", "110.0.3+up0.16.3.yaml"))
+	require.NoFileExists(t, filepath.Join(dir, "assets", "logos", "fleet.svg"))
+	require.NoDirExists(t, filepath.Join(dir, "entries", "fleet"), "the folders it made are gone too")
+	require.Equal(t, "in the way", readFile(t, filepath.Join(dir, "entries", "fleet-agent")))
+}
+
+func TestWriteAllWithNothingToWrite(t *testing.T) {
+	require.NoError(t, WriteAll(t.TempDir(), nil))
+}

@@ -37,6 +37,36 @@ type Shipment struct {
 // there already, even if it would be the same, or when the chart has a logo
 // already, whatever its extension.
 func (s Shipment) Write(dir string) error {
+	return WriteAll(dir, []Shipment{s})
+}
+
+// WriteAll writes every shipment as Write does, and all of them or none: nothing
+// is written unless every shipment can be, and a failure while writing takes
+// back everything written so far. It reports every shipment that cannot be
+// written, not only the first.
+func WriteAll(dir string, shipments []Shipment) error {
+	var problems []error
+	for _, s := range shipments {
+		if err := s.check(dir); err != nil {
+			problems = append(problems, err)
+		}
+	}
+	if len(problems) > 0 {
+		return errors.Join(problems...)
+	}
+
+	var batch fsutil.Batch
+	for _, s := range shipments {
+		if err := s.writeTo(&batch, dir); err != nil {
+			return errors.Join(err, batch.Undo())
+		}
+	}
+	return nil
+}
+
+// check fails when the shipment cannot be written to the charts repository in
+// dir, and writes nothing.
+func (s Shipment) check(dir string) error {
 	for _, name := range []struct{ what, value string }{{"chart name", s.Chart}, {"version", s.Version}} {
 		if !nameForm.MatchString(name.value) {
 			return fmt.Errorf("the %s %q is not valid", name.what, name.value)
@@ -61,15 +91,16 @@ func (s Shipment) Write(dir string) error {
 			return fmt.Errorf("%s is the logo of %s already", existing, s.Chart)
 		}
 	}
+	return nil
+}
 
-	var batch fsutil.Batch
-	if err := batch.Write(filepath.Join(dir, entry), s.Entry); err != nil {
-		return errors.Join(err, batch.Undo())
+// writeTo writes the entry and the logo through batch.
+func (s Shipment) writeTo(batch *fsutil.Batch, dir string) error {
+	if err := batch.Write(filepath.Join(dir, s.entryPath()), s.Entry); err != nil {
+		return err
 	}
 	if s.Logo != nil {
-		if err := batch.Write(filepath.Join(dir, s.logoPath()), s.Logo.Data); err != nil {
-			return errors.Join(err, batch.Undo())
-		}
+		return batch.Write(filepath.Join(dir, s.logoPath()), s.Logo.Data)
 	}
 	return nil
 }

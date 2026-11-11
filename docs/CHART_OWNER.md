@@ -107,7 +107,7 @@ flowchart TD
             prepare["<b>Prepare the chart folder</b><br/>app version · image tags · chart version"]
             chartFile["<b>Chart.yaml</b><br/>version: 999<br/>appVersion: 0.13.0"]
             valuesFile["<b>values.yaml</b><br/>image:<br/>&nbsp;&nbsp;repository: rancher/my-chart<br/>&nbsp;&nbsp;tag: v0.13.0"]
-            chartRules["<b>Chart.yaml needs</b><br/>appVersion: the release<br/>the annotations of its kind<br/>version: any, the action stamps it<br/>details: Before you start"]
+            chartRules["<b>Chart.yaml needs</b><br/>appVersion: the release, set by you<br/>version: any value, it is overwritten<br/>annotations: see Before you start"]
             prepare -.- chartFile
             chartFile -.- chartRules
             valuesRules["<b>values.yaml needs</b><br/>repository and tag on every image<br/>the tag is never latest<br/>details: Before you start"]

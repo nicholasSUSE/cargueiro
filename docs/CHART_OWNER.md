@@ -48,7 +48,7 @@ flowchart TD
 
 The action reads everything it needs from Vault, under the path of your repository, so a repository that releases a chart needs four things. The first is for the release team, and the other three are an EIO request.
 
-- **The chart in `rules.yaml`**, which is compiled into cargueiro. It says what each chart must be: its kind, its family and the annotations it needs. A chart that is not listed is refused by every command.
+- **The chart in [`rules.yaml`](https://github.com/rancher/cargueiro/blob/main/rules.yaml)**, which is compiled into cargueiro. It says what each chart must be: its kind, its family and the annotations it needs. A chart that is not listed is refused by every command.
 - **A Vault role for the repository.** The job logs in with its OIDC token, and the role is named after the repository. A repository that already reads secrets from Vault has it.
 - **The staging registry credentials** at `github/repo/rancher/<repository>/rancher-prime-stg-registry/credentials`, with the fields `username`, `password` and `registry` (`stgregistry.suse.com`). The account has to be able to push to `stgregistry.suse.com/rancher/catalog`.
 - **A GitHub App installed on `rancher/charts`** with the repository permission Contents: write, and its credentials at `github/repo/rancher/<repository>/github/app-credentials`, with the fields `appId` and `privateKey`. The action uses it to send the event to `rancher/charts`. `rancher/webhook` has one.

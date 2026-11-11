@@ -174,47 +174,13 @@ gh api "repos/rancher/charts/dispatches" \
 
 ## The commands behind the action
 
-These are the commands the action runs, for when you need to run one by hand. Install cargueiro with `curl -fsSL https://github.com/rancher/cargueiro/releases/latest/download/install.sh | sh -`. It checks the download against the checksums of the release, and `CARGUEIRO_VERSION` names a release to pin.
+These are the commands the action runs, in the order it runs them, for when you need to run one by hand. Each one has its page in [`cmd/docs`](../cmd/docs), with the flags and the exit codes.
 
-### Stamp the chart
-
-```
-cargueiro stamp charts/my-chart --version 112.0.0+up0.13.0
-```
-
-It puts the final version on the chart and lists its images in `helm.sh/images`. Only the `version` line and that annotation of `Chart.yaml` change, so the diff in your workflow shows nothing else. It refuses a version that does not follow the rules, and an image whose tag is `latest`.
-
-`--version` is yours: it is the version of your release, and `stamp` does not compare it with anything but the rules. Give it. Without it, `stamp` works the version out from the versions already in the staging registry, which reads the registry: give `--username` and the password the way `push` takes them if it asks for credentials. `--dry-run` prints what would change and writes nothing. Charts for Rancher 2.15 and before are not supported.
-
-### Check the chart
-
-```
-cargueiro check chart charts/my-chart
-```
-
-It reads `Chart.yaml` and `values.yaml`, and nothing else in the folder, and checks them against the rules of the chart. The report has three sections:
-
-- `annotations`: the annotations the chart needs for its kind, and their form.
-- `hip15-annotations`: `helm.sh/images` lists every image in `values.yaml` ([HIP-0015](https://helm.sh/community/hips/hip-0015/)).
-- `version`: the version is `1XY.Z.W+upA.B.C`, and `1XY` matches the Rancher version of the chart (`111` for 2.16, `112` for 2.17).
-
-It goes after `stamp` because a chart that is not stamped yet fails in `version` and in `hip15-annotations`, which is what `stamp` puts right. The `annotations` section is the one `stamp` cannot fix, and where you will usually see an error. `--output json` prints the report as JSON.
-
-### Package the chart
-
-```
-cargueiro package charts/my-chart --output-dir dist
-```
-
-It makes the archive (`.tgz`) and prints its path, and nothing else, on stdout. It does not change the chart: stamp it first. Before packaging, it runs the same check as `check chart` on the folder, so a chart that is not valid is not packaged, and after packaging it checks the archive. It then compares every file of the folder with the same file in the archive. If the archive is not valid, or differs from the folder, it is removed and the step fails.
-
-### Push the chart
-
-```
-cargueiro push dist/my-chart-112.0.0+up0.13.0.tgz --registry stgregistry.suse.com/rancher/catalog
-```
-
-The registry is the staging registry of the chart's edition. The username and the password come from `CARGUEIRO_USERNAME` and `CARGUEIRO_PASSWORD`, which your workflow reads from its secrets. It prints the reference it pushed. On SUSE registries it enforces two rules, and refuses with the reason otherwise:
-
-- A chart goes only to the repository of its edition, never to the one for images.
-- It never replaces a version that is there: a tag is pushed once. Running the step again for the same version fails, on purpose.
+| Order | Command | What it does to the chart | Docs |
+|-------|---------|---------------------------|------|
+| 1 | `curl -fsSL https://github.com/rancher/cargueiro/releases/latest/download/install.sh \| sh -` | Installs cargueiro, after checking the download against the checksums of the release. `CARGUEIRO_VERSION` names a release to pin. | |
+| 2 | `cargueiro stamp <folder> --version <version>` | Puts the final version on `Chart.yaml` and lists the images of `values.yaml` in `helm.sh/images`. Refuses a version or an image tag that breaks the rules. | [stamp](../cmd/docs/stamp.md) |
+| 3 | `cargueiro check chart <folder>` | Checks the annotations of the kind of the chart, `helm.sh/images` and the version against the rules. Exits with 1 and prints every error when the chart is not valid. | [check chart](../cmd/docs/check-chart.md) |
+| 4 | `cargueiro package <folder> --output-dir <dir>` | Runs the same check, builds the archive and prints its path. The archive is removed and the step fails if it is not valid or if a file differs from the folder. | [package](../cmd/docs/package.md) |
+| 5 | `cargueiro push <archive> --registry <registry>/rancher/catalog` | Pushes the archive to the staging registry, with the credentials from `CARGUEIRO_USERNAME` and `CARGUEIRO_PASSWORD`. A version is pushed once, and a chart goes only to the repository of its edition. Prints the reference it pushed. | [push](../cmd/docs/push.md) |
+| 6 | `gh api repos/rancher/charts/dispatches -f event_type=chart-staged ...` | Sends the name and the version of the chart to `rancher/charts`, which ships and indexes it (see [What rancher/charts does](#what-ranchercharts-does)). | |

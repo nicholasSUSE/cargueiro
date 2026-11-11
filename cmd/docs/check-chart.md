@@ -8,6 +8,8 @@ The result is printed to stdout, one line per error. Annotation values are never
 
 The exit code is 0 when the chart is valid and 1 when it is not. With `--no-error-hip-15`, errors of the `helm.sh/images` annotation do not make the exit code 1: the checks still run, the result is printed the same way, and `chart is not valid (HIP-15 errors ignored by --no-error-hip-15)` goes to stderr. Annotation and version errors still exit 1. When the directory cannot be read, a file is not valid YAML, or the chart is not listed in `rules.yaml`, nothing is printed to stdout: the error goes to stderr and the exit code is 1.
 
+With `--family`, the arguments are the folders of every chart of one family in `rules.yaml`, such as `fleet`, `fleet-agent` and `fleet-crd`, and nothing else: a chart that is missing, given twice or from another family is an error, and nothing is printed. The folders can be given in any order, and the name of each chart is read from its `Chart.yaml`. Every chart is checked and gets its own result, printed one after the other in the order of the family, the main chart first, or as a list with `--output json`. The exit code is 1 when any chart is not valid, or when the charts do not all have the same version, because a family is released at one version.
+
 Target-Audience: Chart Owners, Release Team and Automation
 
 ## Examples
@@ -25,4 +27,9 @@ cargueiro check chart charts/fleet/110.0.3+up0.16.3 --no-error-hip-15
 ```
 # print the result as JSON
 cargueiro check chart charts/fleet/110.0.3+up0.16.3 --output json
+```
+
+```
+# check every chart of a family
+cargueiro check chart --family fleet charts/fleet charts/fleet-agent charts/fleet-crd
 ```

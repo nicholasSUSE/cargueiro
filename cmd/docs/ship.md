@@ -15,6 +15,8 @@ It writes `entries/<chart>/<version>.yaml`: the `Chart.yaml` of the chart as it 
 
 `ship` never replaces anything: an entry that is there already is refused even if it would be the same, and so is a logo of the chart in any extension when one has to be added. The entry and the logo are written together or not at all. It does not write the index or `assets/<chart>/`: `cargueiro index` does.
 
+With `--family` it ships every chart of a family at once, instead of one reference. `--family` names the family in `rules.yaml`, `--version` is the version they all have, and `--registry` is where they were pushed, `host[:port]/path` with no chart name. The references are made from them, the main chart first and then the order of `rules.yaml`, and no reference is given. The checkout is checked once. Every chart is read and checked before anything is written, all the problems are reported, and the entries and logos of the whole family are written together or not at all. A chart that is not in the registry, that does not follow the rules, or is of another version, stops the whole family. Nothing else changes.
+
 It prints the files it wrote, relative to the repository, one to a line. `--dry-run` prints the same lines for what it would write and writes nothing. Credentials are optional. Without them the registry is read anonymously, which is right for a public path. To give them, use `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD`; otherwise the login saved by `cargueiro registry login` is used when it is for this registry. They are sent only to that registry, and over HTTP only with `--plain-http`. `--plain-http` talks HTTP to the registry, for local registries. The exit code is 0, or 1 when anything fails.
 
 Target-Audience: Chart Owners and Automation
@@ -34,4 +36,9 @@ cargueiro ship stgregistry.suse.com/rancher/catalog/fleet:110.0.3+up0.16.3 --rep
 ```
 # a chart in a local registry
 cargueiro ship 127.0.0.1:5052/e2e/fleet:110.0.3+up0.16.3 --repo ~/charts --plain-http
+```
+
+```
+# ship every chart of a family
+cargueiro ship --family fleet --version 110.0.3+up0.16.3 --registry stgregistry.suse.com/rancher/catalog --repo ~/charts
 ```

@@ -1,6 +1,6 @@
-# Manual test: `cargueiro check chart --family`
+# Manual test: `cargueiro check chart`
 
-Run it from the root of the repository, in bash or zsh, and paste the whole block. It needs Go, and no registry. The setup builds the binary of the current checkout into `.tmp/manual-tests/bin` and puts it first on the `PATH` of your shell, so every command is a plain `cargueiro …` with real paths. Everything the test creates is in `.tmp/manual-tests`, which git ignores, and the block removes it at the end.
+Run it from the root of the repository, in bash or zsh, and paste the whole block. It needs Go and python3, and no registry. The setup builds the binary of the current checkout into `.tmp/manual-tests/bin` and puts it first on the `PATH` of your shell, so every command is a plain `cargueiro …` with real paths. Everything the test creates is in `.tmp/manual-tests`, which git ignores, and the block removes it at the end.
 
 For every step it prints a **blue title**, a **yellow line** with what to expect, the **command in cyan** after a `$`, the output, and a bold `=> exit N`. A command is the text inside `run '…'`.
 
@@ -14,19 +14,17 @@ run 'mkdir -p .tmp/manual-tests/bin && go build -o .tmp/manual-tests/bin/carguei
 run 'PATH="$PWD/.tmp/manual-tests/bin:$PATH"'
 run 'command -v cargueiro && cargueiro version'
 
-hdr "1. HAPPY: the three folders of the family, given out of order"
-want "three reports in the order fleet, fleet-agent, fleet-crd, all 'valid: true'; exit 0"
-run 'cargueiro check chart --family fleet tests/data/charts/fleet/src/fleet-crd tests/data/charts/fleet/src/fleet-agent tests/data/charts/fleet/src/fleet'
+hdr "1. HAPPY: a chart that follows the rules"
+want "one report for fleet: annotations, hip15-annotations and version all valid; 'valid: true'; exit 0"
+run 'cargueiro check chart tests/data/charts/fleet/src/fleet'
 
-hdr "2. FAILURE: one chart is not valid (a copy where fleet-agent has no annotations)"
-want "all three charts reported, only fleet-agent 'valid: false'; error: the family \"fleet\" is not valid: fleet-agent; exit 1"
-run 'rm -rf .tmp/manual-tests/bad && cp -r tests/data/charts/fleet/src .tmp/manual-tests/bad && sed -i "/catalog.cattle.io/d" .tmp/manual-tests/bad/fleet-agent/Chart.yaml'
-run 'cargueiro check chart --family fleet .tmp/manual-tests/bad/fleet .tmp/manual-tests/bad/fleet-agent .tmp/manual-tests/bad/fleet-crd'
+hdr "2. HAPPY: as JSON"
+want "one line: fleet main True 110.0.3+up0.16.3; exit 0"
+run 'cargueiro check chart --output json tests/data/charts/fleet/src/fleet | python3 -c "import json,sys; r=json.load(sys.stdin); print(r[\"chart\"], r[\"kind\"], r[\"valid\"], r[\"metadata\"][\"version\"])"'
 
-hdr "3. FAILURE: the versions of the family differ (a copy where fleet-agent has another version)"
-want "the three reports, then: error: the charts of the family \"fleet\" do not have the same version, with the version of each chart; exit 1"
-run 'rm -rf .tmp/manual-tests/diff && cp -r tests/data/charts/fleet/src .tmp/manual-tests/diff && sed -i "s/^version: .*/version: 110.0.4+up0.16.4/" .tmp/manual-tests/diff/fleet-agent/Chart.yaml'
-run 'cargueiro check chart --family fleet .tmp/manual-tests/diff/fleet .tmp/manual-tests/diff/fleet-agent .tmp/manual-tests/diff/fleet-crd'
+hdr "3. FAILURE: a chart that breaks the rules (longhorn)"
+want "valid: false, a wrong kube-version and images that are not listed in helm.sh/images, then 'error: chart is not valid'; exit 1"
+run 'cargueiro check chart tests/data/charts/longhorn/src/longhorn'
 
 hdr "CLEANUP: take the binary off the PATH and remove the copies"
 run 'PATH=${PATH#"$PWD/.tmp/manual-tests/bin:"}; rm -rf .tmp/manual-tests'

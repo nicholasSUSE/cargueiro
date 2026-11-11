@@ -27,12 +27,24 @@ const defaultBranch = "staging"
 func newShipCmd(opts *rootOptions, prepare prepareFunc, verifyCheckout verifyCheckoutFunc) (*cobra.Command, error) {
 	var repoDir, branch string
 	var plainHTTP, dryRun bool
+	var family familyFlags
 	var creds credentialFlags
 
 	cmd := &cobra.Command{
-		Use:  "ship <registry/path/chart:tag>",
-		Args: cobra.ExactArgs(1),
+		Use: "ship <registry/path/chart:tag>",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if family.set() {
+				return family.checkArgs(args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := family.check(); err != nil {
+				return err
+			}
+			if family.set() {
+				return shipFamily(cmd, opts, prepare, verifyCheckout, family, repoDir, branch, plainHTTP, dryRun, &creds)
+			}
 			return shipChart(cmd, opts, prepare, verifyCheckout, args[0], repoDir, branch, plainHTTP, dryRun, &creds)
 		},
 	}
@@ -41,6 +53,7 @@ func newShipCmd(opts *rootOptions, prepare prepareFunc, verifyCheckout verifyChe
 	flags.StringVar(&branch, "branch", defaultBranch, "the branch of the charts repository that --repo must be on, and be up to date with")
 	flags.BoolVar(&plainHTTP, "plain-http", false, "talk HTTP to the registry instead of HTTPS, for local registries")
 	flags.BoolVar(&dryRun, "dry-run", false, "print the files that would be written, and write nothing")
+	family.addFlags(flags)
 	creds.addFlags(flags)
 	if err := cmd.MarkFlagRequired("repo"); err != nil {
 		return nil, fmt.Errorf("mark --repo required: %w", err)

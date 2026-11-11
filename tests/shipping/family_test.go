@@ -79,6 +79,10 @@ func TestShipFamilyNeverReplacesAnEntry(t *testing.T) {
 	again := ship(t, args...)
 
 	require.NotZero(t, again.ExitCode)
-	require.Contains(t, again.Stderr, "an entry is never replaced")
+	for _, name := range []string{"fleet", "fleet-agent", "fleet-crd"} {
+		require.Contains(t, again.Stderr, "entries/"+name+"/"+fleetVersion+".yaml already exists: an entry is never replaced",
+			"every entry that is there is reported")
+	}
 	require.Empty(t, again.Stdout)
+	requireClean(t, repo)
 }

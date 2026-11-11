@@ -320,6 +320,21 @@ func TestWriteAllWritesNothingWhenOneCannotBeWritten(t *testing.T) {
 	}
 }
 
+func TestWriteAllReportsEveryShipmentThatCannotBeWritten(t *testing.T) {
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"entries/fleet/110.0.3+up0.16.3.yaml":       "old\n",
+		"entries/fleet-agent/110.0.3+up0.16.3.yaml": "old\n",
+	})
+
+	err := WriteAll(dir, familyShipments())
+
+	require.ErrorContains(t, err, "entries/fleet/110.0.3+up0.16.3.yaml already exists")
+	require.ErrorContains(t, err, "entries/fleet-agent/110.0.3+up0.16.3.yaml already exists")
+	require.NotContains(t, err.Error(), "fleet-crd", "the one that can be written is not reported")
+	require.NoFileExists(t, filepath.Join(dir, "entries", "fleet-crd", "110.0.3+up0.16.3.yaml"))
+}
+
 func TestWriteAllTakesBackWhatItWroteWhenALaterOneFails(t *testing.T) {
 	dir := t.TempDir()
 	// entries/fleet-agent is a file, so its folder cannot be made.

@@ -42,12 +42,17 @@ func (s Shipment) Write(dir string) error {
 
 // WriteAll writes every shipment as Write does, and all of them or none: nothing
 // is written unless every shipment can be, and a failure while writing takes
-// back everything written so far.
+// back everything written so far. It reports every shipment that cannot be
+// written, not only the first.
 func WriteAll(dir string, shipments []Shipment) error {
+	var problems []error
 	for _, s := range shipments {
 		if err := s.check(dir); err != nil {
-			return err
+			problems = append(problems, err)
 		}
+	}
+	if len(problems) > 0 {
+		return errors.Join(problems...)
 	}
 
 	var batch fsutil.Batch

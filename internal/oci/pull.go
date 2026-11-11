@@ -25,7 +25,7 @@ func PullArchive(ctx context.Context, repo ChartRepo, manifestDigest string, opt
 		return nil, err
 	}
 
-	layer, err := chartLayer(ctx, remote, manifestDigest, what)
+	layer, err := chartLayer(ctx, remote, manifestDigest, what, opts.authenticated())
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func PullArchive(ctx context.Context, repo ChartRepo, manifestDigest string, opt
 
 	rc, err := remote.Fetch(ctx, layer)
 	if err != nil {
-		return nil, fetchError(what, err)
+		return nil, fetchError(what, err, opts.authenticated())
 	}
 	defer func() { _ = rc.Close() }()
 

@@ -64,7 +64,14 @@ func registryPath() string {
 func pushCompliance(t *testing.T, iconURL string) (address, path, reference string) {
 	t.Helper()
 
-	address = harness.OpenRegistry(t)
+	return pushComplianceTo(t, harness.OpenRegistry(t), iconURL)
+}
+
+// pushComplianceTo is pushCompliance to the registry at address, which logs in
+// as the registry user with plain HTTP.
+func pushComplianceTo(t *testing.T, address, iconURL string) (_, path, reference string) {
+	t.Helper()
+
 	session := harness.NewSession(t)
 	res := session.Login(t, address, []string{"--plain-http"})
 	require.Zero(t, res.ExitCode, res.Stderr)

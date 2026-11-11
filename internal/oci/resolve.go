@@ -15,7 +15,7 @@ func ResolveDigest(ctx context.Context, ref ChartRef, opts FetchOptions) (string
 
 	desc, err := repo.Resolve(ctx, ref.Tag)
 	if err != nil {
-		return "", fetchError(ref.String(), err)
+		return "", fetchError(ref.String(), err, opts.authenticated())
 	}
 	return desc.Digest.String(), nil
 }

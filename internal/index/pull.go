@@ -28,7 +28,7 @@ func pullAdded(ctx context.Context, all *repo.IndexFile, added []Ref, opts Optio
 	var problems []error
 	for _, ref := range added {
 		entry := byRef[ref]
-		archive, err := pullOne(ctx, pull, entry, opts.PlainHTTP)
+		archive, err := pullOne(ctx, pull, entry, opts)
 		if err != nil {
 			problems = append(problems, err)
 			continue
@@ -42,13 +42,17 @@ func pullAdded(ctx context.Context, all *repo.IndexFile, added []Ref, opts Optio
 }
 
 // pullOne pulls the archive of the entry and checks it.
-func pullOne(ctx context.Context, pull PullFunc, entry *repo.ChartVersion, plainHTTP bool) ([]byte, error) {
+func pullOne(ctx context.Context, pull PullFunc, entry *repo.ChartVersion, opts Options) ([]byte, error) {
 	chartRepo, manifestDigest, err := pinnedManifest(entry)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", entry.Name, entry.Version, err)
 	}
 
-	archive, err := pull(ctx, chartRepo, manifestDigest, oci.FetchOptions{PlainHTTP: plainHTTP})
+	fetch, err := opts.Credentials.FetchOptions(chartRepo.Host, opts.PlainHTTP)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s: %w", entry.Name, entry.Version, err)
+	}
+	archive, err := pull(ctx, chartRepo, manifestDigest, fetch)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: pull the archive: %w", entry.Name, entry.Version, err)
 	}

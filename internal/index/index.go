@@ -19,6 +19,7 @@ import (
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
 
+	"github.com/rancher/cargueiro/internal/oci"
 	"github.com/rancher/cargueiro/internal/rules"
 	"github.com/rancher/cargueiro/internal/version"
 )
@@ -37,6 +38,9 @@ type Options struct {
 	Registry string
 	// PlainHTTP talks HTTP to the registry the archives are pulled from.
 	PlainHTTP bool
+	// Credentials gives the credentials to read from a registry. Without it the
+	// reads are anonymous.
+	Credentials oci.CredentialFunc
 	// Pull reads an archive from the registry. It defaults to oci.PullArchive.
 	Pull PullFunc
 	// DryRun makes Write check, and report what it would do, without pulling

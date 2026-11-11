@@ -30,9 +30,12 @@ type LogoFunc func(ctx context.Context, address string) (Logo, error)
 type Options struct {
 	// PlainHTTP talks HTTP to the registry instead of HTTPS.
 	PlainHTTP bool
-	Resolve   ResolveFunc
-	Pull      PullFunc
-	Logo      LogoFunc
+	// Credentials gives the credentials to read from the registry. Without it
+	// the reads are anonymous.
+	Credentials oci.CredentialFunc
+	Resolve     ResolveFunc
+	Pull        PullFunc
+	Logo        LogoFunc
 }
 
 // InvalidChartError says that the chart does not follow the chart rules. The
@@ -63,7 +66,10 @@ func Prepare(ctx context.Context, cfg *rules.Config, ref oci.ChartRef, dir strin
 		client := &http.Client{Timeout: 30 * time.Second}
 		fetchLogo = func(ctx context.Context, address string) (Logo, error) { return FetchLogo(ctx, client, address) }
 	}
-	fetch := oci.FetchOptions{PlainHTTP: opts.PlainHTTP}
+	fetch, err := opts.Credentials.FetchOptions(ref.Host, opts.PlainHTTP)
+	if err != nil {
+		return Shipment{}, err
+	}
 
 	digest, err := resolve(ctx, ref, fetch)
 	if err != nil {

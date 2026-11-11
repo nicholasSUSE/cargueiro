@@ -237,18 +237,18 @@ func TestFetchChartFails(t *testing.T) {
 			wantErr: "was not found in the registry",
 		},
 		{
-			name: "the registry does not allow reading without credentials",
+			name: "the registry grants no access without credentials",
 			setup: func(_ *testing.T, f *fakeRegistry) {
 				f.status["/v2/"+testRepository+"/manifests/"+testTag] = http.StatusUnauthorized
 			},
-			wantErr: "does not allow reading",
+			wantErr: "granted no access",
 		},
 		{
 			name: "the registry forbids the read",
 			setup: func(_ *testing.T, f *fakeRegistry) {
 				f.status["/v2/"+testRepository+"/manifests/"+testTag] = http.StatusForbidden
 			},
-			wantErr: "does not allow reading",
+			wantErr: "granted no access",
 		},
 		{
 			name: "the artifact is not a Helm chart",
@@ -405,10 +405,15 @@ func TestFetchErrorForARead(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := fetchError("registry.example.com/rancher/catalog/fleet:1.0.0", &errcode.ErrorResponse{StatusCode: tt.status})
+			err := fetchError("registry.example.com/rancher/catalog/fleet:1.0.0", statusError(tt.status), false)
 
-			require.EqualError(t, err, "the registry does not allow reading registry.example.com/rancher/catalog/fleet:1.0.0 without credentials: either it needs them, or the repository does not exist, which some registries answer in the same way")
+			require.EqualError(t, err, "the registry granted no access to registry.example.com/rancher/catalog/fleet:1.0.0 without credentials: either the repository needs them, or it does not exist, which a registry answers in the same way. Give a username with --username and the password in $CARGUEIRO_PASSWORD or --password-stdin, or save them with `cargueiro registry login`")
 			require.NotContains(t, err.Error(), "not supported yet", "reading without credentials is supported")
 		})
 	}
+}
+
+// statusError is the error oras returns for a registry answer with status.
+func statusError(status int) error {
+	return &errcode.ErrorResponse{StatusCode: status}
 }

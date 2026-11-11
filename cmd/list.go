@@ -27,17 +27,19 @@ type listedVersion struct {
 func newListCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 	var output string
 	var plainHTTP bool
+	var creds credentialFlags
 
 	cmd := &cobra.Command{
 		Use:  "list <registry/path/chart>",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listVersions(cmd, opts, list, args[0], output, plainHTTP)
+			return listVersions(cmd, opts, list, args[0], output, plainHTTP, &creds)
 		},
 	}
 	flags := cmd.Flags()
 	flags.StringVarP(&output, "output", "o", outputText, "output format: text or json")
 	flags.BoolVar(&plainHTTP, "plain-http", false, "talk HTTP to the registry instead of HTTPS, for local registries")
+	creds.addFlags(flags)
 	if err := applyDoc(cmd, "list"); err != nil {
 		return nil, err
 	}
@@ -46,7 +48,7 @@ func newListCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 }
 
 // listVersions prints the versions of the chart at reference, newest first.
-func listVersions(cmd *cobra.Command, opts *rootOptions, list listFunc, reference, output string, plainHTTP bool) error {
+func listVersions(cmd *cobra.Command, opts *rootOptions, list listFunc, reference, output string, plainHTTP bool, creds *credentialFlags) error {
 	if err := checkOutputFormat(output); err != nil {
 		return err
 	}
@@ -70,7 +72,15 @@ func listVersions(cmd *cobra.Command, opts *rootOptions, list listFunc, referenc
 	}
 	opts.log.DebugContext(cmd.Context(), "listing versions", "repository", repo.String(), "output", output)
 
-	tags, err := list(cmd.Context(), repo, oci.FetchOptions{PlainHTTP: plainHTTP})
+	given, err := creds.read(cmd, opts)
+	if err != nil {
+		return err
+	}
+	fetch, err := given.credentialFunc(cmd.Context()).FetchOptions(repo.Host, plainHTTP)
+	if err != nil {
+		return err
+	}
+	tags, err := list(cmd.Context(), repo, fetch)
 	if err != nil {
 		return err
 	}

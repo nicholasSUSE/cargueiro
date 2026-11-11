@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
 	"github.com/rancher/cargueiro/internal/auth"
 	"github.com/rancher/cargueiro/internal/oci"
 )
@@ -33,6 +36,58 @@ func (c connection) clientOptions() oci.ClientOptions {
 		Password:  c.Password,
 		PlainHTTP: c.PlainHTTP,
 		CAPEM:     c.CAPEM,
+	}
+}
+
+// credentialFlags are the flags that give registry credentials. The username
+// and the password can also come from the environment.
+type credentialFlags struct {
+	username      string
+	passwordStdin bool
+}
+
+// addFlags registers --username and --password-stdin.
+func (c *credentialFlags) addFlags(flags *pflag.FlagSet) {
+	flags.StringVarP(&c.username, "username", "u", "", "registry username (default: $"+envUsername+")")
+	flags.BoolVar(&c.passwordStdin, "password-stdin", false, "read the password from standard input instead of $"+envPassword)
+}
+
+// given are the credentials the command line and the environment give, read
+// once because standard input can be read once.
+type given struct {
+	opts     *rootOptions
+	username string
+	password string
+}
+
+// read takes the username and the password from the flags and the environment.
+func (c *credentialFlags) read(cmd *cobra.Command, opts *rootOptions) (given, error) {
+	username := c.username
+	if username == "" {
+		username = opts.getenv(envUsername)
+	}
+	password, err := readPassword(cmd.InOrStdin(), c.passwordStdin, opts.getenv)
+	if err != nil {
+		return given{}, err
+	}
+	return given{opts: opts, username: username, password: password}, nil
+}
+
+// connection works out how to reach host from what was given and the saved
+// login, in that order. Nothing at all means anonymous.
+func (g given) connection(ctx context.Context, host string) (connection, error) {
+	return resolveConnection(ctx, g.opts, host, g.username, g.password)
+}
+
+// credentialFunc returns the credentials for the host that is read, so that
+// nothing is sent to a host it was not given for.
+func (g given) credentialFunc(ctx context.Context) oci.CredentialFunc {
+	return func(host string) (string, string, error) {
+		conn, err := g.connection(ctx, host)
+		if err != nil {
+			return "", "", err
+		}
+		return conn.Username, conn.Password, nil
 	}
 }
 

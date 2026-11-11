@@ -15,7 +15,7 @@ It writes `entries/<chart>/<version>.yaml`: the `Chart.yaml` of the chart as it 
 
 `ship` never replaces anything: an entry that is there already is refused even if it would be the same, and so is a logo of the chart in any extension when one has to be added. The entry and the logo are written together or not at all. It does not write the index or `assets/<chart>/`: `cargueiro index` does.
 
-It prints the files it wrote, relative to the repository, one to a line. `--dry-run` prints the same lines for what it would write and writes nothing. Credentials are optional. Without them the registry is read anonymously, which is right for a public path. To give them, use `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD` or `--password-stdin`; otherwise the login saved by `cargueiro registry login` is used when it is for this registry. They are sent only to that registry, and over HTTP only with `--plain-http`. `--plain-http` talks HTTP to the registry, for local registries. The exit code is 0, or 1 when anything fails.
+It prints the files it wrote, relative to the repository, one to a line. `--dry-run` prints the same lines for what it would write and writes nothing. Credentials are optional. Without them the registry is read anonymously, which is right for a public path. To give them, use `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD`; otherwise the login saved by `cargueiro registry login` is used when it is for this registry. They are sent only to that registry, and over HTTP only with `--plain-http`. `--plain-http` talks HTTP to the registry, for local registries. The exit code is 0, or 1 when anything fails.
 
 Target-Audience: Chart Owners and Automation
 

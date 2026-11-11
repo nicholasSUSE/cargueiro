@@ -6,7 +6,7 @@ The argument is one chart archive (.tgz), such as the one `cargueiro package` pr
 
 `--registry` is the destination, as `host[:port][/path]`. The pushed reference is printed to stdout as `oci://<registry>/<name>:<tag>`; errors go to stderr and the exit code is non-zero.
 
-For credentials, give `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD` or `--password-stdin`. Without them, the login saved by `cargueiro registry login` is used when it is for this registry; otherwise the push is anonymous.
+For credentials, give `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD`. Without them, the login saved by `cargueiro registry login` is used when it is for this registry; otherwise the push is anonymous.
 
 The connection is HTTPS with the system trust store, unless the login saved plain HTTP or a CA certificate for this registry. Those are set at login only.
 

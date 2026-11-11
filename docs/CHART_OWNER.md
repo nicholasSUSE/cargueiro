@@ -61,7 +61,7 @@ cargueiro stamp charts/my-chart --version 112.0.0+up0.13.0
 
 It puts the final version on the chart and lists its images in `helm.sh/images`. Only the `version` line and that annotation of `Chart.yaml` change, so the diff in your workflow shows nothing else. It refuses a version that does not follow the rules, and an image whose tag is `latest`.
 
-`--version` is yours: it is the version of your release, and `stamp` does not compare it with anything but the rules. Give it. Without it, `stamp` works the version out from the versions already in the staging registry, which needs a read that does not work with credentials yet. `--dry-run` prints what would change and writes nothing. Charts for Rancher 2.15 and before are not supported.
+`--version` is yours: it is the version of your release, and `stamp` does not compare it with anything but the rules. Give it. Without it, `stamp` works the version out from the versions already in the staging registry, which reads the registry: give `--username` and the password the way `push` takes them if it asks for credentials. `--dry-run` prints what would change and writes nothing. Charts for Rancher 2.15 and before are not supported.
 
 ## 2. Check the chart
 

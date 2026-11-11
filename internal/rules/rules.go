@@ -116,8 +116,44 @@ func (r Registries) ImageRepositories() []string {
 // Config is the parsed rules file.
 type Config struct {
 	charts     map[string]Chart
+	families   map[string]Family
 	registries Registries
 	versions   Versions
+}
+
+// Family is the set of charts that are released together, at one version. The
+// main chart sets that version for all of them.
+type Family struct {
+	Name    string
+	Edition string
+	// Charts are the charts of the family: the main chart first, then the
+	// others in the order of the rules file.
+	Charts []Chart
+}
+
+// Main returns the main chart of the family.
+func (f Family) Main() Chart {
+	return f.Charts[0]
+}
+
+// Names returns the names of the charts of the family, the main chart first.
+func (f Family) Names() []string {
+	names := make([]string, 0, len(f.Charts))
+	for _, chart := range f.Charts {
+		names = append(names, chart.Name)
+	}
+	return names
+}
+
+// Family returns the family called name. It fails when the rules file does not
+// list it.
+func (c *Config) Family(name string) (Family, error) {
+	family, ok := c.families[name]
+	if !ok {
+		return Family{}, fmt.Errorf("family %q is not listed in the rules file (rules.yaml)", name)
+	}
+	family.Charts = slices.Clone(family.Charts)
+	return family, nil
 }
 
 // Versions returns the chart version policy named in the rules file.
@@ -232,6 +268,10 @@ func Parse(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	families, err := indexFamilies(f, charts)
+	if err != nil {
+		return nil, err
+	}
 	registries, err := newRegistries(f.Registries)
 	if err != nil {
 		return nil, err
@@ -240,7 +280,7 @@ func Parse(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Config{charts: charts, registries: registries, versions: versions}, nil
+	return &Config{charts: charts, families: families, registries: registries, versions: versions}, nil
 }
 
 // decode reads the YAML, rejecting unknown keys.
@@ -302,6 +342,35 @@ func indexCharts(f file) (map[string]Chart, error) {
 		return nil, errors.New("parse rules: no charts listed")
 	}
 	return charts, nil
+}
+
+// indexFamilies lists the families by name, each with its main chart first. A
+// family has exactly one main chart, because its version is the version of the
+// whole family.
+func indexFamilies(f file, charts map[string]Chart) (map[string]Family, error) {
+	families := make(map[string]Family, len(f.Families))
+	for _, fam := range f.Families {
+		if _, dup := families[fam.Family]; dup {
+			return nil, fmt.Errorf("parse rules: family %q is listed twice", fam.Family)
+		}
+
+		family := Family{Name: fam.Family, Edition: charts[fam.Charts[0].Name].Edition}
+		var mains []Chart
+		for _, item := range fam.Charts {
+			chart := charts[item.Name]
+			if chart.Kind == KindMain {
+				mains = append(mains, chart)
+				continue
+			}
+			family.Charts = append(family.Charts, chart)
+		}
+		if len(mains) != 1 {
+			return nil, fmt.Errorf("parse rules: family %q must have exactly one main chart, it has %d", fam.Family, len(mains))
+		}
+		family.Charts = append(mains, family.Charts...)
+		families[fam.Family] = family
+	}
+	return families, nil
 }
 
 // newChart builds the chart described by item, with the rules of its kind.

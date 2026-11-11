@@ -124,6 +124,8 @@ Every chart also has an `edition`, `rancher-charts` or `prime-charts`, which say
 
 `push` builds its guard from these. On the SUSE registries named there, a listed chart may only go to the repositories of its edition, anything else is an image dependency that may only go to the image path, and nothing that already exists is overwritten. The check and the upload are separate calls, so only the registry's own immutable tags could close the race between two pushes of the same new tag.
 
+A family is the set of charts that are released together, at one version, such as `fleet`, `fleet-agent` and `fleet-crd`. It has exactly one `main` chart, which sets that version for the others, and `Config.Family` lists its charts with the main chart first. `internal/family.Resolve` takes what a command was given, folders or archives, checks that they are exactly the charts of one family, each once, and puts them in that order. A command that works on a family calls it first.
+
 A chart version is `1XY.Z.W+upA.B.C`, with an optional prerelease after the `+up` part such as `-rc.1`; a chart marked `version: plain` is `1XY.Z.W` and has neither. The `versions` section of the file lists the prerelease names that are allowed and ties each Rancher version to the major (`1XY`) its charts carry. `internal/version` applies it: `Policy.Validate` checks the form, and `Policy.CheckMajor` compares the major with the lower bound of the chart's `rancher-version` annotation. The `check` commands call them.
 
 | Kind | Chart | Required annotations (under `catalog.cattle.io/`) |

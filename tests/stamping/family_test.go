@@ -67,3 +67,21 @@ func TestStampFamilyWithoutAVersionNeedsTheRegistries(t *testing.T) {
 	require.Contains(t, res.Stderr, "stgregistry.suse.com/rancher/catalog/fleet")
 	require.Equal(t, before, readChartYAML(t, fleet))
 }
+
+func TestStampFamilyRefusesAnExtraChartOfAnotherMajor(t *testing.T) {
+	fleet, agent, crd := fleetFamily(t)
+	// The extra chart is for Rancher 2.16, whose charts have the major 111, while
+	// the version of the family is the one of the main chart, for Rancher 2.17.
+	edit(t, agent, "Chart.yaml", ">= 2.17.0-0 < 2.18.0-0", ">= 2.16.0-0 < 2.17.0-0")
+	before := []string{readChartYAML(t, fleet), readChartYAML(t, agent), readChartYAML(t, crd)}
+
+	res := harness.Cargueiro(t, t.TempDir(), "stamp", "--family", "fleet", fleet, agent, crd, "--version", "112.0.0+up0.16.3")
+
+	require.Equal(t, 1, res.ExitCode)
+	require.Empty(t, res.Stdout)
+	require.Contains(t, res.Stderr, "fleet-agent: ")
+	require.Contains(t, res.Stderr, "has major 112, but charts for Rancher 2.16 have major 111")
+	for i, dir := range []string{fleet, agent, crd} {
+		require.Equal(t, before[i], readChartYAML(t, dir), "nothing is changed, not even the charts that could take the version")
+	}
+}

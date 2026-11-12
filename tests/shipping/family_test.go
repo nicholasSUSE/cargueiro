@@ -3,6 +3,7 @@
 package shipping
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,8 @@ func TestShipFamilyThenIndex(t *testing.T) {
 	for _, name := range []string{"fleet", "fleet-agent", "fleet-crd"} {
 		text := readFile(t, repo+"/entries/"+name+"/"+fleetVersion+".yaml")
 		require.Contains(t, text, "\nversion: "+fleetVersion+"\n")
-		require.Contains(t, text, "\nurls:\n- oci://"+address+"/"+path+"/"+name+":"+fleetVersion+"@sha256:")
+		require.Contains(t, text, "\nurls:\n- oci://"+address+"/"+path+"/"+name+":"+strings.ReplaceAll(fleetVersion, "+", "_")+"@sha256:",
+			"the tag of the url is the one the registry stores")
 	}
 
 	// What ship wrote is what index reads, and one run indexes the whole family.

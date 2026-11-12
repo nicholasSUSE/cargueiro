@@ -298,6 +298,16 @@ func TestIndexRefusesToChangeAPublishedVersion(t *testing.T) {
 			new:  "oci://stgregistry.suse.com/rancher/catalog/fleet-other:",
 		},
 		{
+			name: "a date that changed",
+			old:  "created: \"2026-09-16T10:20:00Z\"\n",
+			new:  "created: \"2026-12-01T00:00:00Z\"\n",
+		},
+		{
+			name: "a date that was taken away",
+			old:  "created: \"2026-09-16T10:20:00Z\"\n",
+			new:  "",
+		},
+		{
 			name: "an icon that changed",
 			old:  "icon: file://assets/logos/fleet.svg\n",
 			new:  "icon: file://assets/logos/other.svg\n",
@@ -331,6 +341,37 @@ func TestIndexRefusesToChangeAPublishedVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestIndexRefusesANewEntryWithoutADate(t *testing.T) {
+	const version = "111.0.2+up0.17.2"
+	repo := copyRepo(t)
+	editFile(t, filepath.Join(repo, "entries", "fleet", version+".yaml"), func(s string) string {
+		return createdField.ReplaceAllString(s, "")
+	})
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.NotZero(t, res.ExitCode)
+	require.Contains(t, res.Stderr, "fleet "+version+" has no created date: it must have the date its chart was pushed")
+	require.Empty(t, res.Stdout)
+	require.NoFileExists(t, filepath.Join(repo, "index.yaml"))
+}
+
+func TestIndexKeepsTheDatesOfThePublishedVersions(t *testing.T) {
+	repo := publishedRepo(t)
+	before := readIndex(t, repo)
+	require.Contains(t, before, `created: "2026-09-16T10:20:00Z"`)
+	require.Contains(t, before, `generated: "2026-10-22T16:00:00Z"`, "the newest date of the versions")
+
+	res := harness.Cargueiro(t, t.TempDir(), "index", "--repo", repo)
+
+	require.Zero(t, res.ExitCode, res.Stderr)
+	require.Equal(t, "nothing to change\n", res.Stdout)
+	require.Equal(t, before, readIndex(t, repo), "regenerating changes nothing")
+}
+
+// createdField matches the created field of an entry.
+var createdField = regexp.MustCompile(`(?m)^created: "[^"]+"\n`)
 
 // pinnedDigest matches the digest a URL of the fixture is pinned to.
 var pinnedDigest = regexp.MustCompile(`@sha256:[0-9a-f]{64}`)

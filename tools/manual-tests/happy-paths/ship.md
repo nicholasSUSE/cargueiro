@@ -26,14 +26,15 @@ run 'REG="127.0.0.1:5052/manual-ship-$(date +%s)"; echo "$REG"'
 run 'cargueiro push tests/data/charts/fleet/published/fleet-crd-110.0.3+up0.16.3.tgz --registry $REG'
 
 hdr "1. HAPPY: ship the chart to the checkout"
-want "one line on stdout, entries/fleet-crd/110.0.3+up0.16.3.yaml; exit 0. The entry has 'version: 110.0.3+up0.16.3', with the +, and a url whose tag has a _: …/fleet-crd:110.0.3_up0.16.3@sha256:…"
+want "one line on stdout, entries/fleet-crd/110.0.3+up0.16.3.yaml; exit 0. The entry has 'version: 110.0.3+up0.16.3', with the +, the 'created' date, and a url whose tag has a _: …/fleet-crd:110.0.3_up0.16.3@sha256:…. The date is the same one the registry gives for the chart"
 run 'cargueiro ship $REG/fleet-crd:110.0.3+up0.16.3 --repo "$PWD/.tmp/manual-tests/charts" --plain-http'
-run 'grep -E "^version:|^urls:|^- oci://" ".tmp/manual-tests/charts/entries/fleet-crd/110.0.3+up0.16.3.yaml"'
+run 'grep -E "^version:|^created:|^urls:|^- oci://" ".tmp/manual-tests/charts/entries/fleet-crd/110.0.3+up0.16.3.yaml"'
+run 'curl -s -H "Accept: application/vnd.oci.image.manifest.v1+json" "http://127.0.0.1:5052/v2/${REG#127.0.0.1:5052/}/fleet-crd/manifests/110.0.3_up0.16.3" | grep -o "\"org.opencontainers.image.created\":\"[^\"]*\""'
 
 hdr "2. HAPPY: index it"
-want "one line on stdout, add fleet-crd 110.0.3+up0.16.3; exit 0. Then index.yaml has the version with its + and the url with the _, and the archive is in assets/fleet-crd"
+want "one line on stdout, add fleet-crd 110.0.3+up0.16.3; exit 0. Then index.yaml has the version with its +, the url with the _, the same created date as the entry, and generated with that date too, and the archive is in assets/fleet-crd"
 run 'cargueiro index --repo "$PWD/.tmp/manual-tests/charts" --registry $REG --plain-http'
-run 'grep -E "^    version:|^    - oci://" .tmp/manual-tests/charts/index.yaml; ls .tmp/manual-tests/charts/assets/fleet-crd'
+run 'grep -E "^    version:|^    created:|^    - oci://|^generated:" .tmp/manual-tests/charts/index.yaml; ls .tmp/manual-tests/charts/assets/fleet-crd'
 
 hdr "3. FAILURE: ship the same version again, after the result is committed and pushed, as rancher/charts has it"
 want "an error that says the entry is there already and is never replaced; nothing on stdout; exit 1. Without the commit, ship refuses first because the checkout has changes that are not committed"

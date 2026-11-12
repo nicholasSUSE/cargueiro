@@ -134,7 +134,7 @@ func TestBuildFamilyRefusesWhenTheLatestVersionsDiffer(t *testing.T) {
 				crdRepo:   {"112.0.0_up0.16.1"},
 			},
 			want: `the charts of the family "fleet" are not at the same released version: ` +
-				"fleet 112.0.1+up0.16.2, fleet-agent 112.0.1+up0.16.2, fleet-crd 112.0.0+up0.16.1: give --version to set it by hand",
+				"fleet 112.0.1+up0.16.2, fleet-agent 112.0.1+up0.16.2, fleet-crd 112.0.0+up0.16.1",
 		},
 		{
 			name: "a chart has no repository while the main chart has releases",
@@ -142,7 +142,7 @@ func TestBuildFamilyRefusesWhenTheLatestVersionsDiffer(t *testing.T) {
 				fleetRepo: {"112.0.0_up0.16.1"},
 				agentRepo: {"112.0.0_up0.16.1"},
 			},
-			want: "fleet 112.0.0+up0.16.1, fleet-agent 112.0.0+up0.16.1, fleet-crd (nothing released): give --version to set it by hand",
+			want: "fleet 112.0.0+up0.16.1, fleet-agent 112.0.0+up0.16.1, fleet-crd (nothing released)",
 		},
 	}
 	for _, tt := range tests {

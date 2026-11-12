@@ -147,7 +147,7 @@ func TestStampFamilyRefusesWhenTheLatestVersionsDiffer(t *testing.T) {
 	stdout, _, err := runStampFamilyWith(t, registry.list, "--family", "fleet", fleet, agent, crd)
 
 	require.ErrorContains(t, err, `the charts of the family "fleet" are not at the same released version: `+
-		"fleet 111.0.1+up0.16.2, fleet-crd 111.0.0+up0.16.1, fleet-agent 111.0.1+up0.16.2: give --version to set it by hand")
+		"fleet 111.0.1+up0.16.2, fleet-crd 111.0.0+up0.16.1, fleet-agent 111.0.1+up0.16.2")
 	require.Empty(t, stdout)
 	require.Equal(t, stampChartYAML, readChartFile(t, fleet), "nothing is changed")
 	require.Equal(t, stampAgentYAML, readChartFile(t, agent))

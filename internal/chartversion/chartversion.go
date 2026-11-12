@@ -40,7 +40,7 @@ type Options struct {
 // starts at the first version.
 func Next(ctx context.Context, cfg *rules.Config, rule rules.Chart, files *chart.Files, opts Options) (string, []string, error) {
 	if rule.Kind == rules.KindCRD {
-		return "", nil, errors.New("a CRD chart has no rancher-version, so stamp cannot work out its version: give --version")
+		return "", nil, errors.New("a CRD chart has no rancher-version, so its version cannot be worked out on its own")
 	}
 	rancher, err := SupportedRancher(files)
 	if err != nil {
@@ -58,7 +58,7 @@ func Next(ctx context.Context, cfg *rules.Config, rule rules.Chart, files *chart
 
 	upstream := strings.TrimPrefix(files.Metadata.AppVersion, "v")
 	if !rule.PlainVersion && upstream == "" {
-		return "", nil, errors.New("the Chart.yaml has no appVersion, which stamp needs for the upstream part of the version: give --version")
+		return "", nil, errors.New("the Chart.yaml has no appVersion, which the upstream part of the version needs")
 	}
 
 	published, err := published(ctx, cfg, rule, opts)
@@ -67,7 +67,7 @@ func Next(ctx context.Context, cfg *rules.Config, rule rules.Chart, files *chart
 	}
 	next, err := policy.Next(published, major, upstream, rule.PlainVersion)
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: give --version to set it by hand", err)
+		return "", nil, err
 	}
 	return next, published, nil
 }
@@ -111,7 +111,7 @@ func SupportedRancher(files *chart.Files) (string, error) {
 	rancherVersion := annotations.RancherVersionAnnotation(files.Annotations)
 	rancher, ok := version.RancherOf(rancherVersion)
 	if !ok {
-		return "", fmt.Errorf("catalog.cattle.io/rancher-version %q has no lower bound like \">= 2.%d.0-0\": stamp needs it to know the major of the version",
+		return "", fmt.Errorf("catalog.cattle.io/rancher-version %q has no lower bound like \">= 2.%d.0-0\": the major of the version comes from it",
 			rancherVersion, version.MinRancherMinor)
 	}
 	if !version.SupportedRancher(rancher) {
@@ -166,7 +166,7 @@ func CheckReleased(ctx context.Context, cfg *rules.Config, members rules.Family,
 		differ = differ || got != want
 	}
 	if differ {
-		problems = append(problems, fmt.Errorf("the charts of the family %q are not at the same released version: %s: give --version to set it by hand",
+		problems = append(problems, fmt.Errorf("the charts of the family %q are not at the same released version: %s",
 			members.Name, strings.Join(described, ", ")))
 	}
 	return errors.Join(problems...)

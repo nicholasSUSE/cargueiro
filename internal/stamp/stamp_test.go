@@ -575,7 +575,7 @@ func TestBuildCannotWorkOutTheVersion(t *testing.T) {
 				return copyChart(t, "fleet", "fleet-crd")
 			},
 			fake:    &fakeRegistry{},
-			wantErr: "a CRD chart has no rancher-version, so stamp cannot work out its version: give --version",
+			wantErr: "a CRD chart has no rancher-version, so its version cannot be worked out on its own",
 		},
 		{
 			name: "a chart for Rancher 2.15",

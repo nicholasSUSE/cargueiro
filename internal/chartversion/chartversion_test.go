@@ -274,7 +274,7 @@ func TestNextCannotWorkOutTheVersion(t *testing.T) {
 				return copyChart(t, "fleet", "fleet-crd")
 			},
 			fake:    &fakeRegistry{},
-			wantErr: "a CRD chart has no rancher-version",
+			wantErr: "a CRD chart has no rancher-version, so its version cannot be worked out on its own",
 		},
 		{
 			name: "a chart for Rancher 2.15",
@@ -429,7 +429,6 @@ func TestCheckReleased(t *testing.T) {
 			wantErr: []string{
 				`the charts of the family "fleet" are not at the same released version`,
 				"fleet 112.0.1+up0.16.3, fleet-agent 112.0.1+up0.16.3, fleet-crd 112.0.0+up0.16.2",
-				"give --version to set it by hand",
 			},
 		},
 		{

@@ -328,7 +328,7 @@ func TestStampACRDChartNeedsAVersion(t *testing.T) {
 	res := stampOffline(t, dir)
 
 	require.Equal(t, 1, res.ExitCode)
-	require.Contains(t, res.Stderr, "a CRD chart has no rancher-version, so stamp cannot work out its version: give --version")
+	require.Contains(t, res.Stderr, "a CRD chart has no rancher-version, so its version cannot be worked out on its own")
 }
 
 // TestStampWorksOutTheVersionFromTheRegistry follows a chart through its

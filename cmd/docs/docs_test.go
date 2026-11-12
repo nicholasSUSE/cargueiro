@@ -85,7 +85,7 @@ func TestParse(t *testing.T) {
 
 func TestLoad(t *testing.T) {
 	t.Run("embedded docs load", func(t *testing.T) {
-		for _, name := range []string{"check", "check-archive", "check-chart", "check-oci", "index", "list", "package", "push", "stamp", "registry", "registry-login", "registry-logout", "ship", "version"} {
+		for _, name := range []string{"check", "check-archive", "check-chart", "check-oci", "chart-version", "index", "list", "package", "push", "stamp", "registry", "registry-login", "registry-logout", "ship", "version"} {
 			doc, err := Load(name)
 			require.NoError(t, err, name)
 			require.NotEmpty(t, doc.Short, name)
@@ -115,7 +115,7 @@ func TestLoad(t *testing.T) {
 func TestNames(t *testing.T) {
 	names, err := Names()
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"check", "check-archive", "check-chart", "check-oci", "index", "list", "package", "push", "registry", "stamp", "registry-login", "registry-logout", "ship", "version"}, names)
+	require.ElementsMatch(t, []string{"check", "check-archive", "check-chart", "check-oci", "chart-version", "index", "list", "package", "push", "registry", "stamp", "registry-login", "registry-logout", "ship", "version"}, names)
 }
 
 func TestParseNestedCommand(t *testing.T) {

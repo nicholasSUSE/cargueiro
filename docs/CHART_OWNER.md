@@ -1,10 +1,23 @@
 # Releasing a chart with cargueiro
 
-For chart owners. This is how a chart gets from your repository to the staging registry, and from there to the `staging` branch of `rancher/charts`. Your repository calls one action, `ship-staged`, from its GitHub Actions workflow. The action runs the cargueiro commands in your job, and a step that fails stops the workflow and says why on its log. This guide says what to ask for, what to write, and what happens next.
+For chart owners. This is how a chart gets from your repository to the staging registry, and from there to the `staging` branch of `rancher/charts`. Your repository calls one composite action from its GitHub Actions workflow. The action runs the cargueiro commands in your job, and a step that fails stops the workflow and says why on its log. This guide says what to ask for, what to write, and what happens next.
+
+Which composite action you call depends on what you release:
+
+| You release | You call | You get |
+|-------------|----------|---------|
+| One chart | `ship-staged` | One pull request with that chart. |
+| The charts of a family, such as `fleet`, `fleet-agent` and `fleet-crd`, together | `ship-family-staged` | One pull request with all of them. |
+
+A family is the set of charts that `rules.yaml` lists under one `family:` name. Its charts are released as one unit and have the same version.
+
+In both cases you give the final version of the chart, or leave it out and cargueiro works it out from the `appVersion` and the versions already released.
+
+Actions are here: https://github.com/rancher/charts/tree/staging/.github/actions
 
 ## Before you start: what the provided GHAs require
 
-The `ship-staged` action only runs the commands. What it needs from you comes first: the access it reads from Vault, the chart folder it is given, and the rules that folder has to follow.
+The actions only run the commands. What they need from you comes first: the access they read from Vault, the chart folders they are given, and the rules those folders have to follow.
 
 ### What you need, and from whom
 
@@ -20,8 +33,8 @@ A repository that releases a chart needs things from three places: cargueiro, `r
 
 | What | What it is for | What you do |
 |------|----------------|-------------|
-| The `ship-staged` action | The steps your workflow calls: it checks and pushes the chart, and sends the event. | Add a job to your workflow that calls it with `uses: rancher/charts/.github/actions/ship-staged@staging`, after the checkout and the preparation of the chart folder. The repository is public, so there is nothing to request. Example: [`stage-chart.yaml`](https://github.com/rancher/webhook/blob/main/.github/workflows/stage-chart.yaml) and [`prepare-chart.sh`](https://github.com/rancher/webhook/blob/main/.github/workflows/scripts/prepare-chart.sh) in `rancher/webhook`. |
-| The `chart-staged` workflow | It ships and indexes the chart when the event arrives, and opens the pull request against `staging`. | Nothing to write: the action sends the `repository_dispatch` of type `chart-staged` that starts it. You run your workflow when you release, as `rancher/webhook` does in the step [`Trigger Stage chart workflow`](https://github.com/rancher/webhook/blob/main/.github/workflows/cut-release.yaml#L120). |
+| The `ship-staged` or `ship-staged-family` action | The steps your workflow calls: it checks and pushes the chart, and sends the event. | Add a job to your workflow that calls it with `uses: rancher/charts/.github/actions/ship-staged@staging` or `....ship-staged-family@staging`, after the checkout and the preparation of the chart folder. The repository is public, so there is nothing to request. Example: [`stage-chart.yaml`](https://github.com/rancher/webhook/blob/main/.github/workflows/stage-chart.yaml) and [`prepare-chart.sh`](https://github.com/rancher/webhook/blob/main/.github/workflows/scripts/prepare-chart.sh) in `rancher/webhook`. we also provide some generic templates for the chart preparation at: [`templates`](https://github.com/rancher/charts/tree/staging/.github/templates) |
+| The [`chart-staged`](https://github.com/rancher/charts/tree/staging/.github/workflows/chart-staged.yaml) workflow | It ships and indexes the chart when the event arrives, and opens the pull request against `staging`. | Nothing to write: the action sends the `repository_dispatch` of type `chart-staged` that starts it. You run your workflow when you release, as `rancher/webhook` does in the step [`Trigger Stage chart workflow`](https://github.com/rancher/webhook/blob/main/.github/workflows/cut-release.yaml#L120). chart families can also use it.|
 | An approval of the pull request | The `staging` branch takes no direct pushes. | Review/Approve/Merge. Example: [rancher/charts#9390](https://github.com/rancher/charts/pull/9390), the pull request for `rancher-webhook` `112.0.0+up0.13.0-rc.4`. |
 
 #### From EIO
@@ -32,7 +45,7 @@ A repository that releases a chart needs things from three places: cargueiro, `r
 | The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. |
 | A GitHub App on `rancher/charts` | It makes the token that sends the event. `rancher/webhook` has one. | The App installed on `rancher/charts` with the repository permission Contents: write, and its `appId` and `privateKey` at `github/repo/rancher/<repository>/github/app-credentials`. |
 
-For the EIO request, this is enough:
+For the EIO request, this should be enough:
 
 ```
 Repository: rancher/<repository>
@@ -46,9 +59,15 @@ Repository: rancher/<repository>
 
 ### The chart folder
 
-The action takes a folder with the chart and the final version of the chart, and everything that only your repository knows is set before it. Copy the chart to a temporary folder first, so the checkout stays as it is. In the copy, set the `appVersion` and the image tags in `values.yaml` to the release; `stamp` changes neither. If `Chart.yaml` already has a `helm.sh/images` annotation, its image tags are the release too, because `stamp` keeps an annotation that exists and refuses an image tagged `latest`. The `version` in `Chart.yaml` can be any placeholder, because the action stamps the final one, which you give as an input. How you work out that version is yours: it is `1XY.Z.W+upA.B.C`, and `rancher/webhook` reads the `1XY` from a table in its `VERSION.md`.
+The action takes a folder with the chart and, if you give one, the final version of the chart; without it, the version is worked out. Everything that only your repository knows is set before the action.
+- Copy the chart to a temporary folder first, so the checkout stays as it is.
+- In the copy, set the `appVersion` and the image tags in `values.yaml` to the release; `stamp` changes neither.
+- If `Chart.yaml` already has a `helm.sh/images` annotation, its image tags are the release too, because `stamp` keeps an annotation that exists and refuses an image tagged `latest`.
+- `Chart.yaml` must have a `version:` line, with any placeholder value, because the action stamps the final version. The final version is `1XY.Z.W+upA.B.C`.
+  - Give it as the `version` input. How you work it out is yours: `rancher/webhook` reads the `1XY` from a table in its `VERSION.md`.
+  - Or leave the `version` input out, and the action works it out with [`cargueiro chart-version`](../cmd/docs/chart-version.md) from the `appVersion` of the copy, which must be set first, and the versions already released in the staging registry.
 
-`rancher/webhook` is the example. Its script `prepare-chart.sh` copies `charts/rancher-webhook` to a temporary folder, changes three lines, and prints the version. For the tag `v0.13.0-rc.7`, this is what differs from the source:
+`rancher/webhook` is the example. Its script `prepare-chart.sh` copies `charts/rancher-webhook` to a temporary folder, changes three lines, and prints the version. It reads the chart major from a table, which leaving the `version` input out replaces. For the tag `v0.13.0-rc.7`, this is what differs from the source:
 
 ```diff
  Chart.yaml
@@ -104,10 +123,10 @@ flowchart TD
     subgraph owner["Your repository · GitHub Actions"]
         subgraph prep["The chart folder, as the action expects it"]
             direction LR
-            prepare["<b>Prepare the chart folder</b><br/>app version · image tags · chart version"]
+            prepare["<b>Prepare the chart folder</b><br/>app version · image tags · chart version, if you give one"]
             chartFile["<b>Chart.yaml</b><br/>version: 999<br/>appVersion: 0.13.0"]
             valuesFile["<b>values.yaml</b><br/>image:<br/>&nbsp;&nbsp;repository: rancher/my-chart<br/>&nbsp;&nbsp;tag: v0.13.0"]
-            chartRules["<b>Chart.yaml needs</b><br/>appVersion: the release, set by you<br/>version: any value, it is overwritten<br/>annotations: see Before you start"]
+            chartRules["<b>Chart.yaml needs</b><br/>appVersion: the release, set by you<br/>version: any value, but the line must exist<br/>annotations: see Before you start"]
             prepare -.- chartFile
             chartFile -.- chartRules
             valuesRules["<b>values.yaml needs</b><br/>repository and tag on every image<br/>the tag is never latest<br/>details: Before you start"]
@@ -172,7 +191,15 @@ jobs:
           version: ${{ steps.prepare.outputs.version }}
 ```
 
-The action checks the job and the credentials first, then makes the token for `rancher/charts`, installs the latest cargueiro, and stamps, checks, packages and pushes the chart. Only then does it send the `chart-staged` event, with the name and the version. All that can fail on credentials fails before the push, because a version that is pushed stays in the registry. It has the outputs `chart` and `reference`.
+To have the version worked out, call the action without `version`. The `appVersion` of the folder must be set:
+
+```yaml
+      - uses: rancher/charts/.github/actions/ship-staged@staging
+        with:
+          chart-dir: ${{ runner.temp }}/chart/my-chart
+```
+
+The action checks the job and the credentials first, then makes the token for `rancher/charts`, installs the latest cargueiro, works out the version when you give none, and stamps, checks, packages and pushes the chart. Only then does it send the `chart-staged` event, with the name and the version. All that can fail on credentials fails before the push, because a version that is pushed stays in the registry. It has the outputs `chart`, `reference` and `version`, the one it used.
 
 ## What rancher/charts does
 
@@ -180,7 +207,7 @@ The event starts a workflow in `rancher/charts` that runs `cargueiro ship` and `
 
 ## When something fails
 
-The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. A failure before the push leaves nothing behind: fix it and run the workflow again. A version is pushed once, so after the push the same version can't be run again. If only the event failed, send it again by hand, or start the chart-staged workflow of `rancher/charts` with the same two values.
+The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. A failure before the push leaves nothing behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read. A version is pushed once, so after the push the same version can't be run again. If only the event failed, send it again by hand, or start the chart-staged workflow of `rancher/charts` with the same two values.
 
 ```
 gh api "repos/rancher/charts/dispatches" \
@@ -196,8 +223,9 @@ These are the commands the action runs, in the order it runs them, for when you 
 | Order | Command | What it does to the chart | Docs |
 |-------|---------|---------------------------|------|
 | 1 | `curl -fsSL https://github.com/rancher/cargueiro/releases/latest/download/install.sh \| sh -` | Installs cargueiro, after checking the download against the checksums of the release. `CARGUEIRO_VERSION` names a release to pin. | |
-| 2 | `cargueiro stamp <folder> --version <version>` | Puts the final version on `Chart.yaml` and lists the images of `values.yaml` in `helm.sh/images`. Refuses a version or an image tag that breaks the rules. | [stamp](../cmd/docs/stamp.md) |
-| 3 | `cargueiro check chart <folder>` | Checks the annotations of the kind of the chart, `helm.sh/images` and the version against the rules. Exits with 1 and prints every error when the chart is not valid. | [check chart](../cmd/docs/check-chart.md) |
-| 4 | `cargueiro package <folder> --output-dir <dir>` | Runs the same check, builds the archive and prints its path. The archive is removed and the step fails if it is not valid or if a file differs from the folder. | [package](../cmd/docs/package.md) |
-| 5 | `cargueiro push <archive> --registry <registry>/rancher/catalog` | Pushes the archive to the staging registry, with the credentials from `CARGUEIRO_USERNAME` and `CARGUEIRO_PASSWORD`. A version is pushed once, and a chart goes only to the repository of its edition. Prints the reference it pushed. | [push](../cmd/docs/push.md) |
-| 6 | `gh api repos/rancher/charts/dispatches -f event_type=chart-staged ...` | Sends the name and the version of the chart to `rancher/charts`, which ships and indexes it (see [What rancher/charts does](#what-ranchercharts-does)). | |
+| 2 | `cargueiro chart-version <folder>` | Only when you give no version: prints the final version, worked out from the `appVersion` and the versions already released in the staging registry. Writes nothing. | [chart-version](../cmd/docs/chart-version.md) |
+| 3 | `cargueiro stamp <folder> --version <version>` | Puts the final version on `Chart.yaml` and lists the images of `values.yaml` in `helm.sh/images`. Refuses a version or an image tag that breaks the rules. | [stamp](../cmd/docs/stamp.md) |
+| 4 | `cargueiro check chart <folder>` | Checks the annotations of the kind of the chart, `helm.sh/images` and the version against the rules. Exits with 1 and prints every error when the chart is not valid. | [check chart](../cmd/docs/check-chart.md) |
+| 5 | `cargueiro package <folder> --output-dir <dir>` | Runs the same check, builds the archive and prints its path. The archive is removed and the step fails if it is not valid or if a file differs from the folder. | [package](../cmd/docs/package.md) |
+| 6 | `cargueiro push <archive> --registry <registry>/rancher/catalog` | Pushes the archive to the staging registry, with the credentials from `CARGUEIRO_USERNAME` and `CARGUEIRO_PASSWORD`. A version is pushed once, and a chart goes only to the repository of its edition. Prints the reference it pushed. | [push](../cmd/docs/push.md) |
+| 7 | `gh api repos/rancher/charts/dispatches -f event_type=chart-staged ...` | Sends the name and the version of the chart to `rancher/charts`, which ships and indexes it (see [What rancher/charts does](#what-ranchercharts-does)). | |

@@ -11,10 +11,9 @@ import (
 	"github.com/rancher/cargueiro/internal/stamp"
 )
 
-func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
-	var newVersion, registry, familyName string
-	var plainHTTP, dryRun bool
-	var creds credentialFlags
+func newStampCmd(opts *rootOptions) (*cobra.Command, error) {
+	var newVersion, familyName string
+	var dryRun bool
 
 	cmd := &cobra.Command{
 		Use: "stamp <chart-dir>",
@@ -22,17 +21,10 @@ func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 			return checkArgs(familyName)(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("version") && newVersion == "" {
-				return errors.New("--version is empty: give a version, or leave the flag out to work it out")
+			if newVersion == "" {
+				return errors.New("--version is required: give the final version of the chart, 1XY.Z.W+upA.B.C")
 			}
-			given := creds.read(opts)
-			stampOpts := stamp.Options{
-				Version:     newVersion,
-				Registry:    registry,
-				PlainHTTP:   plainHTTP,
-				Credentials: given.credentialFunc(cmd.Context()),
-				List:        stamp.ListFunc(list),
-			}
+			stampOpts := stamp.Options{Version: newVersion}
 			if familyName != "" {
 				return stampFamily(cmd, opts, familyName, args, dryRun, stampOpts)
 			}
@@ -41,10 +33,7 @@ func newStampCmd(opts *rootOptions, list listFunc) (*cobra.Command, error) {
 	}
 	flags := cmd.Flags()
 	flags.StringVar(&familyName, "family", "", "stamp the family of this name, with one folder for each of its charts")
-	flags.StringVar(&newVersion, "version", "", "the final version of the chart, 1XY.Z.W+upA.B.C (default: worked out from the versions released)")
-	flags.StringVar(&registry, "registry", "", "registry path to read the released versions from, host[:port]/path, instead of the staging registry of the chart")
-	flags.BoolVar(&plainHTTP, "plain-http", false, "talk HTTP to the registry instead of HTTPS, for local registries")
-	creds.addFlags(flags)
+	flags.StringVar(&newVersion, "version", "", "the final version of the chart, 1XY.Z.W+upA.B.C (required)")
 	flags.BoolVar(&dryRun, "dry-run", false, "print what would change as a diff, and write nothing")
 	if err := applyDoc(cmd, "stamp"); err != nil {
 		return nil, err
@@ -93,7 +82,7 @@ func stampChart(cmd *cobra.Command, opts *rootOptions, dir string, dryRun bool, 
 	}
 	opts.log.DebugContext(cmd.Context(), "stamping chart", "chart", dir, "version", stampOpts.Version)
 
-	plan, err := stamp.Build(cmd.Context(), cfg, dir, stampOpts)
+	plan, err := stamp.Build(cfg, dir, stampOpts)
 	if err != nil {
 		return err
 	}

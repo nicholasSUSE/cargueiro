@@ -88,7 +88,7 @@ func pushFamily(cmd *cobra.Command, opts *rootOptions, newPusher pusherFactory, 
 
 	for _, m := range result.Members {
 		if m.State == oci.StateSkipped {
-			warnf(opts.stderr, "%s %s is in the registry already, so it was not pushed", m.Chart, m.Version)
+			warnf(opts.stderr, "%s %s is in the registry already with the same content, so it was not pushed", m.Chart, m.Version)
 		}
 		if _, err := fmt.Fprintln(cmd.OutOrStdout(), "oci://"+m.Ref); err != nil {
 			return fmt.Errorf("write reference: %w", err)

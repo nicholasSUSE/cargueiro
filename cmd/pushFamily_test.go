@@ -87,7 +87,7 @@ func TestPushFamilySaysWhichChartsWereThereAlready(t *testing.T) {
 	stdout, stderr, _, err := runPushFamily(t, pusher, "--family", "fleet", fleet, agent, crd, "--registry", "reg.local/charts")
 
 	require.NoError(t, err)
-	require.Equal(t, "warning: fleet 111.0.0+up0.16.3 is in the registry already, so it was not pushed\n", stderr)
+	require.Equal(t, "warning: fleet 111.0.0+up0.16.3 is in the registry already with the same content, so it was not pushed\n", stderr)
 	require.Contains(t, stdout, "oci://reg.local/charts/fleet:111.0.0_up0.16.3\n", "its reference is printed too")
 }
 

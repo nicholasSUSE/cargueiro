@@ -19,8 +19,8 @@ import (
 // keys included.
 //
 // It fails when the result would not be an entry that cargueiro index reads: a
-// Chart.yaml that has urls or created already, a created that is not a date, or
-// a field that the index does not know.
+// Chart.yaml that has urls or created already, no date to write, or a field that
+// the index does not know.
 func BuildEntry(chartYAML []byte, icon, url string, created time.Time) ([]byte, error) {
 	entry := bytes.Clone(chartYAML)
 	if created.IsZero() {

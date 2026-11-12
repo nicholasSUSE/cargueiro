@@ -12,7 +12,7 @@ entries:
     icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.10@sha256:83252796ebb90d012e66cb17802d57f0dc75a12893469377f62d7e81d3c06519
+    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4_up0.17.4-rc.10@sha256:83252796ebb90d012e66cb17802d57f0dc75a12893469377f62d7e81d3c06519
     version: 111.0.4+up0.17.4-rc.10
   - annotations:
       catalog.cattle.io/certified: rancher
@@ -25,7 +25,7 @@ entries:
     icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.2@sha256:674ce73e09c2ee3296ebdea55afc60501ecbb9c802de34eddacef564e6e15cab
+    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4_up0.17.4-rc.2@sha256:674ce73e09c2ee3296ebdea55afc60501ecbb9c802de34eddacef564e6e15cab
     version: 111.0.4+up0.17.4-rc.2
   - annotations:
       catalog.cattle.io/certified: rancher
@@ -38,7 +38,7 @@ entries:
     icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4+up0.17.4-rc.1@sha256:e066f0c0f59633648a5123e357bc7e4e10e19b89d53a94022c0148b42c082516
+    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4_up0.17.4-rc.1@sha256:e066f0c0f59633648a5123e357bc7e4e10e19b89d53a94022c0148b42c082516
     version: 111.0.4+up0.17.4-rc.1
   - annotations:
       catalog.cattle.io/certified: rancher
@@ -51,7 +51,7 @@ entries:
     icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.3+up0.17.4@sha256:c9904a1d1dac20470717e92bdcbd7205e3f63005a2ea0a36f0149bbfb36508a4
+    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.3_up0.17.4@sha256:c9904a1d1dac20470717e92bdcbd7205e3f63005a2ea0a36f0149bbfb36508a4
     version: 111.0.3+up0.17.4
   - annotations:
       catalog.cattle.io/certified: rancher
@@ -64,7 +64,7 @@ entries:
     icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.3+up0.17.3@sha256:5a93af8d8ff57ff8737b006c4f25db5f3d171972ac7a5c83e36d4ec57ac474b1
+    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.3_up0.17.3@sha256:5a93af8d8ff57ff8737b006c4f25db5f3d171972ac7a5c83e36d4ec57ac474b1
     version: 111.0.3+up0.17.3
   - annotations:
       catalog.cattle.io/certified: rancher
@@ -77,7 +77,7 @@ entries:
     icon: file://assets/logos/fleet.svg
     name: fleet
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.2+up0.17.2@sha256:7456b23c6a706a924d667dcadb4b748234c51201656a29baec37354aa8e3036a
+    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.2_up0.17.2@sha256:7456b23c6a706a924d667dcadb4b748234c51201656a29baec37354aa8e3036a
     version: 111.0.2+up0.17.2
   fleet-crd:
   - annotations:
@@ -90,7 +90,7 @@ entries:
     description: Fixture of fleet-crd
     name: fleet-crd
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet-crd:111.0.3+up0.17.3@sha256:e1bebf8abee0582af7258ba310abe78605f25e8a9b30b7f259e47aad6dbf524b
+    - oci://stgregistry.suse.com/rancher/catalog/fleet-crd:111.0.3_up0.17.3@sha256:e1bebf8abee0582af7258ba310abe78605f25e8a9b30b7f259e47aad6dbf524b
     version: 111.0.3+up0.17.3
   - annotations:
       catalog.cattle.io/certified: rancher
@@ -102,7 +102,7 @@ entries:
     description: Fixture of fleet-crd
     name: fleet-crd
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/fleet-crd:111.0.2+up0.17.2@sha256:0d40b1e0b15b3bd508fc5315c8a34f28a5a617aa37fa7e6f9f64968ac69b1103
+    - oci://stgregistry.suse.com/rancher/catalog/fleet-crd:111.0.2_up0.17.2@sha256:0d40b1e0b15b3bd508fc5315c8a34f28a5a617aa37fa7e6f9f64968ac69b1103
     version: 111.0.2+up0.17.2
   longhorn:
   - annotations:
@@ -116,7 +116,7 @@ entries:
     icon: file://assets/logos/longhorn.svg
     name: longhorn
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/longhorn:111.0.1+up1.10.1@sha256:76a1b54d7ece1574e8973b15bd2620f960c1aaf136cd19ca80c06e786ac6d009
+    - oci://stgregistry.suse.com/rancher/catalog/longhorn:111.0.1_up1.10.1@sha256:76a1b54d7ece1574e8973b15bd2620f960c1aaf136cd19ca80c06e786ac6d009
     version: 111.0.1+up1.10.1
   - annotations:
       catalog.cattle.io/certified: rancher
@@ -129,7 +129,7 @@ entries:
     icon: file://assets/logos/longhorn.svg
     name: longhorn
     urls:
-    - oci://stgregistry.suse.com/rancher/catalog/longhorn:111.0.0+up1.10.0@sha256:0c92aeffc7b18d9e2f8ecb81204020a55d067be4ad85232886a0c3d5f35f02c0
+    - oci://stgregistry.suse.com/rancher/catalog/longhorn:111.0.0_up1.10.0@sha256:0c92aeffc7b18d9e2f8ecb81204020a55d067be4ad85232886a0c3d5f35f02c0
     version: 111.0.0+up1.10.0
   system-upgrade-controller:
   - annotations:

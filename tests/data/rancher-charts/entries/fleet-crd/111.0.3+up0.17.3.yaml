@@ -7,5 +7,5 @@ appVersion: 0.17.3
 description: Fixture of fleet-crd
 name: fleet-crd
 urls:
-- oci://stgregistry.suse.com/rancher/catalog/fleet-crd:111.0.3+up0.17.3@sha256:e1bebf8abee0582af7258ba310abe78605f25e8a9b30b7f259e47aad6dbf524b
+- oci://stgregistry.suse.com/rancher/catalog/fleet-crd:111.0.3_up0.17.3@sha256:e1bebf8abee0582af7258ba310abe78605f25e8a9b30b7f259e47aad6dbf524b
 version: 111.0.3+up0.17.3

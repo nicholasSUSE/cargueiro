@@ -16,6 +16,7 @@ import (
 
 	"github.com/rancher/cargueiro/internal/annotations"
 	"github.com/rancher/cargueiro/internal/chart"
+	"github.com/rancher/cargueiro/internal/chartversion"
 	"github.com/rancher/cargueiro/internal/oci"
 	"github.com/rancher/cargueiro/internal/rules"
 	"github.com/rancher/cargueiro/internal/version"
@@ -25,7 +26,7 @@ import (
 const helmImages = "helm.sh/images"
 
 // ListFunc returns the tags of the chart at repo.
-type ListFunc func(ctx context.Context, repo oci.ChartRepo, opts oci.FetchOptions) ([]string, error)
+type ListFunc = chartversion.ListFunc
 
 // Options say how to stamp a chart.
 type Options struct {
@@ -45,6 +46,11 @@ type Options struct {
 	// List reads the tags of the registry. It is only used to work out the
 	// version.
 	List ListFunc
+}
+
+// versionOptions are the options to work out the version.
+func (o Options) versionOptions() chartversion.Options {
+	return chartversion.Options{Registry: o.Registry, PlainHTTP: o.PlainHTTP, Credentials: o.Credentials, List: o.List}
 }
 
 // Plan is what stamping a chart directory would change. Building it writes
@@ -85,7 +91,7 @@ func Build(ctx context.Context, cfg *rules.Config, dir string, opts Options) (*P
 	newVersion := opts.Version
 	var released []string
 	if newVersion == "" {
-		if newVersion, released, err = nextVersion(ctx, cfg, rule, files, opts); err != nil {
+		if newVersion, released, err = chartversion.Next(ctx, cfg, rule, files, opts.versionOptions()); err != nil {
 			return nil, err
 		}
 	}
@@ -191,7 +197,7 @@ func checkVersion(cfg *rules.Config, rule rules.Chart, files *chart.Files, newVe
 		return nil
 	}
 
-	if _, err := supportedRancher(files); err != nil {
+	if _, err := chartversion.SupportedRancher(files); err != nil {
 		return err
 	}
 	return policy.CheckMajor(newVersion, annotations.RancherVersionAnnotation(files.Annotations))
@@ -218,92 +224,4 @@ func newEntries(before, after string) ([]string, error) {
 		names = append(names, e.Name)
 	}
 	return names, nil
-}
-
-// nextVersion works out the version of the next release of the chart from the
-// versions already released: the major comes from the rancher-version of the
-// chart, the upstream part from its appVersion, and the release counter from
-// what the registry has, which is returned too. A chart that was never pushed
-// starts at the first version.
-func nextVersion(ctx context.Context, cfg *rules.Config, rule rules.Chart, files *chart.Files, opts Options) (string, []string, error) {
-	if rule.Kind == rules.KindCRD {
-		return "", nil, errors.New("a CRD chart has no rancher-version, so stamp cannot work out its version: give --version")
-	}
-	rancher, err := supportedRancher(files)
-	if err != nil {
-		return "", nil, err
-	}
-	versions := cfg.Versions()
-	major, ok := versions.Majors[rancher]
-	if !ok {
-		return "", nil, fmt.Errorf("the rules file has no chart major for Rancher %s", rancher)
-	}
-	policy, err := version.NewPolicy(versions.Prereleases, versions.Majors)
-	if err != nil {
-		return "", nil, err
-	}
-
-	upstream := strings.TrimPrefix(files.Metadata.AppVersion, "v")
-	if !rule.PlainVersion && upstream == "" {
-		return "", nil, errors.New("the Chart.yaml has no appVersion, which stamp needs for the upstream part of the version: give --version")
-	}
-
-	published, err := published(ctx, cfg, rule, opts)
-	if err != nil {
-		return "", nil, err
-	}
-	next, err := policy.Next(published, major, upstream, rule.PlainVersion)
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: give --version to set it by hand", err)
-	}
-	return next, published, nil
-}
-
-// published returns the versions of the chart that are already released. A
-// repository that does not exist has none.
-func published(ctx context.Context, cfg *rules.Config, rule rules.Chart, opts Options) ([]string, error) {
-	reference, err := cfg.StagingRepository(rule, opts.Registry)
-	if err != nil {
-		return nil, err
-	}
-	repo, err := oci.ParseChartRepo(reference)
-	if err != nil {
-		return nil, err
-	}
-
-	fetch, err := opts.Credentials.FetchOptions(repo.Host, opts.PlainHTTP)
-	if err != nil {
-		return nil, err
-	}
-	tags, err := opts.List(ctx, repo, fetch)
-	if err != nil {
-		if errors.Is(err, oci.ErrRepositoryNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	versions := make([]string, len(tags))
-	for i, tag := range tags {
-		versions[i] = version.FromOCITag(tag)
-	}
-	return versions, nil
-}
-
-// supportedRancher returns the Rancher version of the lower bound of the
-// rancher-version annotation of the chart, such as 2.16. It fails when the
-// annotation has none, or when it is a Rancher version the new system does not
-// support.
-func supportedRancher(files *chart.Files) (string, error) {
-	rancherVersion := annotations.RancherVersionAnnotation(files.Annotations)
-	rancher, ok := version.RancherOf(rancherVersion)
-	if !ok {
-		return "", fmt.Errorf("catalog.cattle.io/rancher-version %q has no lower bound like \">= 2.%d.0-0\": stamp needs it to know the major of the version",
-			rancherVersion, version.MinRancherMinor)
-	}
-	if !version.SupportedRancher(rancher) {
-		return "", fmt.Errorf("catalog.cattle.io/rancher-version %q is for Rancher %s: Rancher 2.%d and later are supported, 2.%d and before are not",
-			rancherVersion, rancher, version.MinRancherMinor, version.MinRancherMinor-1)
-	}
-	return rancher, nil
 }

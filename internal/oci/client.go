@@ -62,7 +62,7 @@ func NewClient(opts ClientOptions) (Client, error) {
 		return nil, fmt.Errorf("create registry client: %w", err)
 	}
 
-	return helmClient{client: c}, nil
+	return helmClient{client: c, opts: opts}, nil
 }
 
 // validate rejects contradictory options.
@@ -134,6 +134,7 @@ func tlsConfigWithCA(caPEM []byte) (*tls.Config, error) {
 // helmClient adapts Helm's registry client to Client.
 type helmClient struct {
 	client *helmregistry.Client
+	opts   ClientOptions
 }
 
 var _ Client = helmClient{}
@@ -163,4 +164,31 @@ func (h helmClient) Exists(ref string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// ChartDigest returns the digest of the chart layer of the chart stored at ref,
+// which is the sha256 of the archive that was pushed. It reads the manifest
+// with the credentials and the CA the client was made with.
+func (h helmClient) ChartDigest(ref string) (string, error) {
+	chartRef, err := ParseChartRef(ref)
+	if err != nil {
+		return "", err
+	}
+
+	httpClient, err := newHTTPClient(h.opts.CAPEM)
+	if err != nil {
+		return "", err
+	}
+	repo, err := openRepository(chartRef, httpClient, h.opts.credential(), h.opts.PlainHTTP)
+	if err != nil {
+		return "", err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	layer, err := chartLayer(ctx, repo, chartRef.Tag, chartRef.String(), h.opts.Username != "")
+	if err != nil {
+		return "", err
+	}
+	return layer.Digest.String(), nil
 }

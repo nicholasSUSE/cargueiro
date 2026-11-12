@@ -21,6 +21,9 @@ type Client interface {
 	Push(data []byte, ref string) (string, error)
 	// Exists reports whether ref is already stored.
 	Exists(ref string) (bool, error)
+	// ChartDigest returns the digest of the chart layer stored at ref, which
+	// is the sha256 of the archive that was pushed.
+	ChartDigest(ref string) (string, error)
 }
 
 // Pusher pushes chart archives to one registry target.
@@ -28,6 +31,8 @@ type Pusher struct {
 	client Client
 	target Target
 	guard  *Guard
+	// retry is how PushFamily tries an upload again. The zero value does not.
+	retry Retry
 }
 
 // NewPusher returns a Pusher that uploads through client to target, unless

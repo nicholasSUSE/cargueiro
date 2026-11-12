@@ -19,6 +19,22 @@ import (
 type fakePusher struct {
 	pushed  []string
 	failing map[string]error
+
+	// family is what PushFamily answers, with familyErr, and familyArchives the
+	// archives it was asked to push.
+	family         *oci.FamilyResult
+	familyErr      error
+	familyArchives []string
+	// beforeFamily runs before PushFamily answers, with the notice it was given.
+	beforeFamily func(notice oci.RetryNotice)
+}
+
+func (f *fakePusher) PushFamily(_ context.Context, archives []string, notice oci.RetryNotice) (*oci.FamilyResult, error) {
+	f.familyArchives = archives
+	if f.beforeFamily != nil {
+		f.beforeFamily(notice)
+	}
+	return f.family, f.familyErr
 }
 
 func (f *fakePusher) Push(_ context.Context, archive string) (string, error) {

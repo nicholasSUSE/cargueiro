@@ -6,11 +6,14 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/registry/remote/errcode"
 )
@@ -38,6 +41,10 @@ type flakyClient struct {
 	stored []string
 	// existsErrs are the errors of the questions about a reference, in order.
 	existsErrs map[string][]error
+	// digests are the digests of the chart layers the registry has, by reference.
+	digests map[string]string
+	// digestErrs are the errors of the reads of the digest of a reference, in order.
+	digestErrs map[string][]error
 
 	pushes  []string
 	checked []string
@@ -67,8 +74,22 @@ func (f *flakyClient) Exists(ref string) (bool, error) {
 	return slices.Contains(f.stored, ref), nil
 }
 
-func (f *flakyClient) ChartDigest(string) (string, error) {
-	return "", errors.New("flakyClient has no digests")
+func (f *flakyClient) ChartDigest(ref string) (string, error) {
+	if errs := f.digestErrs[ref]; len(errs) > 0 {
+		err := errs[0]
+		f.digestErrs[ref] = errs[1:]
+		return "", err
+	}
+	return f.digests[ref], nil
+}
+
+// digestOf is the digest of the chart layer of an archive that was pushed.
+func digestOf(t *testing.T, path string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	return digest.FromBytes(data).String()
 }
 
 // clock records the waits instead of waiting.
@@ -158,10 +179,14 @@ func TestPushFamilyPushesEveryChartInOrder(t *testing.T) {
 
 func TestPushFamilySkipsWhatTheProtectedRegistryHasAndPushesTheRest(t *testing.T) {
 	want := addresses(guardedTarget())
-	fake := &flakyClient{stored: []string{want[0], want[1]}}
+	archives := familyArchives(t)
+	fake := &flakyClient{
+		stored:  []string{want[0], want[1]},
+		digests: map[string]string{want[0]: digestOf(t, archives[0]), want[1]: digestOf(t, archives[1])},
+	}
 
 	result, err := NewPusher(fake, guardedTarget(), familyGuard(t)).WithRetry(retryWith(&clock{})).
-		PushFamily(context.Background(), familyArchives(t), nil)
+		PushFamily(context.Background(), archives, nil)
 
 	require.NoError(t, err)
 	require.Equal(t, want, fake.checked, "one question for each chart, before any upload")
@@ -169,6 +194,76 @@ func TestPushFamilySkipsWhatTheProtectedRegistryHasAndPushesTheRest(t *testing.T
 	require.Equal(t, []MemberState{StateSkipped, StateSkipped, StatePushed}, states(result))
 	require.Equal(t, "stgregistry.suse.com/rancher/catalog/fleet:110.0.3_up0.16.3", result.Members[0].Ref,
 		"the reference of a chart that was there is written as the registry stores it")
+}
+
+func TestPushFamilyUploadsNothingWhenAStoredChartHasOtherContent(t *testing.T) {
+	want := addresses(guardedTarget())
+	archives := familyArchives(t)
+	const other = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+	fake := &flakyClient{
+		stored:  []string{want[0], want[1]},
+		digests: map[string]string{want[0]: digestOf(t, archives[0]), want[1]: other},
+	}
+
+	result, err := NewPusher(fake, guardedTarget(), familyGuard(t)).WithRetry(retryWith(&clock{})).
+		PushFamily(context.Background(), archives, nil)
+
+	require.Nil(t, result)
+	require.ErrorContains(t, err, want[1]+" is in the registry already with other content")
+	require.ErrorContains(t, err, "digest "+other)
+	require.ErrorContains(t, err, "the archive has "+digestOf(t, archives[1]))
+	require.NotContains(t, err.Error(), want[0], "the chart that is the same is not named")
+	require.Empty(t, fake.pushes, "the chart that is not there is not uploaded either")
+}
+
+func TestPushFamilyNamesEveryStoredChartWithOtherContent(t *testing.T) {
+	want := addresses(guardedTarget())
+	fake := &flakyClient{
+		stored:  want,
+		digests: map[string]string{want[0]: "sha256:aa", want[1]: "sha256:bb", want[2]: "sha256:cc"},
+	}
+
+	_, err := NewPusher(fake, guardedTarget(), familyGuard(t)).WithRetry(retryWith(&clock{})).
+		PushFamily(context.Background(), familyArchives(t), nil)
+
+	for _, ref := range want {
+		require.ErrorContains(t, err, ref)
+	}
+	require.Empty(t, fake.pushes)
+}
+
+func TestPushFamilyReadsTheDigestAgainWhenTheReadCanPass(t *testing.T) {
+	want := addresses(guardedTarget())
+	archives := familyArchives(t)
+	fake := &flakyClient{
+		stored:     want,
+		digests:    map[string]string{want[0]: digestOf(t, archives[0]), want[1]: digestOf(t, archives[1]), want[2]: digestOf(t, archives[2])},
+		digestErrs: map[string][]error{want[1]: {responseError(http.StatusServiceUnavailable)}},
+	}
+	c := &clock{}
+
+	result, err := NewPusher(fake, guardedTarget(), familyGuard(t)).WithRetry(retryWith(c)).
+		PushFamily(context.Background(), archives, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, []MemberState{StateSkipped, StateSkipped, StateSkipped}, states(result))
+	require.Equal(t, []time.Duration{30 * time.Second}, c.waits)
+}
+
+func TestPushFamilyUploadsNothingWhenTheDigestCannotBeRead(t *testing.T) {
+	want := addresses(guardedTarget())
+	fake := &flakyClient{
+		stored:     []string{want[0]},
+		digestErrs: map[string][]error{want[0]: {errors.New("is not a Helm chart")}},
+	}
+
+	result, err := NewPusher(fake, guardedTarget(), familyGuard(t)).WithRetry(retryWith(&clock{})).
+		PushFamily(context.Background(), familyArchives(t), nil)
+
+	require.Nil(t, result)
+	require.ErrorContains(t, err, "read the digest of "+want[0])
+	require.ErrorContains(t, err, "is not a Helm chart")
+	require.Empty(t, fake.pushes)
 }
 
 func TestPushFamilyUploadsNothingWhenTheGuardRefusesOne(t *testing.T) {

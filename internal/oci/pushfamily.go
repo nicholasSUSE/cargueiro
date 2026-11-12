@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencontainers/go-digest"
+
 	"github.com/rancher/cargueiro/internal/version"
 )
 
@@ -58,7 +60,9 @@ type RetryNotice func(chart string, attempt, attempts int, err error, wait time.
 // PushFamily uploads the archives, one after the other, in the order given, which
 // is the order of the family. Nothing is uploaded unless every archive is a chart
 // the guard allows. On a registry the guard protects, a chart that the registry
-// has already is skipped, and never overwritten. An upload that fails in a way
+// has already is skipped, and never overwritten, but only when what is stored is
+// the archive given: if its digest is other, nothing is uploaded and the error
+// says which charts differ. An upload that fails in a way
 // that can pass is tried again, as the Pusher's Retry says.
 //
 // When an upload fails for good, the charts after it are not tried. The result
@@ -67,6 +71,7 @@ func (p *Pusher) PushFamily(ctx context.Context, archives []string, notice Retry
 	type archive struct {
 		data    []byte
 		address string
+		sum     string
 	}
 	pending := make([]archive, 0, len(archives))
 	result := &FamilyResult{Members: make([]MemberResult, 0, len(archives))}
@@ -86,7 +91,7 @@ func (p *Pusher) PushFamily(ctx context.Context, archives []string, notice Retry
 			problems = append(problems, err)
 			continue
 		}
-		pending = append(pending, archive{data: data, address: p.target.Ref(name, ver)})
+		pending = append(pending, archive{data: data, address: p.target.Ref(name, ver), sum: digest.FromBytes(data).String()})
 		result.Members = append(result.Members, MemberResult{Chart: name, Version: ver, State: StateNotTried})
 	}
 	if len(problems) > 0 {
@@ -95,15 +100,28 @@ func (p *Pusher) PushFamily(ctx context.Context, archives []string, notice Retry
 
 	guarded := p.guard.Guarded(p.target)
 	if guarded {
+		var differ []error
 		for i, a := range pending {
 			exists, err := p.existsWithRetry(ctx, a.address)
 			if err != nil {
 				return nil, fmt.Errorf("check whether %s exists: %w", a.address, err)
 			}
-			if exists {
-				result.Members[i].State = StateSkipped
-				result.Members[i].Ref = withOCITag(a.address)
+			if !exists {
+				continue
 			}
+			stored, err := p.chartDigestWithRetry(ctx, a.address)
+			if err != nil {
+				return nil, fmt.Errorf("read the digest of %s: %w", a.address, err)
+			}
+			if stored != a.sum {
+				differ = append(differ, refused("%s is in the registry already with other content (digest %s, the archive has %s): a version is never overwritten, so give the chart a new version", a.address, stored, a.sum))
+				continue
+			}
+			result.Members[i].State = StateSkipped
+			result.Members[i].Ref = withOCITag(a.address)
+		}
+		if len(differ) > 0 {
+			return nil, errors.Join(differ...)
 		}
 	}
 
@@ -172,4 +190,16 @@ func withOCITag(ref string) string {
 		return ref[:i+1] + version.ToOCITag(ref[i+1:])
 	}
 	return ref
+}
+
+// chartDigestWithRetry reads the digest of the chart stored at ref, and reads it
+// again when the read fails in a way that can pass.
+func (p *Pusher) chartDigestWithRetry(ctx context.Context, ref string) (string, error) {
+	var sum string
+	err := p.retry.do(ctx, func() error {
+		var err error
+		sum, err = p.client.ChartDigest(ref)
+		return err
+	}, nil)
+	return sum, err
 }

@@ -28,6 +28,12 @@ hdr "3. FAILURE: a chart of the family is missing"
 want "error: the family \"fleet\" is missing fleet-agent; nothing on stdout; exit 1"
 run 'cargueiro stamp --family fleet .tmp/manual-tests/fleet/fleet .tmp/manual-tests/fleet/fleet-crd --version 112.0.1+up0.16.3'
 
+hdr "4. FAILURE: an extra chart of another major (a copy where fleet is for Rancher 2.17 and fleet-agent for Rancher 2.16)"
+want "error: fleet-agent: … has major 112, but charts for Rancher 2.16 have major 111; nothing on stdout; exit 1. The three Chart.yaml keep their version 110.0.3+up0.16.3"
+run 'rm -rf .tmp/manual-tests/other && cp -r tests/data/charts/fleet/src .tmp/manual-tests/other && sed -i "s/>= 2.15.0-0 < 2.16.0-0/>= 2.17.0-0 < 2.18.0-0/" .tmp/manual-tests/other/fleet/Chart.yaml && sed -i "s/>= 2.15.0-0 < 2.16.0-0/>= 2.16.0-0 < 2.17.0-0/" .tmp/manual-tests/other/fleet-agent/Chart.yaml'
+run 'cargueiro stamp --family fleet .tmp/manual-tests/other/fleet-crd .tmp/manual-tests/other/fleet-agent .tmp/manual-tests/other/fleet --version 112.0.0+up0.16.3'
+run 'grep -H "^version:" .tmp/manual-tests/other/fleet/Chart.yaml .tmp/manual-tests/other/fleet-agent/Chart.yaml .tmp/manual-tests/other/fleet-crd/Chart.yaml'
+
 hdr "CLEANUP: take the binary off the PATH and remove the copies"
 run 'PATH=${PATH#"$PWD/.tmp/manual-tests/bin:"}; rm -rf .tmp/manual-tests'
 unset -f hdr want run

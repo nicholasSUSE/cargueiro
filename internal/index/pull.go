@@ -9,6 +9,7 @@ import (
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 
 	"github.com/rancher/cargueiro/internal/oci"
+	"github.com/rancher/cargueiro/internal/version"
 )
 
 // PullFunc returns the archive of the manifest that manifestDigest pins in repo.
@@ -63,7 +64,8 @@ func pullOne(ctx context.Context, pull PullFunc, entry *repo.ChartVersion, opts 
 }
 
 // pinnedManifest returns the repository and the digest of the manifest in the
-// URL of the entry: oci://<repository>:<version>@<digest>.
+// URL of the entry: oci://<repository>:<tag>@<digest>, where the tag is the
+// version with its "+" written as a "_".
 func pinnedManifest(entry *repo.ChartVersion) (oci.ChartRepo, string, error) {
 	if len(entry.URLs) != 1 {
 		return oci.ChartRepo{}, "", fmt.Errorf("it has %d urls, and it needs exactly one", len(entry.URLs))
@@ -73,7 +75,7 @@ func pinnedManifest(entry *repo.ChartVersion) (oci.ChartRepo, string, error) {
 	if !found {
 		return oci.ChartRepo{}, "", fmt.Errorf("the url %q pins no digest", entry.URLs[0])
 	}
-	chartRepo, err := oci.ParseChartRepo(strings.TrimSuffix(location, ":"+entry.Version))
+	chartRepo, err := oci.ParseChartRepo(strings.TrimSuffix(location, ":"+version.ToOCITag(entry.Version)))
 	if err != nil {
 		return oci.ChartRepo{}, "", fmt.Errorf("the url %q: %w", entry.URLs[0], err)
 	}

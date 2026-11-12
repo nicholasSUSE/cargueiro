@@ -20,22 +20,25 @@ want "a warning that the registry accepts anonymous requests, and 'Login succeed
 run 'export CARGUEIRO_CONFIG_DIR="$PWD/.tmp/manual-tests/config"'
 run 'echo x | cargueiro registry login 127.0.0.1:5052 --username x --password-stdin --plain-http'
 
+hdr "SETUP: choose a registry path that was never used, so the test can be run again"
+run 'REG="127.0.0.1:5052/manual-version-$(date +%s)"; echo "$REG"'
+
 hdr "1. HAPPY: the first release of a chart that was never pushed"
 want "one line on stdout, 111.0.0+up1.5.4; exit 0. Chart.yaml is not changed: its version stays 1.5.4"
-run 'cargueiro chart-version .tmp/manual-tests/chart --registry 127.0.0.1:5052/manual-version --plain-http'
+run 'cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http'
 run 'grep "^version:" .tmp/manual-tests/chart/Chart.yaml'
 
 hdr "2. HAPPY: release it with that version, and ask again"
-want "the chart is stamped, packaged and pushed (oci://127.0.0.1:5052/manual-version/rancher-compliance:111.0.0_up1.5.4); then the next version is 111.0.1+up1.5.4; exit 0"
-run 'v=$(cargueiro chart-version .tmp/manual-tests/chart --registry 127.0.0.1:5052/manual-version --plain-http) && cargueiro stamp .tmp/manual-tests/chart --version "$v" >/dev/null && cargueiro push "$(cargueiro package .tmp/manual-tests/chart --output-dir .tmp/manual-tests/out)" --registry 127.0.0.1:5052/manual-version'
-run 'cargueiro chart-version .tmp/manual-tests/chart --registry 127.0.0.1:5052/manual-version --plain-http'
+want "the chart is stamped, packaged and pushed (oci://$REG/rancher-compliance:111.0.0_up1.5.4); then the next version is 111.0.1+up1.5.4; exit 0"
+run 'v=$(cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http) && cargueiro stamp .tmp/manual-tests/chart --version "$v" >/dev/null && cargueiro push "$(cargueiro package .tmp/manual-tests/chart --output-dir .tmp/manual-tests/out)" --registry $REG'
+run 'cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http'
 
 hdr "3. FAILURE: a chart with no appVersion"
 want "an error that says the Chart.yaml has no appVersion; nothing on stdout; exit 1"
 run 'sed -i "/^appVersion:/d" .tmp/manual-tests/chart/Chart.yaml'
-run 'cargueiro chart-version .tmp/manual-tests/chart --registry 127.0.0.1:5052/manual-version --plain-http'
+run 'cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http'
 
 hdr "CLEANUP: forget the login, take the binary off the PATH and remove the copies"
-run 'unset CARGUEIRO_CONFIG_DIR; PATH=${PATH#"$PWD/.tmp/manual-tests/bin:"}; rm -rf .tmp/manual-tests'
+run 'unset CARGUEIRO_CONFIG_DIR REG; PATH=${PATH#"$PWD/.tmp/manual-tests/bin:"}; rm -rf .tmp/manual-tests'
 unset -f hdr want run
 ```

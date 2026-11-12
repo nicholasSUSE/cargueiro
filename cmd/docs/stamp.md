@@ -10,6 +10,8 @@ The `helm.sh/images` annotation is made by going through the images in `values.y
 
 Only the `version` line and the `helm.sh/images` annotation of `Chart.yaml` change; everything else in it, and `values.yaml`, stay as they are. Every check runs before anything is written: when one fails, nothing is changed, the errors go to stderr and the exit code is 1. What changed is printed to stdout, or `nothing to change` when the chart already has the version and the images. With `--dry-run` every check runs, the version is worked out, and what would change is printed as a diff, but nothing is written.
 
+With `--family`, the arguments are the folders of every chart of one family in `rules.yaml`, such as `fleet`, `fleet-agent` and `fleet-crd`, and nothing else: a chart that is missing, given twice or from another family is an error, and nothing is changed. The folders can be given in any order, and the name of each chart is read from its `Chart.yaml`. The main chart of the family is stamped as described above, and its version, the one given with `--version` or the one worked out, is the version of the family. The other charts of the family are not changed yet. What is printed for each chart that is stamped starts with a line `==> <chart>`.
+
 Target-Audience: Chart Owners and Automation
 
 ## Examples
@@ -37,4 +39,9 @@ cargueiro stamp charts/fleet --dry-run
 ```
 # read the released versions from a local registry
 cargueiro stamp charts/fleet --registry 127.0.0.1:5050/rancher --plain-http
+```
+
+```
+# stamp the main chart of a family, whose version is the version of the family
+cargueiro stamp --family fleet charts/fleet charts/fleet-agent charts/fleet-crd --version 110.0.3+up0.16.3
 ```

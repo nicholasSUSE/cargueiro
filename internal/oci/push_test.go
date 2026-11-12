@@ -32,6 +32,10 @@ func (f *fakeClient) Exists(ref string) (bool, error) {
 	return slices.Contains(f.stored, ref), f.existsErr
 }
 
+func (f *fakeClient) ChartDigest(string) (string, error) {
+	return "", errors.New("fakeClient has no digests")
+}
+
 func (f *fakeClient) Push(data []byte, ref string) (string, error) {
 	f.refs = append(f.refs, ref)
 	f.data = append(f.data, data)

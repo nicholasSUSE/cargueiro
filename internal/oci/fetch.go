@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	helmregistry "helm.sh/helm/v4/pkg/registry"
@@ -87,18 +88,24 @@ func FetchChart(ctx context.Context, ref ChartRef, opts FetchOptions) (*chart.Fi
 // newRepository returns the repository of ref, read with the credentials in
 // opts, or anonymously without them.
 func newRepository(ref ChartRef, opts FetchOptions) (*remote.Repository, error) {
+	httpClient, err := newHTTPClient(nil)
+	if err != nil {
+		return nil, err
+	}
+	return openRepository(ref, httpClient, opts.credential(), opts.PlainHTTP)
+}
+
+// openRepository returns the repository of ref, reached through httpClient with
+// credential.
+func openRepository(ref ChartRef, httpClient *http.Client, credential auth.Credential, plainHTTP bool) (*remote.Repository, error) {
 	repo, err := remote.NewRepository(ref.Host + "/" + ref.Repository)
 	if err != nil {
 		return nil, fmt.Errorf("invalid chart reference: %w", err)
 	}
 
-	httpClient, err := newHTTPClient(nil)
-	if err != nil {
-		return nil, err
-	}
-	authorizer := newAuthorizer(httpClient, opts.credential())
+	authorizer := newAuthorizer(httpClient, credential)
 	repo.Client = &authorizer
-	repo.PlainHTTP = opts.PlainHTTP
+	repo.PlainHTTP = plainHTTP
 	return repo, nil
 }
 

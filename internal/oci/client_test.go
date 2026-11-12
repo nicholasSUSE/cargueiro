@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -161,4 +163,40 @@ func TestClientExists(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestClientChartDigest(t *testing.T) {
+	archive := validArchive(t)
+
+	f := newFakeRegistry()
+	layer := f.addChart(t, archive)
+	ref := serve(t, f)
+
+	client, err := NewClient(ClientOptions{PlainHTTP: true})
+	require.NoError(t, err)
+
+	t.Run("the digest is the sha256 of the archive", func(t *testing.T) {
+		got, err := client.ChartDigest(ref.String())
+
+		require.NoError(t, err)
+		require.Equal(t, layer.Digest.String(), got)
+		require.Equal(t, digest.FromBytes(archive).String(), got)
+	})
+
+	t.Run("a chart that is not there", func(t *testing.T) {
+		_, err := client.ChartDigest(ref.Host + "/" + ref.Repository + ":9.9.9")
+
+		require.Error(t, err)
+	})
+
+	t.Run("something that is not a chart", func(t *testing.T) {
+		other := newFakeRegistry()
+		config := other.addBlob("application/vnd.oci.image.config.v1+json", []byte("{}"))
+		other.addManifest(t, ocispec.Manifest{Config: config})
+		notChart := serve(t, other)
+
+		_, err := client.ChartDigest(notChart.String())
+
+		require.ErrorContains(t, err, "is not a Helm chart")
+	})
 }

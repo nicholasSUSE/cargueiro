@@ -21,6 +21,9 @@ type Client interface {
 	Push(data []byte, ref string) (string, error)
 	// Exists reports whether ref is already stored.
 	Exists(ref string) (bool, error)
+	// ChartDigest returns the digest of the chart layer stored at ref, which
+	// is the sha256 of the archive that was pushed.
+	ChartDigest(ref string) (string, error)
 }
 
 // Pusher pushes chart archives to one registry target.

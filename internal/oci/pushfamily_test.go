@@ -67,6 +67,10 @@ func (f *flakyClient) Exists(ref string) (bool, error) {
 	return slices.Contains(f.stored, ref), nil
 }
 
+func (f *flakyClient) ChartDigest(string) (string, error) {
+	return "", errors.New("flakyClient has no digests")
+}
+
 // clock records the waits instead of waiting.
 type clock struct {
 	waits []time.Duration

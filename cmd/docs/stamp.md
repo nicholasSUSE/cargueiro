@@ -10,7 +10,9 @@ The `helm.sh/images` annotation is made by going through the images in `values.y
 
 Only the `version` line and the `helm.sh/images` annotation of `Chart.yaml` change; everything else in it, and `values.yaml`, stay as they are. Every check runs before anything is written: when one fails, nothing is changed, the errors go to stderr and the exit code is 1. What changed is printed to stdout, or `nothing to change` when the chart already has the version and the images. With `--dry-run` every check runs, the version is worked out, and what would change is printed as a diff, but nothing is written.
 
-With `--family`, the arguments are the folders of every chart of one family in `rules.yaml`, such as `fleet`, `fleet-agent` and `fleet-crd`, and nothing else: a chart that is missing, given twice or from another family is an error, and nothing is changed. The folders can be given in any order, and the name of each chart is read from its `Chart.yaml`. The main chart of the family is stamped as described above, and its version, the one given with `--version` or the one worked out, is the version of the family. The other charts of the family are not changed yet. What is printed for each chart that is stamped starts with a line `==> <chart>`.
+With `--family`, the arguments are the folders of every chart of one family in `rules.yaml`, such as `fleet`, `fleet-agent` and `fleet-crd`, and nothing else: a chart that is missing, given twice or from another family is an error, and nothing is changed. The folders can be given in any order, and the name of each chart is read from its `Chart.yaml`. The version of the family is the version of its main chart, the one given with `--version` or the one worked out as described above, from the main chart only. Every other chart takes it, and it is checked for that chart like any other version: a CRD chart for its form, and any other chart also against its own `rancher-version`. What is printed for each chart starts with a line `==> <chart>`, in the order of the family, the main chart first.
+
+Without `--version`, the registries of the other charts are read as well, only to compare: the latest version released by each of them must be the one the main chart has, and a chart with no repository yet has none. If they differ, `stamp` fails and says to give `--version`. With `--version` nothing is read. Every chart is checked before any is written, and the problem of every chart is reported. If a write fails, the files already written are put back; if that fails too, the error says that the charts are half stamped and that the changes should be discarded with `git reset --hard` before running it again.
 
 Target-Audience: Chart Owners and Automation
 
@@ -42,6 +44,6 @@ cargueiro stamp charts/fleet --registry 127.0.0.1:5050/rancher --plain-http
 ```
 
 ```
-# stamp the main chart of a family, whose version is the version of the family
+# stamp every chart of a family with the version of its main chart
 cargueiro stamp --family fleet charts/fleet charts/fleet-agent charts/fleet-crd --version 110.0.3+up0.16.3
 ```

@@ -22,6 +22,10 @@ type ResolveFunc func(ctx context.Context, ref oci.ChartRef, opts oci.FetchOptio
 // PullFunc returns the archive of the manifest that digest pins in repo.
 type PullFunc func(ctx context.Context, repo oci.ChartRepo, digest string, opts oci.FetchOptions) ([]byte, error)
 
+// CreatedFunc returns when the chart of the manifest that digest pins in repo was
+// pushed.
+type CreatedFunc func(ctx context.Context, repo oci.ChartRepo, digest string, opts oci.FetchOptions) (time.Time, error)
+
 // LogoFunc downloads the logo at an address.
 type LogoFunc func(ctx context.Context, address string) (Logo, error)
 
@@ -35,6 +39,7 @@ type Options struct {
 	Credentials oci.CredentialFunc
 	Resolve     ResolveFunc
 	Pull        PullFunc
+	Created     CreatedFunc
 	Logo        LogoFunc
 }
 
@@ -55,12 +60,15 @@ func (e *InvalidChartError) Error() string {
 // the logo is downloaded unless the repository has it, and an exempt chart is
 // left as it is.
 func Prepare(ctx context.Context, cfg *rules.Config, ref oci.ChartRef, dir string, opts Options) (Shipment, error) {
-	resolve, pull, fetchLogo := opts.Resolve, opts.Pull, opts.Logo
+	resolve, pull, created, fetchLogo := opts.Resolve, opts.Pull, opts.Created, opts.Logo
 	if resolve == nil {
 		resolve = oci.ResolveDigest
 	}
 	if pull == nil {
 		pull = oci.PullArchive
+	}
+	if created == nil {
+		created = oci.ManifestCreated
 	}
 	if fetchLogo == nil {
 		client := &http.Client{Timeout: 30 * time.Second}
@@ -75,7 +83,12 @@ func Prepare(ctx context.Context, cfg *rules.Config, ref oci.ChartRef, dir strin
 	if err != nil {
 		return Shipment{}, err
 	}
-	archive, err := pull(ctx, oci.ChartRepo{Host: ref.Host, Repository: ref.Repository}, digest, fetch)
+	chartRepo := oci.ChartRepo{Host: ref.Host, Repository: ref.Repository}
+	pushed, err := created(ctx, chartRepo, digest, fetch)
+	if err != nil {
+		return Shipment{}, fmt.Errorf("read when the chart was pushed: %w", err)
+	}
+	archive, err := pull(ctx, chartRepo, digest, fetch)
 	if err != nil {
 		return Shipment{}, fmt.Errorf("pull the archive: %w", err)
 	}
@@ -114,7 +127,7 @@ func Prepare(ctx context.Context, cfg *rules.Config, ref oci.ChartRef, dir strin
 	}
 	// The tag is written as the registry stores it, with the + of the version as a _.
 	url := "oci://" + ref.Host + "/" + ref.Repository + ":" + version.ToOCITag(chartVersion) + "@" + digest
-	entry, err := BuildEntry(chartYAML, icon, url)
+	entry, err := BuildEntry(chartYAML, icon, url, pushed)
 	if err != nil {
 		return Shipment{}, err
 	}

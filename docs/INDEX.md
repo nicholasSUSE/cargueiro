@@ -37,4 +37,4 @@ An entry with `hide: true` is a version that has been published and must no long
 
 ## Permanence
 
-A version that has been published is never removed, and the line it has in the index never changes, except that hiding takes it out. Its archive never changes either. This is why a published version without its entry is an error and not a cleanup, and why a new entry that already has an archive is refused instead of being overwritten.
+A version that has been published is never removed, and the line it has in the index never changes, its `created` date included, except that hiding takes it out. Its archive never changes either. This is why a published version without its entry is an error and not a cleanup, and why a new entry that already has an archive is refused instead of being overwritten.

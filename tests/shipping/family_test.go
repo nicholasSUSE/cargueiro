@@ -45,6 +45,8 @@ func TestShipFamilyThenIndex(t *testing.T) {
 		require.Contains(t, text, "\nversion: "+fleetVersion+"\n")
 		require.Contains(t, text, "\nurls:\n- oci://"+address+"/"+path+"/"+name+":"+strings.ReplaceAll(fleetVersion, "+", "_")+"@sha256:",
 			"the tag of the url is the one the registry stores")
+		require.Equal(t, registryCreated(t, address, path+"/"+name, strings.ReplaceAll(fleetVersion, "+", "_")),
+			onlyMatch(t, createdLine, text), "%s: the date is the one the registry gives for the chart", name)
 	}
 
 	// What ship wrote is what index reads, and one run indexes the whole family.
@@ -55,6 +57,13 @@ func TestShipFamilyThenIndex(t *testing.T) {
 		require.Contains(t, index.Stdout, "add "+name+" "+fleetVersion+"\n")
 		require.FileExists(t, repo+"/assets/"+name+"/"+name+"-"+fleetVersion+".tgz")
 	}
+	indexText := readFile(t, repo+"/index.yaml")
+	newest := ""
+	for _, match := range createdLine.FindAllStringSubmatch(indexText, -1) {
+		newest = max(newest, match[1])
+	}
+	require.Len(t, createdLine.FindAllString(indexText, -1), 3, "one date for each chart")
+	require.Equal(t, newest, onlyMatch(t, generatedLine, indexText), "generated is the newest of them")
 }
 
 func TestShipFamilyWritesNothingWhenAChartIsNotInTheRegistry(t *testing.T) {

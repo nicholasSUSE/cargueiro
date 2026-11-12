@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -100,9 +101,11 @@ type fakes struct {
 	pullErr    error
 	logo       Logo
 	logoErr    error
+	createdErr error
 
 	resolved []oci.ChartRef
 	pulled   []string
+	dated    []string
 	logos    []string
 }
 
@@ -115,6 +118,10 @@ func (f *fakes) options() Options {
 		Pull: func(_ context.Context, repo oci.ChartRepo, digest string, _ oci.FetchOptions) ([]byte, error) {
 			f.pulled = append(f.pulled, repo.String()+"@"+digest)
 			return f.archive, f.pullErr
+		},
+		Created: func(_ context.Context, repo oci.ChartRepo, digest string, _ oci.FetchOptions) (time.Time, error) {
+			f.dated = append(f.dated, repo.String()+"@"+digest)
+			return testCreated(), f.createdErr
 		},
 		Logo: func(_ context.Context, address string) (Logo, error) {
 			f.logos = append(f.logos, address)
@@ -144,6 +151,8 @@ func TestPrepareAMainChart(t *testing.T) {
 	require.Contains(t, entry, "\nurls:\n- oci://127.0.0.1:5052/e2e/rancher-compliance:111.0.0_up1.5.4@"+manifestDigest+"\n",
 		"the tag is the one the registry stores")
 	require.Contains(t, entry, "\nversion: "+complianceVersion+"\n", "the version keeps its +")
+	require.Contains(t, entry, "\ncreated: \"2026-11-11T17:33:45Z\"\nurls:\n", "the date the chart was pushed")
+	require.Equal(t, []string{"127.0.0.1:5052/e2e/rancher-compliance@" + manifestDigest}, f.dated, "read from the manifest the tag resolved to")
 }
 
 func TestPrepareDoesNotWriteAnything(t *testing.T) {
@@ -203,6 +212,12 @@ func TestPrepareFails(t *testing.T) {
 			fakes:   &fakes{resolveErr: errors.New("the registry is down")},
 			ref:     complianceRef(),
 			wantErr: "the registry is down",
+		},
+		{
+			name:    "the date the chart was pushed cannot be read",
+			fakes:   &fakes{createdErr: errors.New("the manifest has no org.opencontainers.image.created annotation")},
+			ref:     complianceRef(),
+			wantErr: "read when the chart was pushed: the manifest has no org.opencontainers.image.created annotation",
 		},
 		{
 			name:    "the archive cannot be pulled",

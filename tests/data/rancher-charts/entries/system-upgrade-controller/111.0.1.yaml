@@ -7,6 +7,7 @@ appVersion: 0.16.1
 description: Fixture of system-upgrade-controller
 icon: file://assets/logos/system-upgrade-controller.svg
 name: system-upgrade-controller
+created: "2026-09-09T13:10:00Z"
 urls:
 - oci://stgregistry.suse.com/rancher/catalog/system-upgrade-controller:111.0.1@sha256:1890d63e1db0ef2494e6b478d41ff53c4b0bf219edcecd2740c8f84e255e0e5f
 version: 111.0.1

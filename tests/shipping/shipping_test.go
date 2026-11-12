@@ -7,11 +7,14 @@
 package shipping
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -133,6 +136,46 @@ func readFile(t *testing.T, path string) string {
 	return string(data)
 }
 
+// createdLine matches the created field of an entry or of a line of the index.
+var createdLine = regexp.MustCompile(`(?m)^ *created: "([^"]+)"$`)
+
+// generatedLine matches the generated field of the index.
+var generatedLine = regexp.MustCompile(`(?m)^generated: "([^"]+)"$`)
+
+// registryCreated asks the registry itself when the chart at address/repository:tag
+// was pushed: the org.opencontainers.image.created annotation of its manifest.
+// It is the independent source of the date that ship writes.
+func registryCreated(t *testing.T, address, repository, tag string) string {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodGet, "http://"+address+"/v2/"+repository+"/manifests/"+tag, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/vnd.oci.image.manifest.v1+json")
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = res.Body.Close() }()
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode, string(body))
+
+	var manifest struct {
+		Annotations map[string]string `json:"annotations"`
+	}
+	require.NoError(t, json.Unmarshal(body, &manifest))
+	created := manifest.Annotations["org.opencontainers.image.created"]
+	require.NotEmpty(t, created, "the registry gives the date the chart was pushed")
+	return created
+}
+
+// onlyMatch returns the one group of the only match of re in text.
+func onlyMatch(t *testing.T, re *regexp.Regexp, text string) string {
+	t.Helper()
+
+	matches := re.FindAllStringSubmatch(text, -1)
+	require.Len(t, matches, 1, "%s in %q", re, text)
+	return matches[0][1]
+}
+
 func TestShipThenIndex(t *testing.T) {
 	logo := newLogoServer(t, http.StatusOK)
 	address, path, reference := pushCompliance(t, logo.URL+"/compliance")
@@ -149,6 +192,8 @@ func TestShipThenIndex(t *testing.T) {
 	require.Contains(t, text, "\nversion: "+chartVersion+"\n")
 	require.Contains(t, text, "\nurls:\n- oci://"+address+"/"+path+"/"+chartName+":"+strings.ReplaceAll(chartVersion, "+", "_")+"@sha256:",
 		"the tag of the url is the one the registry stores")
+	require.Equal(t, registryCreated(t, address, path+"/"+chartName, strings.ReplaceAll(chartVersion, "+", "_")),
+		onlyMatch(t, createdLine, text), "the date is the one the registry gives for the chart")
 	require.NoDirExists(t, filepath.Join(repo, "assets", chartName), "ship writes no archive")
 	require.Empty(t, readFile(t, filepath.Join(repo, "index.yaml")), "and does not touch the index")
 
@@ -161,6 +206,9 @@ func TestShipThenIndex(t *testing.T) {
 	indexText := readFile(t, filepath.Join(repo, "index.yaml"))
 	require.Contains(t, indexText, "icon: file://assets/logos/"+chartName+".svg")
 	require.Contains(t, indexText, "digest: ")
+	created := onlyMatch(t, createdLine, text)
+	require.Equal(t, created, onlyMatch(t, createdLine, indexText), "the index keeps the date of the entry")
+	require.Equal(t, created, onlyMatch(t, generatedLine, indexText), "and says it was generated then, the newest of its versions")
 }
 
 func TestShipNeverReplacesAnEntry(t *testing.T) {

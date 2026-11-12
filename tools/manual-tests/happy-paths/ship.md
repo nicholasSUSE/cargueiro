@@ -26,19 +26,31 @@ run 'REG="127.0.0.1:5052/manual-ship-$(date +%s)"; echo "$REG"'
 run 'cargueiro push tests/data/charts/fleet/published/fleet-crd-110.0.3+up0.16.3.tgz --registry $REG'
 
 hdr "1. HAPPY: ship the chart to the checkout"
-want "one line on stdout, entries/fleet-crd/110.0.3+up0.16.3.yaml; exit 0. The entry has 'version: 110.0.3+up0.16.3', with the +, and a url whose tag has a _: …/fleet-crd:110.0.3_up0.16.3@sha256:…"
+want "one line on stdout, entries/fleet-crd/110.0.3+up0.16.3.yaml; exit 0. The entry has 'version: 110.0.3+up0.16.3', with the +, the 'created' date, and a url whose tag has a _: …/fleet-crd:110.0.3_up0.16.3@sha256:…. The date is the same one the registry gives for the chart"
 run 'cargueiro ship $REG/fleet-crd:110.0.3+up0.16.3 --repo "$PWD/.tmp/manual-tests/charts" --plain-http'
-run 'grep -E "^version:|^urls:|^- oci://" ".tmp/manual-tests/charts/entries/fleet-crd/110.0.3+up0.16.3.yaml"'
+run 'grep -E "^version:|^created:|^urls:|^- oci://" ".tmp/manual-tests/charts/entries/fleet-crd/110.0.3+up0.16.3.yaml"'
+run 'curl -s -H "Accept: application/vnd.oci.image.manifest.v1+json" "http://127.0.0.1:5052/v2/${REG#127.0.0.1:5052/}/fleet-crd/manifests/110.0.3_up0.16.3" | grep -o "\"org.opencontainers.image.created\":\"[^\"]*\""'
 
 hdr "2. HAPPY: index it"
-want "one line on stdout, add fleet-crd 110.0.3+up0.16.3; exit 0. Then index.yaml has the version with its + and the url with the _, and the archive is in assets/fleet-crd"
+want "one line on stdout, add fleet-crd 110.0.3+up0.16.3; exit 0. Then index.yaml has the version with its +, the url with the _, the same created date as the entry, and generated with that date too, and the archive is in assets/fleet-crd"
 run 'cargueiro index --repo "$PWD/.tmp/manual-tests/charts" --registry $REG --plain-http'
-run 'grep -E "^    version:|^    - oci://" .tmp/manual-tests/charts/index.yaml; ls .tmp/manual-tests/charts/assets/fleet-crd'
+run 'grep -E "^    version:|^    created:|^    - oci://|^generated:" .tmp/manual-tests/charts/index.yaml; ls .tmp/manual-tests/charts/assets/fleet-crd'
 
 hdr "3. FAILURE: ship the same version again, after the result is committed and pushed, as rancher/charts has it"
 want "an error that says the entry is there already and is never replaced; nothing on stdout; exit 1. Without the commit, ship refuses first because the checkout has changes that are not committed"
 run 'git -C .tmp/manual-tests/charts add -A && git -C .tmp/manual-tests/charts commit -q -m "ship and index fleet-crd" && git -C .tmp/manual-tests/charts push -q origin HEAD'
 run 'cargueiro ship $REG/fleet-crd:110.0.3+up0.16.3 --repo "$PWD/.tmp/manual-tests/charts" --plain-http'
+
+hdr "4. HAPPY: the digest in the index is the sha256 of the archive, and index again changes nothing"
+want "the digest of the index line and the sha256sum of the archive in assets/ are the same 64 hex digits; the url pins another digest, the one of the manifest, with the sha256: prefix; index prints 'nothing to change' and the digest, created and generated are the same as before; exit 0"
+run 'grep -E "^    digest:" .tmp/manual-tests/charts/index.yaml; sha256sum .tmp/manual-tests/charts/assets/fleet-crd/*.tgz; grep -E "^    - oci://" .tmp/manual-tests/charts/index.yaml | sed "s/.*@/the url pins: /"'
+run 'cp .tmp/manual-tests/charts/index.yaml .tmp/manual-tests/index.before && cargueiro index --repo "$PWD/.tmp/manual-tests/charts" --registry $REG --plain-http && diff .tmp/manual-tests/index.before .tmp/manual-tests/charts/index.yaml && echo "index.yaml is the same file"'
+
+hdr "5. FAILURE: the archive of a published version changed"
+want "an error that names the archive and gives both digests, the one in the index and the one of the file; nothing on stdout; index.yaml is not changed; exit 1"
+run 'echo changed >> ".tmp/manual-tests/charts/assets/fleet-crd/fleet-crd-110.0.3+up0.16.3.tgz"'
+run 'cargueiro index --repo "$PWD/.tmp/manual-tests/charts" --registry $REG --plain-http'
+run 'diff .tmp/manual-tests/index.before .tmp/manual-tests/charts/index.yaml && echo "index.yaml is the same file"'
 
 hdr "CLEANUP: forget the login and the git settings, take the binary off the PATH and remove the copies"
 run 'unset CARGUEIRO_CONFIG_DIR REG GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL GIT_CONFIG_GLOBAL; PATH=${PATH#"$PWD/.tmp/manual-tests/bin:"}; rm -rf .tmp/manual-tests'

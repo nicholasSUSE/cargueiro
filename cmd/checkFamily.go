@@ -49,12 +49,7 @@ func checkFamily(cmd *cobra.Command, opts *rootOptions, name string, paths []str
 	if err != nil {
 		return err
 	}
-	ordered, err := family.Resolve(members, loaded, func(l loadedChart) (string, error) {
-		if l.files.Metadata.Name == "" {
-			return "", fmt.Errorf("%s has no chart name", l.path)
-		}
-		return l.files.Metadata.Name, nil
-	})
+	ordered, err := family.Resolve(members, loaded, chartName)
 	if err != nil {
 		return err
 	}
@@ -102,6 +97,14 @@ func checkFamily(cmd *cobra.Command, opts *rootOptions, name string, paths []str
 type loadedChart struct {
 	path  string
 	files *chart.Files
+}
+
+// chartName is the name of the chart in a folder or an archive that was read.
+func chartName(l loadedChart) (string, error) {
+	if l.files.Metadata.Name == "" {
+		return "", fmt.Errorf("%s has no chart name", l.path)
+	}
+	return l.files.Metadata.Name, nil
 }
 
 // loadAll reads every chart, and reports every one that cannot be read.

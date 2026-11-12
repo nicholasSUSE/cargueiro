@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"time"
 
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
@@ -93,6 +92,7 @@ func Write(ctx context.Context, cfg *rules.Config, dir string, opts Options) (Pl
 	if err := errors.Join(
 		checkURLs(cfg, opts.Registry, entries.all, plan.Add),
 		checkIcons(cfg, dir, entries.all, plan.Add),
+		checkCreated(entries.all, plan.Add),
 	); err != nil {
 		return Plan{}, err
 	}
@@ -140,6 +140,7 @@ func (e entries) visible() *repo.IndexFile {
 			}
 		}
 	}
+	idx.Generated = newestCreated(idx)
 	return idx
 }
 
@@ -248,6 +249,5 @@ func readEntry(path, name, file string) (*entryFile, error) {
 	if want := entry.Version + ".yaml"; file != want {
 		return nil, fmt.Errorf("entry %s/%s holds version %s, so the file must be called %s", name, file, entry.Version, want)
 	}
-	entry.Created = time.Time{}
 	return &entry, nil
 }

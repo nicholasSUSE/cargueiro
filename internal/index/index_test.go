@@ -36,8 +36,19 @@ func chartYAMLOf(version string) string {
 	return strings.Replace(fleetChartYAML, "111.0.3+up0.17.3", version, 1)
 }
 
-// entryText returns the entry of the fleet chart in a version, pinned to digest.
+// entryText returns the entry of the fleet chart in a version, pinned to digest,
+// pushed on 2026-11-11.
 func entryText(version, digest string) string {
+	return entryTextCreated(version, digest, "2026-11-11T17:33:45Z")
+}
+
+// entryTextCreated is entryText for a chart pushed at created. An empty created
+// leaves the entry without the date, as the entries published before it had.
+func entryTextCreated(version, digest, created string) string {
+	date := ""
+	if created != "" {
+		date = "created: \"" + created + "\"\n"
+	}
 	return `annotations:
   catalog.cattle.io/certified: rancher
 apiVersion: v2
@@ -45,7 +56,7 @@ appVersion: 0.17.3
 description: Fleet Controller
 icon: file://assets/logos/fleet.svg
 name: fleet
-urls:
+` + date + `urls:
 - oci://` + testRegistry + `/fleet:` + strings.ReplaceAll(version, "+", "_") + `@` + digest + `
 version: ` + version + `
 `
@@ -80,6 +91,8 @@ func TestWrite(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, string(index), "digest: "+sha256Hex(archiveFirst)+"\n")
 		require.Contains(t, string(index), "version: "+first+"\n", "the version keeps its +")
+		require.Contains(t, string(index), "created: \"2026-11-11T17:33:45Z\"\n", "and the date its chart was pushed")
+		require.Contains(t, string(index), "generated: \"2026-11-11T17:33:45Z\"\n", "which is also when the index was generated")
 		require.Contains(t, string(index), "/fleet:111.0.3_up0.17.3@"+pinnedOne+"\n", "and the tag of its url is the one the registry stores")
 		require.Len(t, fake.calls, 1)
 	})
@@ -123,6 +136,146 @@ func TestWriteRefusesANewVersionWhoseUrlHasThePlus(t *testing.T) {
 	require.ErrorContains(t, err, "must be oci://"+testRegistry+"/fleet:111.0.3_up0.17.3@sha256:<digest>")
 	require.Empty(t, fake.calls, "nothing is pulled")
 	require.NoDirExists(t, filepath.Join(dir, "assets"))
+}
+
+func TestWriteGeneratedIsTheNewestCreated(t *testing.T) {
+	const (
+		first  = "111.0.3+up0.17.3"
+		second = "111.0.4+up0.17.4"
+		third  = "111.0.5+up0.17.5"
+	)
+	fake := &fakePull{archives: map[string][]byte{
+		pinnedOne: archiveOf(t, chartYAMLOf(first)),
+		pinnedTwo: archiveOf(t, chartYAMLOf(second)),
+	}}
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"entries/fleet/" + first + ".yaml":  entryTextCreated(first, pinnedOne, "2026-11-11T17:33:45Z"),
+		"entries/fleet/" + second + ".yaml": entryTextCreated(second, pinnedTwo, "2026-11-13T09:00:00Z"),
+	})
+	opts := Options{Registry: testRegistry, Pull: fake.pull}
+	cfg := loadRules(t)
+
+	read := func(t *testing.T) string {
+		t.Helper()
+
+		data, err := os.ReadFile(filepath.Join(dir, "index.yaml"))
+		require.NoError(t, err)
+		return string(data)
+	}
+
+	t.Run("the newest date of the versions", func(t *testing.T) {
+		_, err := Write(context.Background(), cfg, dir, opts)
+		require.NoError(t, err)
+
+		text := read(t)
+		require.Contains(t, text, "generated: \"2026-11-13T09:00:00Z\"\n")
+		require.Contains(t, text, "created: \"2026-11-11T17:33:45Z\"\n")
+		require.Contains(t, text, "created: \"2026-11-13T09:00:00Z\"\n")
+	})
+
+	t.Run("regenerating gives the same file", func(t *testing.T) {
+		before := read(t)
+
+		_, err := Write(context.Background(), cfg, dir, opts)
+		require.NoError(t, err)
+
+		require.Equal(t, before, read(t))
+	})
+
+	t.Run("a hidden version does not count", func(t *testing.T) {
+		writeFiles(t, dir, map[string]string{"entries/fleet/" + second + ".yaml": entryTextCreated(second, pinnedTwo, "2026-11-13T09:00:00Z") + "hide: true\n"})
+
+		_, err := Write(context.Background(), cfg, dir, opts)
+		require.NoError(t, err)
+
+		text := read(t)
+		require.Contains(t, text, "generated: \"2026-11-11T17:33:45Z\"\n", "the newest of the versions that are listed")
+		require.NotContains(t, text, "2026-11-13T09:00:00Z")
+	})
+
+	t.Run("a new version changes only its line and generated", func(t *testing.T) {
+		before := read(t)
+		const pinnedThree = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+		fake.archives[pinnedThree] = archiveOf(t, chartYAMLOf(third))
+		writeFiles(t, dir, map[string]string{"entries/fleet/" + third + ".yaml": entryTextCreated(third, pinnedThree, "2026-11-15T12:00:00Z")})
+
+		_, err := Write(context.Background(), cfg, dir, opts)
+		require.NoError(t, err)
+
+		after := read(t)
+		require.Contains(t, after, "generated: \"2026-11-15T12:00:00Z\"\n")
+		require.NotContains(t, before, "2026-11-15T12:00:00Z")
+		for _, line := range strings.Split(before, "\n") {
+			if strings.HasPrefix(line, "generated:") {
+				continue
+			}
+			require.Contains(t, after, line+"\n", "a line of the old index is still there")
+		}
+	})
+}
+
+func TestWriteRefusesANewVersionWithoutACreatedDate(t *testing.T) {
+	const version = "111.0.3+up0.17.3"
+	fake := &fakePull{archives: map[string][]byte{pinnedOne: archiveOf(t, chartYAMLOf(version))}}
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entryTextCreated(version, pinnedOne, "")})
+
+	_, err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, Pull: fake.pull})
+
+	require.ErrorContains(t, err, "fleet "+version+" has no created date: it must have the date its chart was pushed")
+	require.Empty(t, fake.calls, "nothing is pulled")
+	require.NoDirExists(t, filepath.Join(dir, "assets"))
+	require.NoFileExists(t, filepath.Join(dir, "index.yaml"))
+}
+
+func TestWriteRefusesAChangedCreatedDateOfAPublishedVersion(t *testing.T) {
+	const version = "111.0.3+up0.17.3"
+	fake := &fakePull{archives: map[string][]byte{pinnedOne: archiveOf(t, chartYAMLOf(version))}}
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entryText(version, pinnedOne)})
+	opts := Options{Registry: testRegistry, Pull: fake.pull}
+	_, err := Write(context.Background(), loadRules(t), dir, opts)
+	require.NoError(t, err)
+	before, err := os.ReadFile(filepath.Join(dir, "index.yaml"))
+	require.NoError(t, err)
+
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entryTextCreated(version, pinnedOne, "2026-12-01T00:00:00Z")})
+	_, err = Write(context.Background(), loadRules(t), dir, opts)
+
+	require.ErrorContains(t, err, "fleet "+version+" is in index.yaml and its entry no longer matches it: a published version never changes")
+	after, readErr := os.ReadFile(filepath.Join(dir, "index.yaml"))
+	require.NoError(t, readErr)
+	require.Equal(t, string(before), string(after))
+}
+
+func TestWriteKeepsAPublishedVersionThatHasNoCreatedDate(t *testing.T) {
+	// The versions published before the entries had the date have none in the
+	// entry, and the zero date in the index, and they stay as they are.
+	const version = "111.0.3+up0.17.3"
+	fake := &fakePull{archives: map[string][]byte{pinnedOne: archiveOf(t, chartYAMLOf(version))}}
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entryText(version, pinnedOne)})
+	opts := Options{Registry: testRegistry, Pull: fake.pull}
+	_, err := Write(context.Background(), loadRules(t), dir, opts)
+	require.NoError(t, err)
+	data, err := os.ReadFile(filepath.Join(dir, "index.yaml"))
+	require.NoError(t, err)
+	old := strings.ReplaceAll(string(data), "\"2026-11-11T17:33:45Z\"", "\"0001-01-01T00:00:00Z\"")
+	require.NotEqual(t, string(data), old)
+	writeFiles(t, dir, map[string]string{
+		"index.yaml":                         old,
+		"entries/fleet/" + version + ".yaml": entryTextCreated(version, pinnedOne, ""),
+	})
+	fake.calls = nil
+
+	_, err = Write(context.Background(), loadRules(t), dir, opts)
+
+	require.NoError(t, err)
+	require.Empty(t, fake.calls, "nothing is new")
+	after, readErr := os.ReadFile(filepath.Join(dir, "index.yaml"))
+	require.NoError(t, readErr)
+	require.Equal(t, old, string(after), "and the index is the same")
 }
 
 func TestWriteWritesNothingWhenAPullFails(t *testing.T) {

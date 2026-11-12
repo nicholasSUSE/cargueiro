@@ -6,7 +6,7 @@ Write the `index.yaml` of a charts repository from its `entries/`.
 
 Nothing is written unless every entry is valid: the chart must be listed in `rules.yaml`, the file must be called after the version it holds, and no version may be in two entries. The entries, the `index.yaml` that is already there and the archives in `assets/<chart>/<chart>-<version>.tgz` must also agree: a published version never loses its entry or its archive, an archive never has no entry, and a new entry has no archive yet. See `docs/INDEX.md`.
 
-A new version is also checked for its URL. It has exactly one, `oci://<registry>/<chart>:<version>@sha256:<digest>`, with the version as it is in `Chart.yaml`, the digest of the manifest pinned, and the registry the staging registry of the chart's edition in `rules.yaml`. `--registry` replaces that registry, as `host[:port]/path`, for a local one. A version that is already published is not checked again.
+A new version is also checked for its URL. It has exactly one, `oci://<registry>/<chart>:<tag>@sha256:<digest>`, with the tag written as the registry stores the version, a `+` as a `_` (`111.0.3_up0.17.3` for `111.0.3+up0.17.3`), the digest of the manifest pinned, and the registry the staging registry of the chart's edition in `rules.yaml`. `--registry` replaces that registry, as `host[:port]/path`, for a local one. A version that is already published is not checked again.
 
 The icon of a new version of a main chart must be `file://assets/logos/<file>`, where the file exists in the repository. A `crd` or `extra` chart, and a main chart marked `icon: skip` in `rules.yaml`, are not checked.
 

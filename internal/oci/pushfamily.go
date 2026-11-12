@@ -114,7 +114,7 @@ func (p *Pusher) PushFamily(ctx context.Context, archives []string, notice Retry
 				return nil, fmt.Errorf("read the digest of %s: %w", a.address, err)
 			}
 			if stored != a.sum {
-				differ = append(differ, refused("%s is in the registry already with other content (digest %s, the archive has %s): a version is never overwritten, so give the chart a new version", a.address, stored, a.sum))
+				differ = append(differ, fmt.Errorf("%s is in the registry already with other content (digest %s, the archive has %s): a version is never overwritten, so give the chart a new version", a.address, stored, a.sum))
 				continue
 			}
 			result.Members[i].State = StateSkipped

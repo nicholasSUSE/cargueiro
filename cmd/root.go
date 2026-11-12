@@ -109,6 +109,10 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
+	chartVersionCmd, err := newChartVersionCmd(opts, deps.listTags)
+	if err != nil {
+		return nil, err
+	}
 	indexCmd, err := newIndexCmd(opts)
 	if err != nil {
 		return nil, err
@@ -117,7 +121,7 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd, indexCmd, shipCmd)
+	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd, chartVersionCmd, indexCmd, shipCmd)
 
 	return root, nil
 }

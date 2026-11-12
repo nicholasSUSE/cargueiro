@@ -61,7 +61,8 @@ The action takes a folder with the chart and the final version of the chart, and
 - Copy the chart to a temporary folder first, so the checkout stays as it is.
 - In the copy, set the `appVersion` and the image tags in `values.yaml` to the release; `stamp` changes neither.
 - If `Chart.yaml` already has a `helm.sh/images` annotation, its image tags are the release too, because `stamp` keeps an annotation that exists and refuses an image tagged `latest`.
-- The `version` in `Chart.yaml` can be any placeholder, because the action stamps the final one, which you give as an input. How you work out that version is yours: it is `1XY.Z.W+upA.B.C`, and `rancher/webhook` reads the `1XY` from a table in its `VERSION.md`.
+- `Chart.yaml` must have a `version:` line, with any placeholder value, because the action stamps the final version, which you give as an input. The final version is `1XY.Z.W+upA.B.C`. How you work it out is yours: `rancher/webhook` reads the `1XY` from a table in its `VERSION.md`.
+  - Or let cargueiro work it out from the `appVersion` and the versions already released: run [`cargueiro chart-version`](../cmd/docs/chart-version.md) on the copy in your script (with `--family` for a family) and give its output as the `version` input. The `appVersion` of the copy must be set first, and the command reads the staging registry.
 
 `rancher/webhook` is the example. Its script `prepare-chart.sh` copies `charts/rancher-webhook` to a temporary folder, changes three lines, and prints the version. For the tag `v0.13.0-rc.7`, this is what differs from the source:
 

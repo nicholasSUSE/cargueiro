@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,9 +15,37 @@ import (
 	"github.com/rancher/cargueiro/internal/oci"
 )
 
+// stampAgentYAML is the extra chart of the family: it is for Rancher 2.16, like
+// the main chart, so it takes the same major.
+const stampAgentYAML = `apiVersion: v2
+name: fleet-agent
+version: 0.16.3
+appVersion: 0.16.3
+annotations:
+  catalog.cattle.io/certified: rancher
+  catalog.cattle.io/rancher-version: '>= 2.16.0-0 < 2.17.0-0'
+`
+
+// repoLister answers with the tags of each repository, such as
+// rancher/catalog/fleet, says that a repository it does not have is not found,
+// and records the repositories it was asked about.
+type repoLister struct {
+	tags  map[string][]string
+	asked []string
+}
+
+func (r *repoLister) list(_ context.Context, repo oci.ChartRepo, _ oci.FetchOptions) ([]string, error) {
+	r.asked = append(r.asked, repo.Repository)
+	tags, ok := r.tags[repo.Repository]
+	if !ok {
+		return nil, fmt.Errorf("%s was not found in the registry: %w", repo, oci.ErrRepositoryNotFound)
+	}
+	return tags, nil
+}
+
 // runStampFamilyWith executes stamp with the fleet family of three charts in the
 // rules and the registry given.
-func runStampFamilyWith(t *testing.T, fake *fakeLister, args ...string) (stdout, stderr string, err error) {
+func runStampFamilyWith(t *testing.T, list listFunc, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
@@ -26,7 +56,7 @@ func runStampFamilyWith(t *testing.T, fake *fakeLister, args ...string) (stdout,
 		prompt:    &fakePrompter{},
 		rules:     []byte(familyRules()),
 	}
-	root, err := newRootCmd(&out, &errOut, opts, dependencies{listTags: fake.list})
+	root, err := newRootCmd(&out, &errOut, opts, dependencies{listTags: list})
 	require.NoError(t, err)
 	root.SetArgs(append([]string{"stamp"}, args...))
 
@@ -38,16 +68,15 @@ func runStampFamilyWith(t *testing.T, fake *fakeLister, args ...string) (stdout,
 func runStampFamily(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 
-	return runStampFamilyWith(t, &fakeLister{err: errors.New("the registry must not be asked")}, args...)
+	return runStampFamilyWith(t, (&fakeLister{err: errors.New("the registry must not be asked")}).list, args...)
 }
 
-// stampFamilyDirs makes a folder for each chart of the family: the main chart is
-// a chart to stamp, the others only have to be there.
+// stampFamilyDirs makes a folder for each chart of the family.
 func stampFamilyDirs(t *testing.T) (fleet, agent, crd string) {
 	t.Helper()
 
 	fleet = writeChartDir(t, stampChartYAML, stampValuesYAML)
-	agent = writeChartDir(t, familyChartYAML("fleet-agent", "0.16.3"), "")
+	agent = writeChartDir(t, stampAgentYAML, "")
 	crd = writeChartDir(t, familyChartYAML("fleet-crd", "0.16.3"), "")
 	return fleet, agent, crd
 }
@@ -60,18 +89,21 @@ func readChartFile(t *testing.T, dir string) string {
 	return string(data)
 }
 
-func TestStampFamilyStampsTheMainChart(t *testing.T) {
+func TestStampFamilyStampsEveryChart(t *testing.T) {
 	fleet, agent, crd := stampFamilyDirs(t)
-	agentBefore, crdBefore := readChartFile(t, agent), readChartFile(t, crd)
 
 	stdout, stderr, err := runStampFamily(t, "--family", "fleet", crd, agent, fleet, "--version", "111.0.0+up0.16.3")
 
 	require.NoError(t, err)
 	require.Empty(t, stderr)
-	require.Equal(t, "==> fleet\nversion: 0.16.3 -> 111.0.0+up0.16.3\nhelm.sh/images: added fleet-agent, fleet\n", stdout)
-	require.Contains(t, readChartFile(t, fleet), "version: 111.0.0+up0.16.3")
-	require.Equal(t, agentBefore, readChartFile(t, agent), "the other charts are not changed")
-	require.Equal(t, crdBefore, readChartFile(t, crd))
+	// The order of the family: the main chart first, then the order of the rules,
+	// which list the CRD chart before the extra one.
+	require.Equal(t, "==> fleet\nversion: 0.16.3 -> 111.0.0+up0.16.3\nhelm.sh/images: added fleet-agent, fleet\n"+
+		"==> fleet-crd\nversion: 0.16.3 -> 111.0.0+up0.16.3\n"+
+		"==> fleet-agent\nversion: 0.16.3 -> 111.0.0+up0.16.3\n", stdout)
+	for _, dir := range []string{fleet, agent, crd} {
+		require.Contains(t, readChartFile(t, dir), "\nversion: 111.0.0+up0.16.3\n")
+	}
 }
 
 func TestStampFamilyTwice(t *testing.T) {
@@ -83,19 +115,42 @@ func TestStampFamilyTwice(t *testing.T) {
 	stdout, _, err := runStampFamily(t, args...)
 
 	require.NoError(t, err)
-	require.Equal(t, "==> fleet\nnothing to change\n", stdout)
+	require.Equal(t, "==> fleet\nnothing to change\n==> fleet-crd\nnothing to change\n==> fleet-agent\nnothing to change\n", stdout)
 }
 
-func TestStampFamilyWorksOutTheVersionFromTheMainChart(t *testing.T) {
+func TestStampFamilyWorksOutTheVersionFromTheMainChartAndReadsEveryRegistry(t *testing.T) {
 	fleet, agent, crd := stampFamilyDirs(t)
-	fake := &fakeLister{tags: []string{"111.0.0_up0.16.1", "111.0.1_up0.16.2"}}
+	same := []string{"111.0.0_up0.16.1", "111.0.1_up0.16.2"}
+	registry := &repoLister{tags: map[string][]string{
+		"rancher/catalog/fleet":       same,
+		"rancher/catalog/fleet-agent": same,
+		"rancher/catalog/fleet-crd":   same,
+	}}
 
-	stdout, _, err := runStampFamilyWith(t, fake, "--family", "fleet", fleet, agent, crd)
+	stdout, _, err := runStampFamilyWith(t, registry.list, "--family", "fleet", fleet, agent, crd)
 
 	require.NoError(t, err)
-	require.Equal(t, "==> fleet\nversion: 0.16.3 -> 111.0.2+up0.16.3\nhelm.sh/images: added fleet-agent, fleet\n", stdout)
-	require.Equal(t, oci.ChartRepo{Host: "stgregistry.suse.com", Repository: "rancher/catalog/fleet"}, fake.repo,
-		"the registry of the main chart is the one that is read")
+	require.Contains(t, stdout, "==> fleet\nversion: 0.16.3 -> 111.0.2+up0.16.3\n")
+	require.Contains(t, stdout, "==> fleet-crd\nversion: 0.16.3 -> 111.0.2+up0.16.3\n")
+	require.Equal(t, []string{"rancher/catalog/fleet", "rancher/catalog/fleet-crd", "rancher/catalog/fleet-agent"}, registry.asked,
+		"one read for each registry")
+}
+
+func TestStampFamilyRefusesWhenTheLatestVersionsDiffer(t *testing.T) {
+	fleet, agent, crd := stampFamilyDirs(t)
+	registry := &repoLister{tags: map[string][]string{
+		"rancher/catalog/fleet":       {"111.0.0_up0.16.1", "111.0.1_up0.16.2"},
+		"rancher/catalog/fleet-agent": {"111.0.0_up0.16.1", "111.0.1_up0.16.2"},
+		"rancher/catalog/fleet-crd":   {"111.0.0_up0.16.1"},
+	}}
+
+	stdout, _, err := runStampFamilyWith(t, registry.list, "--family", "fleet", fleet, agent, crd)
+
+	require.ErrorContains(t, err, `the charts of the family "fleet" are not at the same released version: `+
+		"fleet 111.0.1+up0.16.2, fleet-crd 111.0.0+up0.16.1, fleet-agent 111.0.1+up0.16.2: give --version to set it by hand")
+	require.Empty(t, stdout)
+	require.Equal(t, stampChartYAML, readChartFile(t, fleet), "nothing is changed")
+	require.Equal(t, stampAgentYAML, readChartFile(t, agent))
 }
 
 func TestStampFamilyDryRunWritesNothing(t *testing.T) {
@@ -106,8 +161,24 @@ func TestStampFamilyDryRunWritesNothing(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, stderr)
 	require.True(t, strings.HasPrefix(stdout, "==> fleet\n--- Chart.yaml\n+++ Chart.yaml\n"), stdout)
-	require.Contains(t, stdout, "+version: 111.0.0+up0.16.3\n")
+	require.Contains(t, stdout, "==> fleet-agent\n--- Chart.yaml\n")
+	require.Contains(t, stdout, "==> fleet-crd\n--- Chart.yaml\n")
 	require.Equal(t, stampChartYAML, readChartFile(t, fleet), "a dry run writes nothing")
+	require.Equal(t, stampAgentYAML, readChartFile(t, agent))
+}
+
+func TestStampFamilyChangesNothingWhenOneChartCannotTakeTheVersion(t *testing.T) {
+	fleet, _, crd := stampFamilyDirs(t)
+	// The extra chart is for Rancher 2.17, whose charts have the major 112.
+	agentFor217 := strings.Replace(stampAgentYAML, ">= 2.16.0-0 < 2.17.0-0", ">= 2.17.0-0 < 2.18.0-0", 1)
+	agent := writeChartDir(t, agentFor217, "")
+
+	stdout, _, err := runStampFamily(t, "--family", "fleet", fleet, agent, crd, "--version", "111.0.0+up0.16.3")
+
+	require.ErrorContains(t, err, "fleet-agent: ")
+	require.Empty(t, stdout)
+	require.Equal(t, stampChartYAML, readChartFile(t, fleet), "the charts that could take it are not changed either")
+	require.Equal(t, agentFor217, readChartFile(t, agent))
 }
 
 func TestStampFamilyRefusesAndChangesNothing(t *testing.T) {

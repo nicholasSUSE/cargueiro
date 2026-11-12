@@ -28,6 +28,8 @@ type Pusher struct {
 	client Client
 	target Target
 	guard  *Guard
+	// retry is how PushFamily tries an upload again. The zero value does not.
+	retry Retry
 }
 
 // NewPusher returns a Pusher that uploads through client to target, unless

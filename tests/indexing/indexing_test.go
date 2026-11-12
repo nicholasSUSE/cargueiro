@@ -345,7 +345,10 @@ func editFile(t *testing.T, path string, fn func(string) string) {
 }
 
 func TestIndexRefusesTheUrlOfANewEntry(t *testing.T) {
-	const version = "111.0.2+up0.17.2"
+	const (
+		version = "111.0.2+up0.17.2"
+		tag     = "111.0.2_up0.17.2"
+	)
 
 	tests := []struct {
 		name    string
@@ -360,12 +363,12 @@ func TestIndexRefusesTheUrlOfANewEntry(t *testing.T) {
 		{
 			name:    "a url of another registry",
 			edit:    func(s string) string { return strings.Replace(s, "stgregistry.suse.com", "registry.suse.com", 1) },
-			wantErr: "but it must be oci://stgregistry.suse.com/rancher/catalog/fleet:" + version + "@sha256:<digest>",
+			wantErr: "but it must be oci://stgregistry.suse.com/rancher/catalog/fleet:" + tag + "@sha256:<digest>",
 		},
 		{
-			name:    "a url that has the tag form of the version",
-			edit:    func(s string) string { return strings.Replace(s, ":111.0.2+up0.17.2@", ":111.0.2_up0.17.2@", 1) },
-			wantErr: "but it must be oci://stgregistry.suse.com/rancher/catalog/fleet:" + version + "@sha256:<digest>",
+			name:    "a url that has the version as it is, with its +, in the tag",
+			edit:    func(s string) string { return strings.Replace(s, ":111.0.2_up0.17.2@", ":111.0.2+up0.17.2@", 1) },
+			wantErr: "but it must be oci://stgregistry.suse.com/rancher/catalog/fleet:" + tag + "@sha256:<digest>",
 		},
 	}
 
@@ -385,7 +388,7 @@ func TestIndexRefusesTheUrlOfANewEntry(t *testing.T) {
 
 func TestIndexDoesNotCheckTheUrlOfAPublishedVersion(t *testing.T) {
 	repo := publishedRepo(t)
-	fleetURL := regexp.MustCompile(`(fleet:111\.0\.2\+up0\.17\.2)@sha256:[0-9a-f]{64}`)
+	fleetURL := regexp.MustCompile(`(fleet:111\.0\.2_up0\.17\.2)@sha256:[0-9a-f]{64}`)
 	dropDigest := func(s string) string { return fleetURL.ReplaceAllString(s, "$1") }
 	editFile(t, filepath.Join(repo, "entries", "fleet", "111.0.2+up0.17.2.yaml"), dropDigest)
 	editFile(t, filepath.Join(repo, "index.yaml"), dropDigest)

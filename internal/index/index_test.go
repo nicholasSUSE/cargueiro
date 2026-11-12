@@ -46,7 +46,7 @@ description: Fleet Controller
 icon: file://assets/logos/fleet.svg
 name: fleet
 urls:
-- oci://` + testRegistry + `/fleet:` + version + `@` + digest + `
+- oci://` + testRegistry + `/fleet:` + strings.ReplaceAll(version, "+", "_") + `@` + digest + `
 version: ` + version + `
 `
 }
@@ -79,6 +79,8 @@ func TestWrite(t *testing.T) {
 		index, err := os.ReadFile(filepath.Join(dir, "index.yaml"))
 		require.NoError(t, err)
 		require.Contains(t, string(index), "digest: "+sha256Hex(archiveFirst)+"\n")
+		require.Contains(t, string(index), "version: "+first+"\n", "the version keeps its +")
+		require.Contains(t, string(index), "/fleet:111.0.3_up0.17.3@"+pinnedOne+"\n", "and the tag of its url is the one the registry stores")
 		require.Len(t, fake.calls, 1)
 	})
 
@@ -107,6 +109,20 @@ func TestWrite(t *testing.T) {
 		require.Equal(t, pinnedTwo, fake.calls[0].digest)
 		require.FileExists(t, filepath.Join(dir, "assets", "fleet", "fleet-"+second+".tgz"))
 	})
+}
+
+func TestWriteRefusesANewVersionWhoseUrlHasThePlus(t *testing.T) {
+	const version = "111.0.3+up0.17.3"
+	fake := &fakePull{archives: map[string][]byte{pinnedOne: archiveOf(t, chartYAMLOf(version))}}
+	dir := t.TempDir()
+	entry := strings.Replace(entryText(version, pinnedOne), "fleet:111.0.3_up0.17.3@", "fleet:"+version+"@", 1)
+	writeFiles(t, dir, map[string]string{"entries/fleet/" + version + ".yaml": entry})
+
+	_, err := Write(context.Background(), loadRules(t), dir, Options{Registry: testRegistry, Pull: fake.pull})
+
+	require.ErrorContains(t, err, "must be oci://"+testRegistry+"/fleet:111.0.3_up0.17.3@sha256:<digest>")
+	require.Empty(t, fake.calls, "nothing is pulled")
+	require.NoDirExists(t, filepath.Join(dir, "assets"))
 }
 
 func TestWriteWritesNothingWhenAPullFails(t *testing.T) {

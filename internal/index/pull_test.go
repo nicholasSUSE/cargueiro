@@ -3,6 +3,7 @@ package index
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func (f *fakePull) pull(_ context.Context, r oci.ChartRepo, digest string, opts 
 func entryPinnedTo(version, digest string) *repo.ChartVersion {
 	e := fleetEntry()
 	e.Version = version
-	e.URLs = []string{"oci://registry.example.com/rancher/fleet:" + version + "@" + digest}
+	e.URLs = []string{"oci://registry.example.com/rancher/fleet:" + strings.ReplaceAll(version, "+", "_") + "@" + digest}
 	return e
 }
 
@@ -132,7 +133,7 @@ func TestPullAddedUsesTheRegistryByDefault(t *testing.T) {
 	// Without a Pull function, oci.PullArchive is used: a registry that does not
 	// exist fails, and is named.
 	all := indexOf("fleet", entryPinnedTo("111.0.3+up0.17.3", "sha256:1111111111111111111111111111111111111111111111111111111111111111"))
-	all.Entries["fleet"][0].URLs = []string{"oci://127.0.0.1:1/rancher/fleet:111.0.3+up0.17.3@sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+	all.Entries["fleet"][0].URLs = []string{"oci://127.0.0.1:1/rancher/fleet:111.0.3_up0.17.3@sha256:1111111111111111111111111111111111111111111111111111111111111111"}
 
 	got, err := pullAdded(context.Background(), all, []Ref{{Chart: "fleet", Version: "111.0.3+up0.17.3"}}, Options{PlainHTTP: true})
 

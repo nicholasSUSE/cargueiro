@@ -141,8 +141,9 @@ func TestPrepareAMainChart(t *testing.T) {
 	require.Equal(t, []string{"127.0.0.1:5052/e2e/rancher-compliance@" + manifestDigest}, f.pulled, "the archive is read by the digest the tag resolved to")
 	entry := string(got.Entry)
 	require.Contains(t, entry, "\nicon: file://assets/logos/rancher-compliance.svg\n")
-	require.Contains(t, entry, "\nurls:\n- oci://127.0.0.1:5052/e2e/rancher-compliance:"+complianceVersion+"@"+manifestDigest+"\n")
-	require.Contains(t, entry, "\nversion: "+complianceVersion+"\n")
+	require.Contains(t, entry, "\nurls:\n- oci://127.0.0.1:5052/e2e/rancher-compliance:111.0.0_up1.5.4@"+manifestDigest+"\n",
+		"the tag is the one the registry stores")
+	require.Contains(t, entry, "\nversion: "+complianceVersion+"\n", "the version keeps its +")
 }
 
 func TestPrepareDoesNotWriteAnything(t *testing.T) {
@@ -182,7 +183,8 @@ func TestPrepareAnExemptChart(t *testing.T) {
 	require.Nil(t, got.Logo)
 	require.Empty(t, f.logos, "an exempt chart needs no logo")
 	require.Contains(t, string(got.Entry), "\nicon: https://charts.rancher.io/assets/logos/fleet.svg\n", "and keeps its icon")
-	require.Contains(t, string(got.Entry), "\nurls:\n- oci://127.0.0.1:5052/e2e/fleet:110.0.3+up0.16.3@"+manifestDigest+"\n")
+	require.Contains(t, string(got.Entry), "\nurls:\n- oci://127.0.0.1:5052/e2e/fleet:110.0.3_up0.16.3@"+manifestDigest+"\n")
+	require.Contains(t, string(got.Entry), "\nversion: 110.0.3+up0.16.3\n", "the version keeps its +")
 }
 
 func TestPrepareFails(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	testURL  = "oci://stgregistry.suse.com/rancher/catalog/fleet:110.0.3+up0.16.3@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	testURL  = "oci://stgregistry.suse.com/rancher/catalog/fleet:110.0.3_up0.16.3@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	testIcon = "file://assets/logos/fleet.svg"
 )
 

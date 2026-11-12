@@ -147,7 +147,8 @@ func TestShipThenIndex(t *testing.T) {
 	text := readFile(t, entry)
 	require.Contains(t, text, "\nicon: file://assets/logos/"+chartName+".svg\n")
 	require.Contains(t, text, "\nversion: "+chartVersion+"\n")
-	require.Contains(t, text, "\nurls:\n- oci://"+address+"/"+path+"/"+chartName+":"+chartVersion+"@sha256:")
+	require.Contains(t, text, "\nurls:\n- oci://"+address+"/"+path+"/"+chartName+":"+strings.ReplaceAll(chartVersion, "+", "_")+"@sha256:",
+		"the tag of the url is the one the registry stores")
 	require.NoDirExists(t, filepath.Join(repo, "assets", chartName), "ship writes no archive")
 	require.Empty(t, readFile(t, filepath.Join(repo, "index.yaml")), "and does not touch the index")
 

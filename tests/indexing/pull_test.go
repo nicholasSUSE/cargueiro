@@ -101,7 +101,7 @@ func pushChart(t *testing.T, registry, entry string, ref chartRef) pushedChart {
 	match := manifestDigest.FindStringSubmatch(res.Stdout + res.Stderr)
 	require.NotNil(t, match, "helm push did not print the digest: %s%s", res.Stdout, res.Stderr)
 
-	url := fmt.Sprintf("oci://%s/%s:%s@%s", registry, ref.chart, ref.version, match[1])
+	url := fmt.Sprintf("oci://%s/%s:%s@%s", registry, ref.chart, strings.ReplaceAll(ref.version, "+", "_"), match[1])
 	require.NoError(t, os.WriteFile(entry, []byte(urlLine.ReplaceAllString(string(text), "urls:\n- "+url+"\n")), 0o600))
 	return pushedChart{archiveDigest: digestOfBytes(data), url: url}
 }
@@ -114,7 +114,7 @@ func expectedIndex(t *testing.T, golden string, pushed map[chartRef]pushedChart)
 
 	for ref, p := range pushed {
 		block := regexp.MustCompile(`(?m)(    description: [^\n]*\n)((?:    [^\n]*\n)*?    urls:\n    - )oci://[^\n]*/` +
-			regexp.QuoteMeta(ref.chart) + `:` + regexp.QuoteMeta(ref.version) + `@sha256:[0-9a-f]{64}\n`)
+			regexp.QuoteMeta(ref.chart) + `:` + regexp.QuoteMeta(strings.ReplaceAll(ref.version, "+", "_")) + `@sha256:[0-9a-f]{64}\n`)
 		require.Regexp(t, block, golden, "%s %s is in the expected index", ref.chart, ref.version)
 		golden = block.ReplaceAllString(golden, "${1}    digest: "+p.archiveDigest+"\n${2}"+p.url+"\n")
 	}

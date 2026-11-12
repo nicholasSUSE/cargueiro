@@ -383,6 +383,7 @@ func (r *registries) list(_ context.Context, repo oci.ChartRepo, _ oci.FetchOpti
 }
 
 const (
+	fleetRepo = "rancher/catalog/fleet"
 	agentRepo = "rancher/catalog/fleet-agent"
 	crdRepo   = "rancher/catalog/fleet-crd"
 )
@@ -496,4 +497,130 @@ func TestCheckReleasedReadsTheOtherCharts(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []string{agentRepo, crdRepo}, registry.asked, "the main chart was read by the caller, so only the others are asked, in order")
+}
+
+func TestVersion(t *testing.T) {
+	cfg := loadRules(t)
+
+	t.Run("the version of the next release of a chart", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		registry := &fakeRegistry{tags: []string{"111.0.0_up1.5.3"}}
+
+		got, err := Version(context.Background(), cfg, dir, Options{List: registry.list})
+
+		require.NoError(t, err)
+		require.Equal(t, "111.0.1+up1.5.4", got)
+	})
+
+	t.Run("it writes nothing", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		before, err := os.ReadFile(filepath.Join(dir, "Chart.yaml"))
+		require.NoError(t, err)
+
+		_, err = Version(context.Background(), cfg, dir, Options{List: (&fakeRegistry{}).list})
+
+		require.NoError(t, err)
+		after, err := os.ReadFile(filepath.Join(dir, "Chart.yaml"))
+		require.NoError(t, err)
+		require.Equal(t, string(before), string(after))
+	})
+
+	t.Run("a folder with no chart", func(t *testing.T) {
+		_, err := Version(context.Background(), cfg, t.TempDir(), Options{List: (&fakeRegistry{}).list})
+
+		require.Error(t, err)
+	})
+
+	t.Run("a chart that rules.yaml does not list", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		edit(t, dir, "Chart.yaml", "\nname: rancher-compliance\n", "\nname: not-a-chart\n")
+
+		_, err := Version(context.Background(), cfg, dir, Options{List: (&fakeRegistry{}).list})
+
+		require.ErrorContains(t, err, "not-a-chart")
+	})
+
+	t.Run("a chart whose version cannot be worked out", func(t *testing.T) {
+		dir := copyChart(t, "fleet", "fleet-crd")
+
+		_, err := Version(context.Background(), cfg, dir, Options{List: (&fakeRegistry{}).list})
+
+		require.ErrorContains(t, err, "a CRD chart has no rancher-version")
+	})
+}
+
+// fleetMain copies the main chart of the fleet family. The fixture is for Rancher
+// 2.15, which is not supported, so it is made a chart for Rancher 2.17, whose
+// charts have the major 112.
+func fleetMain(t *testing.T) string {
+	t.Helper()
+
+	dir := copyChart(t, "fleet", "fleet")
+	edit(t, dir, "Chart.yaml", ">= 2.15.0-0 < 2.16.0-0", ">= 2.17.0-0 < 2.18.0-0")
+	return dir
+}
+
+func TestFamilyVersion(t *testing.T) {
+	cfg := loadRules(t)
+	members, err := cfg.Family("fleet")
+	require.NoError(t, err)
+
+	t.Run("the next version of the main chart is the version of the family", func(t *testing.T) {
+		registry := &registries{tags: map[string][]string{
+			fleetRepo: {"112.0.0_up0.16.2"},
+			agentRepo: {"112.0.0_up0.16.2"},
+			crdRepo:   {"112.0.0_up0.16.2"},
+		}}
+
+		got, err := FamilyVersion(context.Background(), cfg, members, fleetMain(t), Options{List: registry.list})
+
+		require.NoError(t, err)
+		require.Equal(t, "112.0.1+up0.16.3", got)
+		require.Equal(t, []string{fleetRepo, agentRepo, crdRepo}, registry.asked, "the main chart first, then the order of the family")
+	})
+
+	t.Run("a family that was never pushed starts at the first version", func(t *testing.T) {
+		got, err := FamilyVersion(context.Background(), cfg, members, fleetMain(t), Options{List: (&registries{}).list})
+
+		require.NoError(t, err)
+		require.Equal(t, "112.0.0+up0.16.3", got)
+	})
+
+	t.Run("the other charts are at another released version", func(t *testing.T) {
+		registry := &registries{tags: map[string][]string{
+			fleetRepo: {"112.0.1_up0.16.2"},
+			agentRepo: {"112.0.1_up0.16.2"},
+			crdRepo:   {"112.0.0_up0.16.1"},
+		}}
+
+		got, err := FamilyVersion(context.Background(), cfg, members, fleetMain(t), Options{List: registry.list})
+
+		require.ErrorContains(t, err, "fleet 112.0.1+up0.16.2, fleet-agent 112.0.1+up0.16.2, fleet-crd 112.0.0+up0.16.1")
+		require.Empty(t, got)
+	})
+
+	t.Run("the problem of the main chart says which chart it is", func(t *testing.T) {
+		dir := fleetMain(t)
+		edit(t, dir, "Chart.yaml", "appVersion: ", "appVersion: x_")
+
+		_, err := FamilyVersion(context.Background(), cfg, members, dir, Options{List: (&registries{}).list})
+
+		require.ErrorContains(t, err, "fleet: ")
+	})
+
+	t.Run("the folder of the main chart holds another chart", func(t *testing.T) {
+		registry := &registries{}
+
+		_, err := FamilyVersion(context.Background(), cfg, members, copyChart(t, "fleet", "fleet-agent"), Options{List: registry.list})
+
+		require.ErrorContains(t, err, "fleet-agent is the chart in")
+		require.ErrorContains(t, err, "the main chart of the family \"fleet\" is fleet")
+		require.Empty(t, registry.asked)
+	})
+
+	t.Run("a folder with no chart", func(t *testing.T) {
+		_, err := FamilyVersion(context.Background(), cfg, members, t.TempDir(), Options{List: (&registries{}).list})
+
+		require.ErrorContains(t, err, "fleet: ")
+	})
 }

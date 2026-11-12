@@ -33,6 +33,45 @@ type Options struct {
 	List ListFunc
 }
 
+// Version works out the final version of the chart in dir. The chart must be
+// listed in cfg.
+func Version(ctx context.Context, cfg *rules.Config, dir string, opts Options) (string, error) {
+	files, err := chart.Load(dir)
+	if err != nil {
+		return "", err
+	}
+	rule, err := cfg.Find(files.Metadata.Name)
+	if err != nil {
+		return "", err
+	}
+	next, _, err := Next(ctx, cfg, rule, files, opts)
+	return next, err
+}
+
+// FamilyVersion works out the one version of a family: the version of its main
+// chart, whose folder is mainDir, worked out like Version does. The other charts
+// take that version, so it also checks that the latest version each of them has
+// released is the one the main chart has.
+func FamilyVersion(ctx context.Context, cfg *rules.Config, members rules.Family, mainDir string, opts Options) (string, error) {
+	main := members.Main()
+	files, err := chart.Load(mainDir)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", main.Name, err)
+	}
+	if files.Metadata.Name != main.Name {
+		return "", fmt.Errorf("%s is the chart in %s, but the main chart of the family %q is %s", files.Metadata.Name, mainDir, members.Name, main.Name)
+	}
+
+	next, released, err := Next(ctx, cfg, main, files, opts)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", main.Name, err)
+	}
+	if err := CheckReleased(ctx, cfg, members, released, opts); err != nil {
+		return "", err
+	}
+	return next, nil
+}
+
 // Next works out the version of the next release of the chart from the
 // versions already released: the major comes from the rancher-version of the
 // chart, the upstream part from its appVersion, and the release counter from

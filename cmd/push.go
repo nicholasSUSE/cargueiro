@@ -15,10 +15,13 @@ const (
 	envPassword = "CARGUEIRO_PASSWORD"
 )
 
-// archivePusher pushes one chart archive and returns the reference it was
+// archivePusher pushes chart archives and returns the references they were
 // stored under.
 type archivePusher interface {
 	Push(ctx context.Context, archive string) (string, error)
+	// PushFamily pushes the archives of a family, in the order given, and says
+	// what happened to each of them.
+	PushFamily(ctx context.Context, archives []string, notice oci.RetryNotice) (*oci.FamilyResult, error)
 }
 
 // pusherFactory builds an archivePusher for a registry.
@@ -30,19 +33,25 @@ func newOCIPusher(target oci.Target, guard *oci.Guard, opts oci.ClientOptions) (
 	if err != nil {
 		return nil, err
 	}
-	return oci.NewPusher(client, target, guard), nil
+	return oci.NewPusher(client, target, guard).WithRetry(oci.DefaultRetry()), nil
 }
 
 func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, error) {
 	var (
-		registry string
-		creds    credentialFlags
+		registry   string
+		familyName string
+		creds      credentialFlags
 	)
 
 	cmd := &cobra.Command{
-		Use:  "push <archive.tgz>",
-		Args: cobra.ExactArgs(1),
+		Use: "push <archive.tgz>",
+		Args: func(cmd *cobra.Command, args []string) error {
+			return checkArgs(familyName)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if familyName != "" {
+				return pushFamily(cmd, opts, newPusher, familyName, args, registry, &creds)
+			}
 			target, err := oci.ParseTarget(registry)
 			if err != nil {
 				return err
@@ -89,6 +98,7 @@ func newPushCmd(opts *rootOptions, newPusher pusherFactory) (*cobra.Command, err
 
 	flags := cmd.Flags()
 	flags.StringVar(&registry, "registry", "", "destination registry: host[:port][/path]")
+	flags.StringVar(&familyName, "family", "", "push every chart of this family, with one archive for each of its charts")
 	creds.addFlags(flags)
 	if err := cmd.MarkFlagRequired("registry"); err != nil {
 		return nil, fmt.Errorf("mark --registry required: %w", err)

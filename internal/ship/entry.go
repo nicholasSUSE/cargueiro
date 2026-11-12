@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
@@ -13,13 +14,18 @@ import (
 
 // BuildEntry returns the text of the entry of a chart version, from the text of
 // its Chart.yaml: the same text, with the icon changed to icon when icon is not
-// empty, and the URL the version is pulled from added at the end. Nothing else
-// changes, comments and the order of the keys included.
+// empty, and the date the chart was pushed and the URL the version is pulled
+// from added at the end. Nothing else changes, comments and the order of the
+// keys included.
 //
 // It fails when the result would not be an entry that cargueiro index reads: a
-// Chart.yaml that has urls already, or a field that the index does not know.
-func BuildEntry(chartYAML []byte, icon, url string) ([]byte, error) {
+// Chart.yaml that has urls or created already, a created that is not a date, or
+// a field that the index does not know.
+func BuildEntry(chartYAML []byte, icon, url string, created time.Time) ([]byte, error) {
 	entry := bytes.Clone(chartYAML)
+	if created.IsZero() {
+		return nil, errors.New("the entry has no date for when the chart was pushed")
+	}
 
 	if icon != "" {
 		var err error
@@ -27,8 +33,10 @@ func BuildEntry(chartYAML []byte, icon, url string) ([]byte, error) {
 			return nil, err
 		}
 	}
-	if bytes.HasPrefix(entry, []byte("urls:")) || bytes.Contains(entry, []byte("\nurls:")) {
-		return nil, errors.New("the Chart.yaml already has urls")
+	for _, key := range []string{"created", "urls"} {
+		if bytes.HasPrefix(entry, []byte(key+":")) || bytes.Contains(entry, []byte("\n"+key+":")) {
+			return nil, fmt.Errorf("the Chart.yaml already has %s", key)
+		}
 	}
 
 	newline := "\n"
@@ -38,6 +46,7 @@ func BuildEntry(chartYAML []byte, icon, url string) ([]byte, error) {
 	if len(entry) > 0 && !bytes.HasSuffix(entry, []byte("\n")) {
 		entry = append(entry, newline...)
 	}
+	entry = append(entry, "created: \""+created.UTC().Format(time.RFC3339)+"\""+newline...)
 	entry = append(entry, "urls:"+newline+"- "+url+newline...)
 
 	var parsed repo.ChartVersion

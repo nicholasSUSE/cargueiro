@@ -4,9 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+// testCreated() is when the test chart was pushed.
+func testCreated() time.Time { return time.Date(2026, 11, 11, 17, 33, 45, 0, time.UTC) }
 
 const (
 	testURL  = "oci://stgregistry.suse.com/rancher/catalog/fleet:110.0.3_up0.16.3@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -24,43 +28,43 @@ func TestBuildEntry(t *testing.T) {
 			name:      "the icon changes and the url is added at the end",
 			chartYAML: "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nicon: https://example.com/fleet.png\n",
 			icon:      testIcon,
-			want:      "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nicon: " + testIcon + "\nurls:\n- " + testURL + "\n",
+			want:      "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nicon: " + testIcon + "\ncreated: \"2026-11-11T17:33:45Z\"\nurls:\n- " + testURL + "\n",
 		},
 		{
 			name:      "no icon to give leaves the icon as it is",
 			chartYAML: "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nicon: https://example.com/fleet.png\n",
 			icon:      "",
-			want:      "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nicon: https://example.com/fleet.png\nurls:\n- " + testURL + "\n",
+			want:      "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nicon: https://example.com/fleet.png\ncreated: \"2026-11-11T17:33:45Z\"\nurls:\n- " + testURL + "\n",
 		},
 		{
 			name:      "a chart with no icon, which is exempt, is left with none",
 			chartYAML: "apiVersion: v2\nname: fleet-crd\nversion: 110.0.3+up0.16.3\n",
 			icon:      "",
-			want:      "apiVersion: v2\nname: fleet-crd\nversion: 110.0.3+up0.16.3\nurls:\n- " + testURL + "\n",
+			want:      "apiVersion: v2\nname: fleet-crd\nversion: 110.0.3+up0.16.3\ncreated: \"2026-11-11T17:33:45Z\"\nurls:\n- " + testURL + "\n",
 		},
 		{
 			name:      "a file with no new line at the end",
 			chartYAML: "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3",
 			icon:      "",
-			want:      "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nurls:\n- " + testURL + "\n",
+			want:      "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\ncreated: \"2026-11-11T17:33:45Z\"\nurls:\n- " + testURL + "\n",
 		},
 		{
 			name:      "a file with Windows line endings gets the same",
 			chartYAML: "apiVersion: v2\r\nname: fleet\r\nversion: 110.0.3+up0.16.3\r\n",
 			icon:      "",
-			want:      "apiVersion: v2\r\nname: fleet\r\nversion: 110.0.3+up0.16.3\r\nurls:\r\n- " + testURL + "\r\n",
+			want:      "apiVersion: v2\r\nname: fleet\r\nversion: 110.0.3+up0.16.3\r\ncreated: \"2026-11-11T17:33:45Z\"\r\nurls:\r\n- " + testURL + "\r\n",
 		},
 		{
 			name:      "comments and the order of the keys are kept",
 			chartYAML: "# the chart\nname: fleet\nannotations:\n  catalog.cattle.io/certified: rancher # yes\nversion: 110.0.3+up0.16.3\n",
 			icon:      "",
-			want:      "# the chart\nname: fleet\nannotations:\n  catalog.cattle.io/certified: rancher # yes\nversion: 110.0.3+up0.16.3\nurls:\n- " + testURL + "\n",
+			want:      "# the chart\nname: fleet\nannotations:\n  catalog.cattle.io/certified: rancher # yes\nversion: 110.0.3+up0.16.3\ncreated: \"2026-11-11T17:33:45Z\"\nurls:\n- " + testURL + "\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := BuildEntry([]byte(tt.chartYAML), tt.icon, testURL)
+			got, err := BuildEntry([]byte(tt.chartYAML), tt.icon, testURL, testCreated())
 
 			require.NoError(t, err)
 			require.Equal(t, tt.want, string(got))
@@ -87,6 +91,11 @@ func TestBuildEntryFails(t *testing.T) {
 			wantErr:   "the Chart.yaml already has urls",
 		},
 		{
+			name:      "the chart has a created already",
+			chartYAML: "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\ncreated: \"2020-01-01T00:00:00Z\"\n",
+			wantErr:   "the Chart.yaml already has created",
+		},
+		{
 			name:      "a field the index does not know",
 			chartYAML: "apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\nsomething: else\n",
 			wantErr:   `unknown field "something"`,
@@ -105,7 +114,7 @@ func TestBuildEntryFails(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := BuildEntry([]byte(tt.chartYAML), tt.icon, testURL)
+			got, err := BuildEntry([]byte(tt.chartYAML), tt.icon, testURL, testCreated())
 
 			require.ErrorContains(t, err, tt.wantErr)
 			require.Nil(t, got)
@@ -120,10 +129,10 @@ func TestBuildEntryOfARealChart(t *testing.T) {
 	const oldIcon = "icon: https://charts.rancher.io/assets/logos/rancher-compliance.svg\n"
 	require.Contains(t, original, oldIcon)
 
-	got, err := BuildEntry(data, "file://assets/logos/rancher-compliance.svg", testURL)
+	got, err := BuildEntry(data, "file://assets/logos/rancher-compliance.svg", testURL, testCreated())
 
 	require.NoError(t, err)
-	want := replaceOnce(original, oldIcon, "icon: file://assets/logos/rancher-compliance.svg\n") + "urls:\n- " + testURL + "\n"
+	want := replaceOnce(original, oldIcon, "icon: file://assets/logos/rancher-compliance.svg\n") + "created: \"2026-11-11T17:33:45Z\"\nurls:\n- " + testURL + "\n"
 	require.Equal(t, want, string(got))
 }
 
@@ -134,4 +143,21 @@ func replaceOnce(s, old, replacement string) string {
 		}
 	}
 	return s
+}
+
+func TestBuildEntryNeedsTheDate(t *testing.T) {
+	got, err := BuildEntry([]byte("apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\n"), "", testURL, time.Time{})
+
+	require.EqualError(t, err, "the entry has no date for when the chart was pushed")
+	require.Nil(t, got)
+}
+
+func TestBuildEntryWritesTheDateInUTC(t *testing.T) {
+	inBrazil := time.FixedZone("-03", -3*60*60)
+	created := time.Date(2026, 11, 11, 14, 33, 45, 0, inBrazil)
+
+	got, err := BuildEntry([]byte("apiVersion: v2\nname: fleet\nversion: 110.0.3+up0.16.3\n"), "", testURL, created)
+
+	require.NoError(t, err)
+	require.Contains(t, string(got), "\ncreated: \"2026-11-11T17:33:45Z\"\n")
 }

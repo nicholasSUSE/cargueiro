@@ -112,7 +112,8 @@ func Prepare(ctx context.Context, cfg *rules.Config, ref oci.ChartRef, dir strin
 	if err != nil {
 		return Shipment{}, err
 	}
-	url := "oci://" + ref.Host + "/" + ref.Repository + ":" + chartVersion + "@" + digest
+	// The tag is written as the registry stores it, with the + of the version as a _.
+	url := "oci://" + ref.Host + "/" + ref.Repository + ":" + version.ToOCITag(chartVersion) + "@" + digest
 	entry, err := BuildEntry(chartYAML, icon, url)
 	if err != nil {
 		return Shipment{}, err

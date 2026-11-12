@@ -43,7 +43,7 @@ A repository that releases a chart needs things from three places: cargueiro, `r
 |------|----------------|------------------|
 | A Vault role for the repository | The job logs in with its OIDC token, and the role is named after the repository. A repository that already reads secrets from Vault has it. | The role, if the repository has none. |
 | The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. |
-| A GitHub App on `rancher/charts` | It makes the token that sends the event. `rancher/webhook` has one. | The App installed on `rancher/charts` with the repository permission Contents: write, and its `appId` and `privateKey` at `github/repo/rancher/<repository>/github/app-credentials`. |
+| The `chart-staged` token | A short-lived token from Vault, scoped to `rancher/charts` with only `actions: write`, which the action uses to start the `chart-staged` workflow. There is no GitHub App to create, and no `appId` or `privateKey` to store. | Access to the `chart-staged` token for `rancher/<repository>`. The action reads the token from Vault. |
 
 For the EIO request, this should be enough:
 

@@ -55,7 +55,7 @@ func TestStampFamilyRefusesAnIncompleteFamily(t *testing.T) {
 	require.Equal(t, before, readChartYAML(t, fleet), "nothing is changed")
 }
 
-func TestStampFamilyWithoutAVersionNeedsTheRegistries(t *testing.T) {
+func TestStampFamilyNeedsAVersion(t *testing.T) {
 	fleet, agent, crd := fleetFamily(t)
 	before := readChartYAML(t, fleet)
 
@@ -64,7 +64,7 @@ func TestStampFamilyWithoutAVersionNeedsTheRegistries(t *testing.T) {
 
 	require.Equal(t, 1, res.ExitCode)
 	require.Empty(t, res.Stdout)
-	require.Contains(t, res.Stderr, "stgregistry.suse.com/rancher/catalog/fleet")
+	require.Contains(t, res.Stderr, "--version is required")
 	require.Equal(t, before, readChartYAML(t, fleet))
 }
 

@@ -109,28 +109,38 @@ func openRepository(ref ChartRef, httpClient *http.Client, credential auth.Crede
 	return repo, nil
 }
 
+// readManifest reads the manifest that reference, a tag or a digest, names in
+// repo. what says what is read, for the errors.
+func readManifest(ctx context.Context, repo *remote.Repository, reference, what string, authenticated bool) (ocispec.Manifest, error) {
+	desc, rc, err := repo.FetchReference(ctx, reference)
+	if err != nil {
+		return ocispec.Manifest{}, fetchError(what, err, authenticated)
+	}
+	defer func() { _ = rc.Close() }()
+
+	if desc.Size > maxManifestSize {
+		return ocispec.Manifest{}, fmt.Errorf("the manifest of %s is %d bytes, larger than the %d bytes that are read", what, desc.Size, maxManifestSize)
+	}
+	data, err := content.ReadAll(rc, desc)
+	if err != nil {
+		return ocispec.Manifest{}, fmt.Errorf("read the manifest of %s: %w", what, err)
+	}
+
+	var manifest ocispec.Manifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return ocispec.Manifest{}, fmt.Errorf("%s is not a Helm chart: its manifest cannot be read: %w", what, err)
+	}
+	return manifest, nil
+}
+
 // chartLayer reads the manifest that reference, a tag or a digest, names in repo
 // and returns the descriptor of its chart layer. The manifest must be a Helm
 // chart's: the Helm config and one chart layer. A provenance layer next to it is
 // ignored. what says what is read, for the errors.
 func chartLayer(ctx context.Context, repo *remote.Repository, reference, what string, authenticated bool) (ocispec.Descriptor, error) {
-	desc, rc, err := repo.FetchReference(ctx, reference)
+	manifest, err := readManifest(ctx, repo, reference, what, authenticated)
 	if err != nil {
-		return ocispec.Descriptor{}, fetchError(what, err, authenticated)
-	}
-	defer func() { _ = rc.Close() }()
-
-	if desc.Size > maxManifestSize {
-		return ocispec.Descriptor{}, fmt.Errorf("the manifest of %s is %d bytes, larger than the %d bytes that are read", what, desc.Size, maxManifestSize)
-	}
-	data, err := content.ReadAll(rc, desc)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("read the manifest of %s: %w", what, err)
-	}
-
-	var manifest ocispec.Manifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: its manifest cannot be read: %w", what, err)
+		return ocispec.Descriptor{}, err
 	}
 	if manifest.Config.MediaType != helmregistry.ConfigMediaType {
 		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: its config is %q", what, manifest.Config.MediaType)

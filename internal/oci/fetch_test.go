@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -131,13 +133,15 @@ func (f *fakeRegistry) addChart(t *testing.T, archive []byte) ocispec.Descriptor
 	return layer
 }
 
-// tgz builds a chart archive from name/content pairs.
+// tgz builds a chart archive from name/content pairs. The files are written in
+// the order of their names, so the same files give the same bytes.
 func tgz(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	for name, body := range files {
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		body := files[name]
 		require.NoError(t, tw.WriteHeader(&tar.Header{
 			Name:     name,
 			Typeflag: tar.TypeReg,

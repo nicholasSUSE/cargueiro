@@ -23,23 +23,37 @@ const defaultOutputDir = "assets"
 type packageFunc func(ctx context.Context, srcDir, destDir string) (string, error)
 
 func newPackageCmd(opts *rootOptions, pkg packageFunc) (*cobra.Command, error) {
-	var outputDir string
+	var outputDir, familyName string
 
 	cmd := &cobra.Command{
-		Use:  "package <chart-dir>",
-		Args: cobra.ExactArgs(1),
+		Use: "package <chart-dir>",
+		Args: func(cmd *cobra.Command, args []string) error {
+			return checkArgs(familyName)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			archive, err := packageChart(cmd, opts, pkg, args[0], outputDir)
-			if err != nil {
-				return err
+			var archives []string
+			if familyName != "" {
+				var err error
+				if archives, err = packageFamily(cmd, opts, pkg, familyName, args, outputDir); err != nil {
+					return err
+				}
+			} else {
+				archive, err := packageChart(cmd, opts, pkg, args[0], outputDir)
+				if err != nil {
+					return err
+				}
+				archives = []string{archive}
 			}
-			if _, err := fmt.Fprintln(cmd.OutOrStdout(), archive); err != nil {
-				return fmt.Errorf("write archive path: %w", err)
+			for _, archive := range archives {
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), archive); err != nil {
+					return fmt.Errorf("write archive path: %w", err)
+				}
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", defaultOutputDir, "directory to write archives to")
+	cmd.Flags().StringVar(&familyName, "family", "", "package every chart of this family, with one folder for each of its charts")
 	if err := applyDoc(cmd, "package"); err != nil {
 		return nil, err
 	}

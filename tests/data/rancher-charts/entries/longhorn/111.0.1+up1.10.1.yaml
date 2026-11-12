@@ -7,6 +7,7 @@ appVersion: 1.10.1
 description: Fixture of longhorn
 icon: file://assets/logos/longhorn.svg
 name: longhorn
+created: "2026-09-24T12:40:00Z"
 urls:
 - oci://stgregistry.suse.com/rancher/catalog/longhorn:111.0.1_up1.10.1@sha256:76a1b54d7ece1574e8973b15bd2620f960c1aaf136cd19ca80c06e786ac6d009
 version: 111.0.1+up1.10.1

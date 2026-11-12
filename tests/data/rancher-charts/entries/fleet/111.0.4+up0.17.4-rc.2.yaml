@@ -7,6 +7,7 @@ appVersion: 0.17.4-rc.2
 description: Fixture of fleet
 icon: file://assets/logos/fleet.svg
 name: fleet
+created: "2026-10-14T11:45:00Z"
 urls:
 - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4_up0.17.4-rc.2@sha256:674ce73e09c2ee3296ebdea55afc60501ecbb9c802de34eddacef564e6e15cab
 version: 111.0.4+up0.17.4-rc.2

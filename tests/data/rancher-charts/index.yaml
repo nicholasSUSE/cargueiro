@@ -7,7 +7,7 @@ entries:
       catalog.cattle.io/release-name: fleet
     apiVersion: v2
     appVersion: 0.17.4-rc.10
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-10-22T16:00:00Z"
     description: Fixture of fleet
     icon: file://assets/logos/fleet.svg
     name: fleet
@@ -20,7 +20,7 @@ entries:
       catalog.cattle.io/release-name: fleet
     apiVersion: v2
     appVersion: 0.17.4-rc.2
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-10-14T11:45:00Z"
     description: Fixture of fleet
     icon: file://assets/logos/fleet.svg
     name: fleet
@@ -33,7 +33,7 @@ entries:
       catalog.cattle.io/release-name: fleet
     apiVersion: v2
     appVersion: 0.17.4-rc.1
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-10-13T14:30:00Z"
     description: Fixture of fleet
     icon: file://assets/logos/fleet.svg
     name: fleet
@@ -46,7 +46,7 @@ entries:
       catalog.cattle.io/release-name: fleet
     apiVersion: v2
     appVersion: 0.17.4
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-10-01T09:05:00Z"
     description: Fixture of fleet
     icon: file://assets/logos/fleet.svg
     name: fleet
@@ -59,7 +59,7 @@ entries:
       catalog.cattle.io/release-name: fleet
     apiVersion: v2
     appVersion: 0.17.3
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-09-16T10:20:00Z"
     description: Fixture of fleet
     icon: file://assets/logos/fleet.svg
     name: fleet
@@ -72,7 +72,7 @@ entries:
       catalog.cattle.io/release-name: fleet
     apiVersion: v2
     appVersion: 0.17.2
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-09-02T10:15:00Z"
     description: Fixture of fleet
     icon: file://assets/logos/fleet.svg
     name: fleet
@@ -86,7 +86,7 @@ entries:
       catalog.cattle.io/release-name: fleet-crd
     apiVersion: v2
     appVersion: 0.17.3
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-09-16T10:21:00Z"
     description: Fixture of fleet-crd
     name: fleet-crd
     urls:
@@ -98,7 +98,7 @@ entries:
       catalog.cattle.io/release-name: fleet-crd
     apiVersion: v2
     appVersion: 0.17.2
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-09-02T10:16:00Z"
     description: Fixture of fleet-crd
     name: fleet-crd
     urls:
@@ -111,7 +111,7 @@ entries:
       catalog.cattle.io/release-name: longhorn
     apiVersion: v2
     appVersion: 1.10.1
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-09-24T12:40:00Z"
     description: Fixture of longhorn
     icon: file://assets/logos/longhorn.svg
     name: longhorn
@@ -124,7 +124,7 @@ entries:
       catalog.cattle.io/release-name: longhorn
     apiVersion: v2
     appVersion: 1.10.0
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-08-18T08:00:00Z"
     description: Fixture of longhorn
     icon: file://assets/logos/longhorn.svg
     name: longhorn
@@ -138,7 +138,7 @@ entries:
       catalog.cattle.io/release-name: system-upgrade-controller
     apiVersion: v2
     appVersion: 0.16.1
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-09-09T13:10:00Z"
     description: Fixture of system-upgrade-controller
     icon: file://assets/logos/system-upgrade-controller.svg
     name: system-upgrade-controller
@@ -151,11 +151,11 @@ entries:
       catalog.cattle.io/release-name: system-upgrade-controller
     apiVersion: v2
     appVersion: 0.16.0
-    created: "0001-01-01T00:00:00Z"
+    created: "2026-08-05T07:30:00Z"
     description: Fixture of system-upgrade-controller
     icon: file://assets/logos/system-upgrade-controller.svg
     name: system-upgrade-controller
     urls:
     - oci://stgregistry.suse.com/rancher/catalog/system-upgrade-controller:111.0.0@sha256:2f38415f38fe03a5661c13c284818abcab9ac0ef7f5791a2d9724c999e69372a
     version: 111.0.0
-generated: "0001-01-01T00:00:00Z"
+generated: "2026-10-22T16:00:00Z"

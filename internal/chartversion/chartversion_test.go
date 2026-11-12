@@ -122,6 +122,36 @@ func TestNextWorksOutTheVersion(t *testing.T) {
 			want:       "111.0.1+up1.5.4",
 		},
 		{
+			name:       "a candidate of the next patch version takes the next counter",
+			appVersion: "v1.5.5-rc.1",
+			tags:       []string{"111.0.0_up1.5.3", "111.0.1_up1.5.4"},
+			want:       "111.0.2+up1.5.5-rc.1",
+		},
+		{
+			name:       "the next patch version takes the next counter",
+			appVersion: "v1.5.5",
+			tags:       []string{"111.0.0_up1.5.3", "111.0.1_up1.5.4"},
+			want:       "111.0.2+up1.5.5",
+		},
+		{
+			name:       "a candidate of the next minor version takes the next counter",
+			appVersion: "v1.6.0-rc.1",
+			tags:       []string{"111.0.0_up1.5.3", "111.0.1_up1.5.4"},
+			want:       "111.0.2+up1.6.0-rc.1",
+		},
+		{
+			name:       "the next minor version takes the next counter",
+			appVersion: "v1.6.0",
+			tags:       []string{"111.0.0_up1.5.3", "111.0.1_up1.5.4"},
+			want:       "111.0.2+up1.6.0",
+		},
+		{
+			name:       "the final of a minor version keeps the counter of its candidates",
+			appVersion: "v1.6.0",
+			tags:       []string{"111.0.0_up1.5.4", "111.0.1_up1.6.0-rc.1", "111.0.1_up1.6.0-rc.2"},
+			want:       "111.0.1+up1.6.0",
+		},
+		{
 			name:       "other majors are left out",
 			appVersion: "v1.5.4",
 			tags:       []string{"110.3.0_up1.5.3", "112.0.0_up2.0.0"},

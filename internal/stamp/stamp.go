@@ -58,6 +58,9 @@ type Plan struct {
 	OldVersion, NewVersion string
 	// AddedImages are the names of the entries added to helm.sh/images.
 	AddedImages []string
+	// Released are the versions the registry had when the version was worked
+	// out. It is empty when the version was given.
+	Released []string
 }
 
 // Changed reports whether stamping changes Chart.yaml.
@@ -80,8 +83,9 @@ func Build(ctx context.Context, cfg *rules.Config, dir string, opts Options) (*P
 		return nil, err
 	}
 	newVersion := opts.Version
+	var released []string
 	if newVersion == "" {
-		if newVersion, err = nextVersion(ctx, cfg, rule, files, opts); err != nil {
+		if newVersion, released, err = nextVersion(ctx, cfg, rule, files, opts); err != nil {
 			return nil, err
 		}
 	}
@@ -121,6 +125,7 @@ func Build(ctx context.Context, cfg *rules.Config, dir string, opts Options) (*P
 		OldVersion:  files.Metadata.Version,
 		NewVersion:  newVersion,
 		AddedImages: added,
+		Released:    released,
 	}, nil
 }
 
@@ -131,29 +136,39 @@ func (p *Plan) Write() error {
 	if !p.Changed() {
 		return nil
 	}
+	return replaceFile(p.Path, p.After)
+}
 
-	info, err := os.Stat(p.Path)
+// restore puts the Chart.yaml that was there before back.
+func (p *Plan) restore() error {
+	return replaceFile(p.Path, p.Before)
+}
+
+// replaceFile replaces the file at path with data, through a temporary file in
+// the same directory, and keeps its permissions.
+func replaceFile(path string, data []byte) error {
+	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("stat %s: %w", p.Path, err)
+		return fmt.Errorf("stat %s: %w", path, err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(p.Path), ".Chart.yaml.*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".Chart.yaml.*")
 	if err != nil {
-		return fmt.Errorf("write %s: %w", p.Path, err)
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }() // gone after the rename; this is for a failure
 
-	if _, err := tmp.Write(p.After); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("write %s: %w", p.Path, err)
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("write %s: %w", p.Path, err)
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 	if err := os.Chmod(tmp.Name(), info.Mode().Perm()); err != nil {
-		return fmt.Errorf("write %s: %w", p.Path, err)
+		return fmt.Errorf("write %s: %w", path, err)
 	}
-	if err := os.Rename(tmp.Name(), p.Path); err != nil {
-		return fmt.Errorf("write %s: %w", p.Path, err)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
 }
@@ -208,40 +223,40 @@ func newEntries(before, after string) ([]string, error) {
 // nextVersion works out the version of the next release of the chart from the
 // versions already released: the major comes from the rancher-version of the
 // chart, the upstream part from its appVersion, and the release counter from
-// what the registry has. A chart that was never pushed starts at the first
-// version.
-func nextVersion(ctx context.Context, cfg *rules.Config, rule rules.Chart, files *chart.Files, opts Options) (string, error) {
+// what the registry has, which is returned too. A chart that was never pushed
+// starts at the first version.
+func nextVersion(ctx context.Context, cfg *rules.Config, rule rules.Chart, files *chart.Files, opts Options) (string, []string, error) {
 	if rule.Kind == rules.KindCRD {
-		return "", errors.New("a CRD chart has no rancher-version, so stamp cannot work out its version: give --version")
+		return "", nil, errors.New("a CRD chart has no rancher-version, so stamp cannot work out its version: give --version")
 	}
 	rancher, err := supportedRancher(files)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	versions := cfg.Versions()
 	major, ok := versions.Majors[rancher]
 	if !ok {
-		return "", fmt.Errorf("the rules file has no chart major for Rancher %s", rancher)
+		return "", nil, fmt.Errorf("the rules file has no chart major for Rancher %s", rancher)
 	}
 	policy, err := version.NewPolicy(versions.Prereleases, versions.Majors)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	upstream := strings.TrimPrefix(files.Metadata.AppVersion, "v")
 	if !rule.PlainVersion && upstream == "" {
-		return "", errors.New("the Chart.yaml has no appVersion, which stamp needs for the upstream part of the version: give --version")
+		return "", nil, errors.New("the Chart.yaml has no appVersion, which stamp needs for the upstream part of the version: give --version")
 	}
 
 	published, err := published(ctx, cfg, rule, opts)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	next, err := policy.Next(published, major, upstream, rule.PlainVersion)
 	if err != nil {
-		return "", fmt.Errorf("%w: give --version to set it by hand", err)
+		return "", nil, fmt.Errorf("%w: give --version to set it by hand", err)
 	}
-	return next, nil
+	return next, published, nil
 }
 
 // published returns the versions of the chart that are already released. A

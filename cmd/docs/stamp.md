@@ -2,45 +2,33 @@
 
 Put the final version and the helm.sh/images annotation on a chart directory.
 
-The argument is one chart directory with a `Chart.yaml`, and a `values.yaml` if the chart has one. The chart must be listed in `rules.yaml`, which is compiled into the binary. `--version` is the final version of the chart. It must follow the version rules that `check` applies: the form `1XY.Z.W+upA.B.C` (`1XY.Z.W` for the charts that the rules file marks plain), an optional prerelease after the `+up` part, and a major that matches the lower bound of the chart's `catalog.cattle.io/rancher-version` annotation. A CRD chart has no such annotation, so only its form is checked. Charts for Rancher 2.15 and before are not supported. Whoever gives `--version` owns it: it is not compared with the `appVersion`, nor with the versions that are released.
-
-Without `--version`, the version is worked out. The major comes from the `rancher-version` annotation, the upstream part from the `appVersion` (a leading `v` is dropped, and what is left must look like `A.B.C`, optionally with a prerelease), and the release counter from the versions already released in the staging registry of the chart's edition, read the way `list` reads them. The candidates of one upstream version, and its final, share the counter; any other release takes the next one; the first release of a chart, or a chart that was never pushed, starts at `1XY.0.0`. A tag in that registry that is not a version that follows the rules, or a version that is already released, is an error: clean the registry or give `--version`. A CRD chart has no `rancher-version`, so it needs `--version`. `--registry` reads the released versions from another registry path, as `host[:port]/path` with the name of the chart added, and `--plain-http` talks HTTP to it, both for local registries. Credentials are optional. Without them the registry is read anonymously, which is right for a public path. To give them, use `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD`; otherwise the login saved by `cargueiro registry login` is used when it is for this registry. They are sent only to that registry, and over HTTP only with `--plain-http`.
+The argument is one chart directory with a `Chart.yaml`, and a `values.yaml` if the chart has one. The chart must be listed in `rules.yaml`, which is compiled into the binary. `--version` is the final version of the chart, and it is required: `chart-version` works it out. `stamp` reads nothing from the network. It must follow the version rules that `check` applies: the form `1XY.Z.W+upA.B.C` (`1XY.Z.W` for the charts that the rules file marks plain), an optional prerelease after the `+up` part, and a major that matches the lower bound of the chart's `catalog.cattle.io/rancher-version` annotation. A CRD chart has no such annotation, so only its form is checked. Charts for Rancher 2.15 and before are not supported. Whoever gives `--version` owns it: it is not compared with the `appVersion`, nor with the versions that are released.
 
 The `helm.sh/images` annotation is made by going through the images in `values.yaml`, each written with a `repository` and a `tag`, one entry per image, named after the last part of the repository. An annotation that exists is kept and extended with the images it does not list yet. A chart with no `values.yaml` has no images, so it gets no annotation. An image with the tag `latest`, or without a tag, is refused, and so is a name that two different images would share.
 
-Only the `version` line and the `helm.sh/images` annotation of `Chart.yaml` change; everything else in it, and `values.yaml`, stay as they are. Every check runs before anything is written: when one fails, nothing is changed, the errors go to stderr and the exit code is 1. What changed is printed to stdout, or `nothing to change` when the chart already has the version and the images. With `--dry-run` every check runs, the version is worked out, and what would change is printed as a diff, but nothing is written.
+Only the `version` line and the `helm.sh/images` annotation of `Chart.yaml` change; everything else in it, and `values.yaml`, stay as they are. Every check runs before anything is written: when one fails, nothing is changed, the errors go to stderr and the exit code is 1. What changed is printed to stdout, or `nothing to change` when the chart already has the version and the images. With `--dry-run` every check runs, and what would change is printed as a diff, but nothing is written.
 
-With `--family`, the arguments are the folders of every chart of one family in `rules.yaml`, such as `fleet`, `fleet-agent` and `fleet-crd`, and nothing else: a chart that is missing, given twice or from another family is an error, and nothing is changed. The folders can be given in any order, and the name of each chart is read from its `Chart.yaml`. The version of the family is the version of its main chart, the one given with `--version` or the one worked out as described above, from the main chart only. Every other chart takes it, and it is checked for that chart like any other version: a CRD chart for its form, and any other chart also against its own `rancher-version`. What is printed for each chart starts with a line `==> <chart>`, in the order of the family, the main chart first.
+With `--family`, the arguments are the folders of every chart of one family in `rules.yaml`, such as `fleet`, `fleet-agent` and `fleet-crd`, and nothing else: a chart that is missing, given twice or from another family is an error, and nothing is changed. The folders can be given in any order, and the name of each chart is read from its `Chart.yaml`. The version given is the version of the family. Every chart takes it, and it is checked for that chart like any other version: a CRD chart for its form, and any other chart also against its own `rancher-version`. What is printed for each chart starts with a line `==> <chart>`, in the order of the family, the main chart first.
 
-Without `--version`, the registries of the other charts are read as well, only to compare: the latest version released by each of them must be the one the main chart has, and a chart with no repository yet has none. If they differ, `stamp` fails and says to give `--version`. With `--version` nothing is read. Every chart is checked before any is written, and the problem of every chart is reported. If a write fails, the files already written are put back; if that fails too, the error says that the charts are half stamped and that the changes should be discarded with `git reset --hard` before running it again.
+Every chart is checked before any is written, and the problem of every chart is reported. If a write fails, the files already written are put back; if that fails too, the error says that the charts are half stamped and that the changes should be discarded with `git reset --hard` before running it again.
 
 Target-Audience: Chart Owners and Automation
 
 ## Examples
 
 ```
-# work out the version from the released ones, and list the images
-cargueiro stamp charts/fleet
-```
-
-```
-# set the version by hand
+# put the version and the images on a chart
 cargueiro stamp charts/fleet --version 111.0.0+up0.17.0
 ```
 
 ```
 # stamp a chart, then check it
-cargueiro stamp charts/fleet && cargueiro check chart charts/fleet
+cargueiro stamp charts/fleet --version 111.0.0+up0.17.0 && cargueiro check chart charts/fleet
 ```
 
 ```
 # see what would change, and write nothing
-cargueiro stamp charts/fleet --dry-run
-```
-
-```
-# read the released versions from a local registry
-cargueiro stamp charts/fleet --registry 127.0.0.1:5050/rancher --plain-http
+cargueiro stamp charts/fleet --version 111.0.0+up0.17.0 --dry-run
 ```
 
 ```

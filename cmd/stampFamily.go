@@ -37,7 +37,7 @@ func stampFamily(cmd *cobra.Command, opts *rootOptions, name string, dirs []stri
 	}
 	opts.log.DebugContext(cmd.Context(), "stamping family", "family", name, "version", stampOpts.Version)
 
-	plan, err := stamp.BuildFamily(cmd.Context(), cfg, members, paths, stampOpts)
+	plan, err := stamp.BuildFamily(cfg, members, paths, stampOpts)
 	if err != nil {
 		return err
 	}

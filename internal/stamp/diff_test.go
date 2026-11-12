@@ -1,7 +1,6 @@
 package stamp
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -84,7 +83,7 @@ func TestPlanDiff(t *testing.T) {
 	dir := copyChart(t, "rancher-webhook-upstream", "rancher-webhook")
 	edit(t, dir, "values.yaml", "tag: latest", "tag: v0.11.4")
 
-	plan, err := Build(context.Background(), cfg, dir, Options{Version: "111.0.4+up0.11.4"})
+	plan, err := Build(cfg, dir, Options{Version: "111.0.4+up0.11.4"})
 	require.NoError(t, err)
 
 	require.Equal(t, "--- Chart.yaml\n+++ Chart.yaml\n"+
@@ -107,7 +106,7 @@ func TestPlanDiffWhenNothingChanges(t *testing.T) {
 	cfg := loadRules(t)
 	dir := copyChart(t, "fleet", "fleet-crd")
 
-	plan, err := Build(context.Background(), cfg, dir, Options{Version: "110.0.3+up0.16.3"})
+	plan, err := Build(cfg, dir, Options{Version: "110.0.3+up0.16.3"})
 
 	require.NoError(t, err)
 	require.Empty(t, plan.Diff())

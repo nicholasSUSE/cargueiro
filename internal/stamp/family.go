@@ -1,12 +1,10 @@
 package stamp
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"slices"
 
-	"github.com/rancher/cargueiro/internal/chartversion"
 	"github.com/rancher/cargueiro/internal/rules"
 )
 
@@ -29,39 +27,25 @@ type FamilyPlan struct {
 
 // BuildFamily works out what stamping the family would change. dirs are the
 // folders of the charts of the family, in the order of the family: the main chart
-// first.
-//
-// The version of the main chart, the one given or the one worked out from its own
-// registry, is the version of the family, and every other chart takes it. When it
-// is worked out, the registries of the other charts are read as well, only to
-// check that the latest version each of them has is the one the main chart has.
-// When it is given, nothing is read.
+// first. Every chart takes the version in opts, the version of the family.
 //
 // It fails, and says why, before anything is written, for the same reasons Build
 // does, and reports the problem of every chart.
-func BuildFamily(ctx context.Context, cfg *rules.Config, members rules.Family, dirs []string, opts Options) (*FamilyPlan, error) {
+func BuildFamily(cfg *rules.Config, members rules.Family, dirs []string, opts Options) (*FamilyPlan, error) {
 	if len(dirs) != len(members.Charts) {
 		return nil, fmt.Errorf("the family %q has %d charts and %d folders were given", members.Name, len(members.Charts), len(dirs))
 	}
 
 	main := members.Main()
-	mainPlan, err := Build(ctx, cfg, dirs[0], opts)
+	mainPlan, err := Build(cfg, dirs[0], opts)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", main.Name, err)
 	}
 
 	var problems []error
-	if opts.Version == "" {
-		if err := chartversion.CheckReleased(ctx, cfg, members, mainPlan.Released, opts.versionOptions()); err != nil {
-			problems = append(problems, err)
-		}
-	}
-
 	plans := []ChartPlan{{Chart: main.Name, Plan: mainPlan}}
-	others := opts
-	others.Version = mainPlan.NewVersion
 	for i, chart := range members.Charts[1:] {
-		plan, err := Build(ctx, cfg, dirs[i+1], others)
+		plan, err := Build(cfg, dirs[i+1], opts)
 		if err != nil {
 			problems = append(problems, fmt.Errorf("%s: %w", chart.Name, err))
 			continue

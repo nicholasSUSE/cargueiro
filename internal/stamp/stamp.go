@@ -5,7 +5,6 @@ package stamp
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -17,7 +16,6 @@ import (
 	"github.com/rancher/cargueiro/internal/annotations"
 	"github.com/rancher/cargueiro/internal/chart"
 	"github.com/rancher/cargueiro/internal/chartversion"
-	"github.com/rancher/cargueiro/internal/oci"
 	"github.com/rancher/cargueiro/internal/rules"
 	"github.com/rancher/cargueiro/internal/version"
 )
@@ -25,32 +23,11 @@ import (
 // helmImages is the annotation that lists the images of a chart.
 const helmImages = "helm.sh/images"
 
-// ListFunc returns the tags of the chart at repo.
-type ListFunc = chartversion.ListFunc
-
 // Options say how to stamp a chart.
 type Options struct {
 	// Version is the final version of the chart. It is not compared with
-	// anything but the version rules: whoever gives it owns it. When it is empty
-	// the version is worked out from what is already released.
+	// anything but the version rules: whoever gives it owns it. It is required.
 	Version string
-	// Registry replaces the registry of the chart's edition, as host[:port]/path.
-	// The name of the chart is added to it. It is only used to work out the
-	// version.
-	Registry string
-	// PlainHTTP talks HTTP to that registry.
-	PlainHTTP bool
-	// Credentials gives the credentials to read from that registry. Without it
-	// the read is anonymous.
-	Credentials oci.CredentialFunc
-	// List reads the tags of the registry. It is only used to work out the
-	// version.
-	List ListFunc
-}
-
-// versionOptions are the options to work out the version.
-func (o Options) versionOptions() chartversion.Options {
-	return chartversion.Options{Registry: o.Registry, PlainHTTP: o.PlainHTTP, Credentials: o.Credentials, List: o.List}
 }
 
 // Plan is what stamping a chart directory would change. Building it writes
@@ -64,9 +41,6 @@ type Plan struct {
 	OldVersion, NewVersion string
 	// AddedImages are the names of the entries added to helm.sh/images.
 	AddedImages []string
-	// Released are the versions the registry had when the version was worked
-	// out. It is empty when the version was given.
-	Released []string
 }
 
 // Changed reports whether stamping changes Chart.yaml.
@@ -79,7 +53,7 @@ func (p *Plan) Changed() bool {
 // not follow the rules, when the chart is for a Rancher version the new system
 // does not support, or when an image of values.yaml cannot be listed in
 // helm.sh/images.
-func Build(ctx context.Context, cfg *rules.Config, dir string, opts Options) (*Plan, error) {
+func Build(cfg *rules.Config, dir string, opts Options) (*Plan, error) {
 	files, err := chart.Load(dir)
 	if err != nil {
 		return nil, err
@@ -89,11 +63,8 @@ func Build(ctx context.Context, cfg *rules.Config, dir string, opts Options) (*P
 		return nil, err
 	}
 	newVersion := opts.Version
-	var released []string
 	if newVersion == "" {
-		if newVersion, released, err = chartversion.Next(ctx, cfg, rule, files, opts.versionOptions()); err != nil {
-			return nil, err
-		}
+		return nil, errors.New("no version was given")
 	}
 	if err := checkVersion(cfg, rule, files, newVersion); err != nil {
 		return nil, err
@@ -131,7 +102,6 @@ func Build(ctx context.Context, cfg *rules.Config, dir string, opts Options) (*P
 		OldVersion:  files.Metadata.Version,
 		NewVersion:  newVersion,
 		AddedImages: added,
-		Released:    released,
 	}, nil
 }
 

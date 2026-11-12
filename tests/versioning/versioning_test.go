@@ -135,6 +135,26 @@ func TestChartVersionFollowsTheReleases(t *testing.T) {
 		require.Equal(t, "111.0.2+up1.5.6\n", res.Stdout)
 	})
 
+	t.Run("a candidate of the next minor version takes the next counter", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		edit(t, dir, "Chart.yaml", "appVersion: v1.5.4", "appVersion: v1.6.0-rc.1")
+
+		res := chartVersion(t, dir, registry...)
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Equal(t, "111.0.2+up1.6.0-rc.1\n", res.Stdout)
+	})
+
+	t.Run("the next minor version takes the next counter", func(t *testing.T) {
+		dir := copyChart(t, "rancher-compliance-upstream", "rancher-compliance")
+		edit(t, dir, "Chart.yaml", "appVersion: v1.5.4", "appVersion: v1.6.0")
+
+		res := chartVersion(t, dir, registry...)
+
+		require.Zero(t, res.ExitCode, res.Stderr)
+		require.Equal(t, "111.0.2+up1.6.0\n", res.Stdout)
+	})
+
 	t.Run("list puts the releases in order", func(t *testing.T) {
 		res := harness.Cargueiro(t, t.TempDir(), "list", address+"/"+path+"/rancher-compliance", "--plain-http")
 

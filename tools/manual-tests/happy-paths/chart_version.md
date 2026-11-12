@@ -24,7 +24,7 @@ hdr "SETUP: choose a registry path that was never used, so the test can be run a
 run 'REG="127.0.0.1:5052/manual-version-$(date +%s)"; echo "$REG"'
 
 hdr "1. HAPPY: the first release of a chart that was never pushed"
-want "one line on stdout, 111.0.0+up1.5.4; exit 0. Chart.yaml is not changed: its version stays 1.5.4"
+want "one line on stdout, 111.0.0+up1.5.4, made from the appVersion v1.5.4; exit 0. Nothing is written: the version line of Chart.yaml is the upstream one, 1.5.4, and the full version only reaches the file when stamp writes it"
 run 'cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http'
 run 'grep "^version:" .tmp/manual-tests/chart/Chart.yaml'
 
@@ -33,7 +33,11 @@ want "the chart is stamped, packaged and pushed (oci://$REG/rancher-compliance:1
 run 'v=$(cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http) && cargueiro stamp .tmp/manual-tests/chart --version "$v" >/dev/null && cargueiro push "$(cargueiro package .tmp/manual-tests/chart --output-dir .tmp/manual-tests/out)" --registry $REG'
 run 'cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http'
 
-hdr "3. FAILURE: a chart with no appVersion"
+hdr "3. HAPPY: the version follows the appVersion: a candidate, a patch bump and a minor bump"
+want "after 111.0.0+up1.5.4 is released, 111.0.1+up1.5.5-rc.1 for v1.5.5-rc.1, 111.0.1+up1.5.5 for v1.5.5 and 111.0.1+up1.6.0 for v1.6.0, one line for each; exit 0 for the three"
+run 'for app in v1.5.5-rc.1 v1.5.5 v1.6.0; do sed -i "s/^appVersion:.*/appVersion: $app/" .tmp/manual-tests/chart/Chart.yaml; cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http; done'
+
+hdr "4. FAILURE: a chart with no appVersion"
 want "an error that says the Chart.yaml has no appVersion; nothing on stdout; exit 1"
 run 'sed -i "/^appVersion:/d" .tmp/manual-tests/chart/Chart.yaml'
 run 'cargueiro chart-version .tmp/manual-tests/chart --registry $REG --plain-http'

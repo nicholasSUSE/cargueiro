@@ -6,6 +6,8 @@ The argument is one chart directory with a `Chart.yaml`. The chart must be liste
 
 The release counter comes from the versions already released, so the command reads the network: it lists the tags of the chart in the staging registry of the chart's edition, `stgregistry.suse.com`, the way `list` does. The candidates of one upstream version, and its final, share the counter; any other release takes the next one; the first release of a chart, or a chart that was never pushed, starts at `1XY.0.0`. A tag in that registry that is not a version that follows the rules, or a version that is already released, is an error. `--registry` reads the released versions from another registry path, as `host[:port]/path` with the name of the chart added, and `--plain-http` talks HTTP to it, both for local registries.
 
+With `--family`, the arguments are the folders of every chart of one family in `rules.yaml`, such as `fleet`, `fleet-agent` and `fleet-crd`, and nothing else: a chart that is missing, given twice or from another family is an error. The folders can be given in any order, and the name of each chart is read from its `Chart.yaml`. One version is printed, the version of the family: the one of its main chart, worked out as described above from the main chart only, and every other chart takes it. The registries of the other charts are read as well, only to compare: the latest version released by each of them must be the one the main chart has, and a chart with no repository yet has none. If they differ the command fails, and the error lists the latest version of each chart.
+
 Credentials are optional. Without them the registry is read anonymously, which is right for a public path. To give them, use `--username` (or `CARGUEIRO_USERNAME`) and the password through `CARGUEIRO_PASSWORD`; otherwise the login saved by `cargueiro registry login` is used when it is for this registry. They are sent only to that registry, and over HTTP only with `--plain-http`.
 
 The version is printed on one line on stdout. The exit code is 0, or 1 when the version cannot be worked out, and then nothing is printed to stdout and the error goes to stderr.
@@ -22,6 +24,11 @@ cargueiro chart-version charts/fleet
 ```
 # stamp a chart with it
 cargueiro stamp charts/fleet --version "$(cargueiro chart-version charts/fleet)"
+```
+
+```
+# the version of a family, from its main chart
+cargueiro chart-version --family fleet charts/fleet charts/fleet-agent charts/fleet-crd
 ```
 
 ```

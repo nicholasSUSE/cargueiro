@@ -111,26 +111,28 @@ func openRepository(ref ChartRef, httpClient *http.Client, credential auth.Crede
 
 // readManifest reads the manifest that reference, a tag or a digest, names in
 // repo. what says what is read, for the errors.
-func readManifest(ctx context.Context, repo *remote.Repository, reference, what string, authenticated bool) (ocispec.Manifest, error) {
+func readManifest(ctx context.Context, repo *remote.Repository, reference, what string, authenticated bool) (ocispec.Descriptor, ocispec.Manifest, error) {
 	desc, rc, err := repo.FetchReference(ctx, reference)
 	if err != nil {
-		return ocispec.Manifest{}, fetchError(what, err, authenticated)
+		return ocispec.Descriptor{}, ocispec.Manifest{}, fetchError(what, err, authenticated)
 	}
 	defer func() { _ = rc.Close() }()
 
 	if desc.Size > maxManifestSize {
-		return ocispec.Manifest{}, fmt.Errorf("the manifest of %s is %d bytes, larger than the %d bytes that are read", what, desc.Size, maxManifestSize)
+		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("the manifest of %s is %d bytes, larger than the %d bytes that are read", what, desc.Size, maxManifestSize)
 	}
+	// ReadAll fails unless the bytes have the digest and the size of desc, so
+	// the digest in desc is the one of the manifest that was read.
 	data, err := content.ReadAll(rc, desc)
 	if err != nil {
-		return ocispec.Manifest{}, fmt.Errorf("read the manifest of %s: %w", what, err)
+		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("read the manifest of %s: %w", what, err)
 	}
 
 	var manifest ocispec.Manifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return ocispec.Manifest{}, fmt.Errorf("%s is not a Helm chart: its manifest cannot be read: %w", what, err)
+		return ocispec.Descriptor{}, ocispec.Manifest{}, fmt.Errorf("%s is not a Helm chart: its manifest cannot be read: %w", what, err)
 	}
-	return manifest, nil
+	return desc, manifest, nil
 }
 
 // chartLayer reads the manifest that reference, a tag or a digest, names in repo
@@ -138,10 +140,16 @@ func readManifest(ctx context.Context, repo *remote.Repository, reference, what 
 // chart's: the Helm config and one chart layer. A provenance layer next to it is
 // ignored. what says what is read, for the errors.
 func chartLayer(ctx context.Context, repo *remote.Repository, reference, what string, authenticated bool) (ocispec.Descriptor, error) {
-	manifest, err := readManifest(ctx, repo, reference, what, authenticated)
+	_, manifest, err := readManifest(ctx, repo, reference, what, authenticated)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
+	return layerOf(manifest, what)
+}
+
+// layerOf returns the descriptor of the chart layer of a manifest, which must be
+// a Helm chart's. what says what the manifest is, for the errors.
+func layerOf(manifest ocispec.Manifest, what string) (ocispec.Descriptor, error) {
 	if manifest.Config.MediaType != helmregistry.ConfigMediaType {
 		return ocispec.Descriptor{}, fmt.Errorf("%s is not a Helm chart: its config is %q", what, manifest.Config.MediaType)
 	}
@@ -169,7 +177,7 @@ func fetchError(what string, err error, authenticated bool) error {
 	var resp *errcode.ErrorResponse
 	switch {
 	case errors.Is(err, errdef.ErrNotFound):
-		return fmt.Errorf("%s was not found in the registry", what)
+		return notFoundError{what: what}
 	// A registry that asks for basic authentication, which needs credentials.
 	case errors.Is(err, auth.ErrBasicCredentialNotFound),
 		errors.As(err, &resp) && (resp.StatusCode == 401 || resp.StatusCode == 403):
@@ -181,3 +189,14 @@ func fetchError(what string, err error, authenticated bool) error {
 		return fmt.Errorf("fetch %s: %w", what, err)
 	}
 }
+
+// ErrNotFound is matched, with errors.Is, by the error of a read of something
+// that the registry does not have.
+var ErrNotFound = errors.New("not found in the registry")
+
+// notFoundError says that the registry does not have what was read.
+type notFoundError struct{ what string }
+
+func (e notFoundError) Error() string { return e.what + " was not found in the registry" }
+
+func (e notFoundError) Is(target error) bool { return target == ErrNotFound }

@@ -28,7 +28,7 @@ func ManifestCreated(ctx context.Context, repo ChartRepo, manifestDigest string,
 	if err != nil {
 		return time.Time{}, err
 	}
-	manifest, err := readManifest(ctx, remote, manifestDigest, what, opts.authenticated())
+	_, manifest, err := readManifest(ctx, remote, manifestDigest, what, opts.authenticated())
 	if err != nil {
 		return time.Time{}, err
 	}

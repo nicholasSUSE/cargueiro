@@ -136,7 +136,7 @@ func TestCheckURL(t *testing.T) {
 				URLs:     tt.urls,
 			}
 
-			err := checkURL(tt.repository, entry)
+			err := CheckURL(tt.repository, entry)
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)

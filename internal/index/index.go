@@ -65,7 +65,7 @@ func Write(ctx context.Context, cfg *rules.Config, dir string, opts Options) (Pl
 	if err != nil {
 		return Plan{}, err
 	}
-	published, err := readPublished(dir)
+	published, err := ReadPublished(dir)
 	if err != nil {
 		return Plan{}, err
 	}

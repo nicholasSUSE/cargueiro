@@ -22,11 +22,11 @@ const (
 	archiveSuffix = ".tgz"
 )
 
-// readPublished returns the index.yaml of the charts repository in dir, as it
+// ReadPublished returns the index.yaml of the charts repository in dir, as it
 // is committed. A missing or empty file gives nil, because then nothing has been
 // published yet. Fields it does not know are an error: they would be lost when
 // the index is written again, and a published version never changes.
-func readPublished(dir string) (*repo.IndexFile, error) {
+func ReadPublished(dir string) (*repo.IndexFile, error) {
 	data, err := os.ReadFile(filepath.Join(dir, File))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil

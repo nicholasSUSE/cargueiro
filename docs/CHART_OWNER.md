@@ -222,7 +222,11 @@ The dispatch starts the `chart-staged` workflow in `rancher/charts`, which runs 
 
 ## When something fails
 
-The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. A failure before the push leaves nothing behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read. A version is pushed once, so after the push the same version can't be run again. If only the dispatch failed, start the `chart-staged` workflow of `rancher/charts` by hand with the same values, which needs write access to that repository: with the command below, or with Run workflow in its Actions tab.
+The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. A failure before the push leaves nothing behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read. For one chart, a version is pushed once, so after the push the same version can't be run again.
+
+The charts of a family are pushed one after the other, and a push that stops halfway can be run again: the charts that are in the registry with the same content are skipped, and the rest are pushed. If a chart is there with other content, the job stops before it pushes anything and names the chart with both digests, and the family needs a new version. When the network or the registry fails, each chart is tried up to 5 times, waiting longer each time, so a job can take several minutes to fail.
+
+If only the dispatch failed, start the `chart-staged` workflow of `rancher/charts` by hand with the same values, which needs write access to that repository: with the command below, or with Run workflow in its Actions tab.
 
 ```
 gh workflow run chart-staged.yaml --repo rancher/charts --ref staging \

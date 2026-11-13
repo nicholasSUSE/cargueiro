@@ -21,7 +21,7 @@ The actions only run the commands. What they need from you comes first: the acce
 
 ### What you need, and from whom
 
-A repository that releases a chart needs things from three places: cargueiro, `rancher/charts` and EIO. The action reads the credentials from Vault, under the path of your repository.
+A repository that releases a chart needs things from three places: cargueiro, `rancher/charts` and EIO, the team that manages Vault, the registry credentials and the settings of the GitHub organization. The action reads the credentials from Vault, under the path of your repository.
 
 #### From cargueiro
 

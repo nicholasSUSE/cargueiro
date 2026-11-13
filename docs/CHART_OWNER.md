@@ -13,7 +13,7 @@ A family is the set of charts that `rules.yaml` lists under one `family:` name. 
 
 In both cases you give the final version of the chart, or leave it out and cargueiro works it out from the `appVersion` and the versions already released.
 
-Actions are here: https://github.com/rancher/charts/tree/staging/.github/actions
+The actions are in [`.github/actions`](https://github.com/rancher/charts/tree/chart-owners/.github/actions) on the `chart-owners` branch of `rancher/charts`.
 
 ## Before you start: what the provided GHAs require
 

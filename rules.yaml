@@ -100,7 +100,7 @@ families:
       - { name: remotedialer-proxy, kind: main, edition: rancher-charts, icon: skip, upstream: https://github.com/rancher/remotedialer-proxy }  # known violation: no kube-version, fix upstream
   - family: system-upgrade-controller
     charts:
-      - { name: system-upgrade-controller, kind: main, edition: rancher-charts, version: plain, icon: skip }
+      - { name: system-upgrade-controller, kind: main, edition: rancher-charts, version: plain, icon: skip, upstream: https://github.com/rancher/system-upgrade-controller }
 
   - family: rancher-ai-agent
     charts:

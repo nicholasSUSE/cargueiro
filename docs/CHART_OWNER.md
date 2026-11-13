@@ -132,7 +132,7 @@ flowchart TD
             prepare -.- valuesFile
             valuesFile -.- valuesRules
         end
-        action["<b>ship-staged action</b><br/>stamp · check · package · push,<br/>then the chart-staged event"]
+        action["<b>ship-staged action</b><br/>stamp · check · package · push,<br/>then starts chart-staged"]
         prep --> action
     end
 
@@ -151,7 +151,7 @@ flowchart TD
     start --> prep
     owner -. "a step fails" .-> failed
     action --> registry
-    action -- "chart-staged" --> ship
+    action -- "workflow_dispatch" --> ship
     pr --> staging
 
     classDef cmd fill:#e8f1ff,stroke:#3b6fd4,stroke-width:1.5px,color:#0b2a5b

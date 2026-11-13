@@ -225,7 +225,7 @@ For the charts of a family, call `ship-family-staged` with the name of the famil
 ```
 
 
-The workflow that calls the action must have a concurrency group, because two runs of the same release can push at the same time, and the check that the version is not in the registry yet and the push are two calls. A composite action cannot set it, so your workflow does. The key is the chart, or the family, and the version, and `cancel-in-progress` is `false`, so a second run waits in line instead of being cancelled:
+The workflow that calls the action must have a concurrency group, because two runs of the same release can push at the same time, and the check that the version is not in the registry yet and the push are two calls. A composite action cannot set it, so your workflow does. The key is the chart, or the family, and the release, as the tag or an input, and `cancel-in-progress` is `false`, so a second run waits in line instead of being cancelled:
 
 ```yaml
 concurrency:

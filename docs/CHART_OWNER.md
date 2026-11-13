@@ -235,7 +235,7 @@ concurrency:
 
 The key can only use what exists when the workflow starts, such as the tag or an input, and not the version that the job works out.
 
-The action checks the job, reads the registry credentials and the `chart-staged` token from Vault, and checks them, all before it pushes, because a version that is pushed stays in the registry. It starts the `chart-staged` workflow only after the push. The commands it runs are in [The commands behind the action](#the-commands-behind-the-action). The outputs are `chart`, `reference` and `version` for one chart, and `family`, `references` and `version` for a family, where `references` has one reference for each chart in the order of the family and `version` is the one the action used.
+The action checks the job, reads the registry credentials and the App credentials from Vault, checks them, and makes the token for `rancher/charts` from the App credentials, all before it pushes, because a version that is pushed stays in the registry. It starts the `chart-staged` workflow only after the push. The commands it runs are in [The commands behind the action](#the-commands-behind-the-action). The outputs are `chart`, `reference` and `version` for one chart, and `family`, `references` and `version` for a family, where `references` has one reference for each chart in the order of the family and `version` is the one the action used.
 
 ## What rancher/charts does
 
@@ -251,10 +251,11 @@ The dispatch starts the `chart-staged` workflow in `rancher/charts`, which runs 
 
 The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. What to do depends on where it stopped:
 
-- **Before the push.** Nothing is left behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read.
+- **Before the push.** Nothing is left behind: fix it and run the workflow again. This includes credentials that are missing in Vault, an App that cannot make the token, and a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read.
 - **After the push, for one chart.** A version is pushed once, so after the push the same version cannot be run again.
 - **A family that stops halfway.** The charts of a family are pushed one after the other, and a push that stops halfway can be run again: the charts that are in the registry with the same content are skipped, and the rest are pushed. If a chart is there with other content, the job stops before it pushes anything and names the chart with both digests, and the family needs a new version. When the network or the registry fails, each chart is tried up to 5 times, waiting longer each time, so a job can take several minutes to fail.
 - **A family that is not at the same released version.** When the version of a family is worked out, the job can stop with `the charts of the family "<family>" are not at the same released version`, followed by the latest version of each chart. It means that a chart of the family was released alone, with `ship-staged`, and the other charts are behind it. Give the `version` input to set the version of the family yourself: one that none of its charts has released yet, above the highest one in the list.
+- **The pull request opens but is not merged.** A check of the repository against the staging registry failed, or did not finish. The run fails and the pull request stays open, with the reason on the log of the checks: contact the release team.
 - **Only the dispatch failed.** Start the `chart-staged` workflow of `rancher/charts` by hand with the same values. It needs write access to that repository. Use Run workflow in its Actions tab, or this command:
 
 ```

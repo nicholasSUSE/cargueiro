@@ -45,7 +45,7 @@ A repository that releases a chart needs things from three places: cargueiro, `r
 | The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. |
 | The `chart-staged` token | A short-lived token from Vault, scoped to `rancher/charts` with only `actions: write`, which the action uses to start the `chart-staged` workflow. There is no GitHub App to create, and no `appId` or `privateKey` to store. | Access to the `chart-staged` token for `rancher/<repository>`. The action reads the token from Vault. |
 
-For the EIO request, this should be enough:
+To ask, open an issue in [`rancherlabs/eio`](https://github.com/rancherlabs/eio) with the repository and what it needs. EIO decides whether to create something new, reuse what exists, or expand its permissions. This should be enough:
 
 ```
 Repository: rancher/<repository>
@@ -53,8 +53,7 @@ Repository: rancher/<repository>
 1. A Vault role for the repository, if it has none.
 2. rancher-prime-stg-registry/credentials under github/repo/rancher/<repository>/ with username,
    password and registry, able to push to stgregistry.suse.com/rancher/catalog.
-3. A GitHub App installed on rancher/charts with Contents: write, and its appId and privateKey
-   at github/repo/rancher/<repository>/github/app-credentials.
+3. Access to the chart-staged token for rancher/<repository>.
 ```
 
 ### The chart folder

@@ -54,6 +54,7 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 <!-- COMMANDS:START -->
 | Command | Description |
 |---------|-------------|
+| [`audit`](cmd/docs/audit.md) | Check that a charts repository agrees with itself and with the registry its versions are pulled from. |
 | [`chart-version`](cmd/docs/chart-version.md) | Print the final version of the next release of a chart. |
 | [`check`](cmd/docs/check.md) | Check that a chart follows the Rancher chart rules. |
 | [`check archive`](cmd/docs/check-archive.md) | Check one packaged chart (.tgz) against the chart rules. |

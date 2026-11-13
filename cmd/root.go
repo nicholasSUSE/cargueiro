@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rancher/cargueiro/internal/audit"
 	"github.com/rancher/cargueiro/internal/auth"
 	"github.com/rancher/cargueiro/internal/chart"
 	"github.com/rancher/cargueiro/internal/checkout"
@@ -41,6 +42,9 @@ type dependencies struct {
 	prepare     prepareFunc
 	// verifyCheckout checks the charts repository that ship writes to.
 	verifyCheckout verifyCheckoutFunc
+	// auditFetch reads the manifests audit compares the repository with. Nil
+	// reads the registry.
+	auditFetch audit.FetchFunc
 }
 
 // NewRootCmd builds the root command. Output streams are injected so
@@ -121,7 +125,11 @@ func newRootCmd(stdout, stderr io.Writer, opts *rootOptions, deps dependencies) 
 	if err != nil {
 		return nil, err
 	}
-	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd, chartVersionCmd, indexCmd, shipCmd)
+	auditCmd, err := newAuditCmd(opts, deps.auditFetch)
+	if err != nil {
+		return nil, err
+	}
+	root.AddCommand(versionCmd, packageCmd, pushCmd, registryCmd, checkCmd, listCmd, stampCmd, chartVersionCmd, indexCmd, shipCmd, auditCmd)
 
 	return root, nil
 }

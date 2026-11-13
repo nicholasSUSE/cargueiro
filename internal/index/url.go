@@ -15,11 +15,11 @@ import (
 // digestForm is a pinned digest: the algorithm and the hex of the sha256.
 var digestForm = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
-// checkURL fails unless the only URL of the entry is where its version is
+// CheckURL fails unless the only URL of the entry is where its version is
 // pulled from: oci://<repository>:<tag>@sha256:<digest>, with the tag written as
 // the registry stores the version, a "+" as a "_", and the digest of the manifest
 // pinned. The version of the entry keeps its "+".
-func checkURL(repository string, entry *repo.ChartVersion) error {
+func CheckURL(repository string, entry *repo.ChartVersion) error {
 	if len(entry.URLs) != 1 {
 		return fmt.Errorf("%s %s has %d urls: it must have exactly one", entry.Name, entry.Version, len(entry.URLs))
 	}
@@ -49,7 +49,7 @@ func checkURLs(cfg *rules.Config, registry string, all *repo.IndexFile, added []
 		if err != nil {
 			return err
 		}
-		if err := checkURL(repository, byRef[ref]); err != nil {
+		if err := CheckURL(repository, byRef[ref]); err != nil {
 			problems = append(problems, err)
 		}
 	}

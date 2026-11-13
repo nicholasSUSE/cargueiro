@@ -71,7 +71,7 @@ entries:
 			dir := t.TempDir()
 			writeFiles(t, dir, tt.files)
 
-			got, err := readPublished(dir)
+			got, err := ReadPublished(dir)
 
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.want, indexRefs(got))
@@ -113,7 +113,7 @@ entries:
 			dir := t.TempDir()
 			writeFiles(t, dir, map[string]string{File: tt.content})
 
-			got, err := readPublished(dir)
+			got, err := ReadPublished(dir)
 
 			require.ErrorContains(t, err, tt.wantErr)
 			require.Nil(t, got)

@@ -78,7 +78,7 @@ The action takes a folder with the chart and, if you give one, the final version
 
 For a family, prepare a folder for each of its charts in the same way. They all take one version, the one of the main chart, which is the chart that `rules.yaml` marks `kind: main`. If you leave `version` out, the action works it out from the `appVersion` of the main chart only, and it stops when the other charts are not at the same latest released version as the main chart. Then every chart is checked against that version, so a chart that is for another Rancher version than the major of the version is refused.
 
-`rancher/webhook` is the example. Its script `prepare-chart.sh` copies `charts/rancher-webhook` to a temporary folder, changes three lines, and prints the version. It reads the chart major from a table, which leaving the `version` input out replaces. For the tag `v0.13.0-rc.7`, this is what differs from the source:
+`rancher/webhook` is the example. Its script `prepare-chart.sh` copies `charts/rancher-webhook` to a temporary folder, changes three lines, and prints the version. It reads the chart major from a table; if you leave the `version` input out, you do not need that table. For the tag `v0.13.0-rc.7`, this is what differs from the source:
 
 ```diff
  Chart.yaml

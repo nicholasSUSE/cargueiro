@@ -13,6 +13,14 @@ A family is the set of charts that `rules.yaml` lists under one `family:` name. 
 
 In both cases you give the final version of the chart, or leave it out and cargueiro works it out from the `appVersion` and the versions already released.
 
+To release a chart, you do these steps, and each one is described below:
+
+1. Add the chart to `rules.yaml` ([From cargueiro](#from-cargueiro)).
+2. Ask EIO for the access the job needs ([From EIO](#from-eio)).
+3. Prepare the chart folder in your workflow ([The chart folder](#the-chart-folder)).
+4. Call the action from a job, with a concurrency group ([Call the action](#call-the-action)).
+5. Review and merge the pull request that `rancher/charts` opens ([What rancher/charts does](#what-ranchercharts-does)).
+
 The actions are in [`.github/actions`](https://github.com/rancher/charts/tree/chart-owners/.github/actions) on the `chart-owners` branch of `rancher/charts`.
 
 ## Before you start: what the provided GHAs require

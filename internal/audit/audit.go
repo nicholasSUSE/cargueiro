@@ -101,6 +101,7 @@ func localChecks() []check {
 func remoteChecks() []check {
 	return []check{
 		{name: "manifest", run: checkManifests},
+		{name: "archive", run: checkArchives},
 	}
 }
 

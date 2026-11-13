@@ -62,9 +62,10 @@ func TestRunReportsEveryCheck(t *testing.T) {
 
 	report := run(t, Options{Dir: dir})
 
-	require.Len(t, report, 2)
+	require.Len(t, report, 3)
 	require.Equal(t, "urls", report[0].Check)
 	require.Equal(t, "manifest", report[1].Check)
+	require.Equal(t, "archive", report[2].Check)
 	require.True(t, report[0].Valid)
 	require.Equal(t, NoError, report[0].Error)
 	for _, result := range report {
@@ -92,7 +93,7 @@ func TestRunSaysWhyACheckDidNotRun(t *testing.T) {
 
 	report := run(t, Options{Dir: dir})
 
-	require.Len(t, report, 2)
+	require.Len(t, report, 3)
 	for _, result := range report {
 		require.False(t, result.Valid)
 		require.Contains(t, result.Error, "read index.yaml")

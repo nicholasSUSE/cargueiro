@@ -184,7 +184,7 @@ jobs:
         run: |
           version=$(./prepare-chart.sh "$RELEASE_TAG" "$RUNNER_TEMP/chart")
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - uses: rancher/charts/.github/actions/ship-staged@staging
+      - uses: rancher/charts/.github/actions/ship-staged@chart-owners
         with:
           chart-dir: ${{ runner.temp }}/chart/my-chart
           version: ${{ steps.prepare.outputs.version }}
@@ -193,12 +193,12 @@ jobs:
 To have the version worked out, call the action without `version`. The `appVersion` of the folder must be set:
 
 ```yaml
-      - uses: rancher/charts/.github/actions/ship-staged@staging
+      - uses: rancher/charts/.github/actions/ship-staged@chart-owners
         with:
           chart-dir: ${{ runner.temp }}/chart/my-chart
 ```
 
-The action checks the job and the credentials first, then makes the token for `rancher/charts`, installs the latest cargueiro, works out the version when you give none, and stamps, checks, packages and pushes the chart. Only then does it send the `chart-staged` event, with the name and the version. All that can fail on credentials fails before the push, because a version that is pushed stays in the registry. It has the outputs `chart`, `reference` and `version`, the one it used.
+The action checks the job and the credentials first, then reads the token for `rancher/charts` from Vault, installs the latest cargueiro, works out the version when you give none, and stamps, checks, packages and pushes the chart. Only then does it start the `chart-staged` workflow, with the name and the version. All that can fail on credentials fails before the push, because a version that is pushed stays in the registry. It has the outputs `chart`, `reference` and `version`, the one it used.
 
 ## What rancher/charts does
 

@@ -206,14 +206,15 @@ The dispatch starts the `chart-staged` workflow in `rancher/charts`, which runs 
 
 ## When something fails
 
-The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. A failure before the push leaves nothing behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read. A version is pushed once, so after the push the same version can't be run again. If only the event failed, send it again by hand, or start the chart-staged workflow of `rancher/charts` with the same two values.
+The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. A failure before the push leaves nothing behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read. A version is pushed once, so after the push the same version can't be run again. If only the dispatch failed, start the `chart-staged` workflow of `rancher/charts` by hand with the same values, which needs write access to that repository: with the command below, or with Run workflow in its Actions tab.
 
 ```
-gh api "repos/rancher/charts/dispatches" \
-  -f event_type=chart-staged \
-  -f "client_payload[chart]=my-chart" \
-  -f "client_payload[version]=112.0.0+up0.13.0"
+gh workflow run chart-staged.yaml --repo rancher/charts --ref staging \
+  -f chart=my-chart \
+  -f version=112.0.0+up0.13.0
 ```
+
+For a family, give `-f family=<family>` instead of `chart`.
 
 ## The commands behind the action
 
@@ -227,4 +228,4 @@ These are the commands the action runs, in the order it runs them, for when you 
 | 4 | `cargueiro check chart <folder>` | Checks the annotations of the kind of the chart, `helm.sh/images` and the version against the rules. Exits with 1 and prints every error when the chart is not valid. | [check chart](../cmd/docs/check-chart.md) |
 | 5 | `cargueiro package <folder> --output-dir <dir>` | Runs the same check, builds the archive and prints its path. The archive is removed and the step fails if it is not valid or if a file differs from the folder. | [package](../cmd/docs/package.md) |
 | 6 | `cargueiro push <archive> --registry <registry>/rancher/catalog` | Pushes the archive to the staging registry, with the credentials from `CARGUEIRO_USERNAME` and `CARGUEIRO_PASSWORD`. A version is pushed once, and a chart goes only to the repository of its edition. Prints the reference it pushed. | [push](../cmd/docs/push.md) |
-| 7 | `gh api repos/rancher/charts/dispatches -f event_type=chart-staged ...` | Sends the name and the version of the chart to `rancher/charts`, which ships and indexes it (see [What rancher/charts does](#what-ranchercharts-does)). | |
+| 7 | `gh workflow run chart-staged.yaml --repo rancher/charts --ref staging ...` | Starts the `chart-staged` workflow of `rancher/charts` with the name and the version of the chart, which ships and indexes it (see [What rancher/charts does](#what-ranchercharts-does)). | |

@@ -346,6 +346,31 @@ families:
 	}
 }
 
+func TestMainCharts(t *testing.T) {
+	const in = `
+kinds: {main: {}, crd: {}, extra: {}}
+families:
+  - family: zeta
+    charts:
+      - {name: zeta-crd, kind: crd, edition: rancher-charts}
+      - {name: zeta, kind: main, edition: rancher-charts, upstream: https://github.com/rancher/zeta}
+  - family: alpha
+    charts:
+      - {name: alpha, kind: main, edition: prime-charts}
+      - {name: alpha-extra, kind: extra, edition: prime-charts}
+`
+	cfg, err := Parse([]byte(in + registriesAndVersions))
+	require.NoError(t, err)
+
+	got := cfg.MainCharts()
+
+	require.Len(t, got, 2)
+	require.Equal(t, "alpha", got[0].Name)
+	require.Empty(t, got[0].Upstream)
+	require.Equal(t, "zeta", got[1].Name)
+	require.Equal(t, "https://github.com/rancher/zeta", got[1].Upstream)
+}
+
 func mustFamily(t *testing.T, cfg *Config, name string) Family {
 	t.Helper()
 

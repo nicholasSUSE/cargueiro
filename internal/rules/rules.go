@@ -177,6 +177,16 @@ func (c *Config) Editions() map[string]string {
 	return editions
 }
 
+// MainCharts returns the main chart of every family, sorted by name.
+func (c *Config) MainCharts() []Chart {
+	var mains []Chart
+	for _, family := range c.families {
+		mains = append(mains, family.Main())
+	}
+	slices.SortFunc(mains, func(a, b Chart) int { return strings.Compare(a.Name, b.Name) })
+	return mains
+}
+
 // Registries returns the registries named in the rules file.
 func (c *Config) Registries() Registries {
 	return c.registries

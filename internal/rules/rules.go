@@ -31,6 +31,10 @@ type Chart struct {
 	// ReleaseName is the expected catalog.cattle.io/release-name. It is the
 	// chart name unless the file says otherwise.
 	ReleaseName string
+	// Upstream is the address of the repository that releases the chart, as
+	// https://github.com/<organization>/<repository>. It is empty when the rules
+	// file does not say.
+	Upstream string
 	// Required lists the annotations the chart must carry, without the
 	// catalog.cattle.io/ prefix.
 	Required []string
@@ -173,6 +177,16 @@ func (c *Config) Editions() map[string]string {
 	return editions
 }
 
+// MainCharts returns the main chart of every family, sorted by name.
+func (c *Config) MainCharts() []Chart {
+	var mains []Chart
+	for _, family := range c.families {
+		mains = append(mains, family.Main())
+	}
+	slices.SortFunc(mains, func(a, b Chart) int { return strings.Compare(a.Name, b.Name) })
+	return mains
+}
+
 // Registries returns the registries named in the rules file.
 func (c *Config) Registries() Registries {
 	return c.registries
@@ -247,6 +261,7 @@ type chartItem struct {
 	Edition     string `yaml:"edition"`
 	Version     string `yaml:"version"`
 	Icon        string `yaml:"icon"`
+	Upstream    string `yaml:"upstream"`
 }
 
 // Parse reads a rules file. It rejects malformed input: unknown keys, an
@@ -411,6 +426,10 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		return Chart{}, fmt.Errorf("parse rules: chart %q has unknown icon %q", item.Name, item.Icon)
 	}
 
+	if err := checkUpstream(item); err != nil {
+		return Chart{}, err
+	}
+
 	releaseName := item.ReleaseName
 	if releaseName == "" {
 		releaseName = item.Name
@@ -423,8 +442,29 @@ func newChart(family string, item chartItem, kinds map[string]kindRule) (Chart, 
 		ReleaseName:  releaseName,
 		PlainVersion: item.Version == versionPlain,
 		SkipIcon:     item.Icon == iconSkip,
+		Upstream:     item.Upstream,
 		Required:     slices.Clone(rule.Required),
 	}, nil
+}
+
+// upstreamForm is the address of a repository on GitHub, with no trailing
+// slash and no .git.
+var upstreamForm = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
+
+// checkUpstream rejects an upstream that is not the address of a repository on
+// GitHub, and one on a chart that is not a main chart: a crd or an extra chart
+// is released with the repository of its main chart.
+func checkUpstream(item chartItem) error {
+	if item.Upstream == "" {
+		return nil
+	}
+	if item.Kind != KindMain {
+		return fmt.Errorf("parse rules: chart %q: upstream is for a main chart; a crd or extra chart is released from the repository of its main chart", item.Name)
+	}
+	if !upstreamForm.MatchString(item.Upstream) || strings.HasSuffix(item.Upstream, ".git") {
+		return fmt.Errorf("parse rules: chart %q has the upstream %q, which must look like https://github.com/<organization>/<repository>", item.Name, item.Upstream)
+	}
+	return nil
 }
 
 // checkRequired rejects an empty or repeated annotation name in a kind.

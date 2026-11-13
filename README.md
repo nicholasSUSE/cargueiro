@@ -69,7 +69,7 @@ Each command is documented in its own file under `cmd/docs/`. That file is the s
 | [`registry logout`](cmd/docs/registry-logout.md) | Forget the saved login. |
 | [`ship`](cmd/docs/ship.md) | Write the entry and the logo of a chart in a registry to a charts repository. |
 | [`stamp`](cmd/docs/stamp.md) | Put the final version and the helm.sh/images annotation on a chart directory. |
-| [`upstream-repos`](cmd/docs/upstream-repos.md) | List the upstream repository of every main chart in `rules.yaml`. |
+| [`upstream-repos`](cmd/docs/upstream-repos.md) | List the upstream repository of every main chart of the `rancher-charts` edition in `rules.yaml`. |
 | [`version`](cmd/docs/version.md) | Print the cargueiro version. |
 <!-- COMMANDS:END -->
 

@@ -19,6 +19,9 @@ families:
   - family: fleet
     charts:
       - { name: fleet, kind: main, edition: rancher-charts, upstream: https://github.com/rancher/fleet }
+  - family: primed
+    charts:
+      - { name: primed, kind: main, edition: prime-charts, upstream: https://github.com/rancher/primed }
   - family: rancher-backup
     charts:
       - { name: rancher-backup, kind: main, edition: rancher-charts, upstream: https://github.com/rancher/backup-restore-operator }
@@ -65,6 +68,7 @@ func TestUpstreamReposListsTheMainCharts(t *testing.T) {
 		"rancher-backup  https://github.com/rancher/backup-restore-operator\n"+
 		"zeta            needs an upstream\n", stdout)
 	require.NotContains(t, stdout, "zeta-crd", "a crd chart has no line")
+	require.NotContains(t, stdout, "primed", "a prime chart is not listed")
 }
 
 func TestUpstreamReposTakesNoArguments(t *testing.T) {

@@ -22,7 +22,13 @@ func newUpstreamReposCmd(opts *rootOptions) (*cobra.Command, error) {
 			if err != nil {
 				return err
 			}
-			if _, err := io.WriteString(cmd.OutOrStdout(), upstreamReposText(cfg.MainCharts())); err != nil {
+			var mains []rules.Chart
+			for _, chart := range cfg.MainCharts() {
+				if chart.Edition == rules.EditionRancherCharts {
+					mains = append(mains, chart)
+				}
+			}
+			if _, err := io.WriteString(cmd.OutOrStdout(), upstreamReposText(mains)); err != nil {
 				return fmt.Errorf("write result: %w", err)
 			}
 			return nil

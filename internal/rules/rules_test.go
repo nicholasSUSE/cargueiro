@@ -319,6 +319,100 @@ func TestParseRejectsAnIcon(t *testing.T) {
 	}
 }
 
+func TestParseReadsTheUpstream(t *testing.T) {
+	const in = `
+kinds: {main: {}, crd: {}}
+families:
+  - family: a
+    charts:
+      - {name: a, kind: main, edition: rancher-charts, upstream: https://github.com/rancher/webhook}
+      - {name: a-crd, kind: crd, edition: rancher-charts}
+  - family: b
+    charts:
+      - {name: b, kind: main, edition: rancher-charts}
+`
+	cfg, err := Parse([]byte(in + registriesAndVersions))
+	require.NoError(t, err)
+
+	got, err := cfg.Find("a")
+	require.NoError(t, err)
+	require.Equal(t, "https://github.com/rancher/webhook", got.Upstream)
+	require.Equal(t, "https://github.com/rancher/webhook", mustFamily(t, cfg, "a").Main().Upstream)
+
+	for _, name := range []string{"a-crd", "b"} {
+		got, err := cfg.Find(name)
+		require.NoError(t, err)
+		require.Empty(t, got.Upstream, "the upstream is optional: %s", name)
+	}
+}
+
+func mustFamily(t *testing.T, cfg *Config, name string) Family {
+	t.Helper()
+
+	family, err := cfg.Family(name)
+	require.NoError(t, err)
+	return family
+}
+
+func TestParseRejectsAnUpstream(t *testing.T) {
+	const form = "which must look like https://github.com/<organization>/<repository>"
+	tests := []struct {
+		name    string
+		chart   string
+		wantErr string
+	}{
+		{
+			name:    "on a crd chart",
+			chart:   "{name: a, kind: crd, edition: rancher-charts, upstream: https://github.com/rancher/webhook}",
+			wantErr: `chart "a": upstream is for a main chart; a crd or extra chart is released from the repository of its main chart`,
+		},
+		{
+			name:    "on an extra chart",
+			chart:   "{name: a, kind: extra, edition: rancher-charts, upstream: https://github.com/rancher/webhook}",
+			wantErr: `chart "a": upstream is for a main chart`,
+		},
+		{
+			name:    "without the scheme",
+			chart:   "{name: a, kind: main, edition: rancher-charts, upstream: github.com/rancher/webhook}",
+			wantErr: form,
+		},
+		{
+			name:    "another host",
+			chart:   "{name: a, kind: main, edition: rancher-charts, upstream: https://gitlab.com/rancher/webhook}",
+			wantErr: form,
+		},
+		{
+			name:    "a trailing slash",
+			chart:   "{name: a, kind: main, edition: rancher-charts, upstream: https://github.com/rancher/webhook/}",
+			wantErr: form,
+		},
+		{
+			name:    "a .git suffix",
+			chart:   "{name: a, kind: main, edition: rancher-charts, upstream: https://github.com/rancher/webhook.git}",
+			wantErr: form,
+		},
+		{
+			name:    "a path under the repository",
+			chart:   "{name: a, kind: main, edition: rancher-charts, upstream: https://github.com/rancher/webhook/tree/main}",
+			wantErr: form,
+		},
+		{
+			name:    "only the organization",
+			chart:   "{name: a, kind: main, edition: rancher-charts, upstream: https://github.com/rancher}",
+			wantErr: form,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := "\nkinds: {main: {}, crd: {}, extra: {}}\nfamilies:\n  - family: a\n    charts:\n      - " + tt.chart + "\n"
+
+			cfg, err := Parse([]byte(in))
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Nil(t, cfg)
+		})
+	}
+}
+
 func TestParseRejectsAnUnknownChartVersion(t *testing.T) {
 	const in = `
 kinds: {main: {}}

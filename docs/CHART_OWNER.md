@@ -248,13 +248,13 @@ The dispatch starts the `chart-staged` workflow in `rancher/charts`, which runs 
 
 ## When something fails
 
-The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. A failure before the push leaves nothing behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read. For one chart, a version is pushed once, so after the push the same version can't be run again.
+The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. What to do depends on where it stopped:
 
-The charts of a family are pushed one after the other, and a push that stops halfway can be run again: the charts that are in the registry with the same content are skipped, and the rest are pushed. If a chart is there with other content, the job stops before it pushes anything and names the chart with both digests, and the family needs a new version. When the network or the registry fails, each chart is tried up to 5 times, waiting longer each time, so a job can take several minutes to fail.
-
-When the version of a family is worked out, the job can stop with `the charts of the family "<family>" are not at the same released version`, followed by the latest version of each chart. It means that a chart of the family was released alone, with `ship-staged`, and the other charts are behind it. Give the `version` input to set the version of the family yourself.
-
-If only the dispatch failed, start the `chart-staged` workflow of `rancher/charts` by hand with the same values, which needs write access to that repository: with the command below, or with Run workflow in its Actions tab.
+- **Before the push.** Nothing is left behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read.
+- **After the push, for one chart.** A version is pushed once, so after the push the same version can't be run again.
+- **A family that stops halfway.** The charts of a family are pushed one after the other, and a push that stops halfway can be run again: the charts that are in the registry with the same content are skipped, and the rest are pushed. If a chart is there with other content, the job stops before it pushes anything and names the chart with both digests, and the family needs a new version. When the network or the registry fails, each chart is tried up to 5 times, waiting longer each time, so a job can take several minutes to fail.
+- **A family that is not at the same released version.** When the version of a family is worked out, the job can stop with `the charts of the family "<family>" are not at the same released version`, followed by the latest version of each chart. It means that a chart of the family was released alone, with `ship-staged`, and the other charts are behind it. Give the `version` input to set the version of the family yourself.
+- **Only the dispatch failed.** Start the `chart-staged` workflow of `rancher/charts` by hand with the same values, which needs write access to that repository: with the command below, or with Run workflow in its Actions tab.
 
 ```
 gh workflow run chart-staged.yaml --repo rancher/charts --ref staging \

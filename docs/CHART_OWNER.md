@@ -200,6 +200,20 @@ To have the version worked out, call the action without `version`. The `appVersi
           chart-dir: ${{ runner.temp }}/chart/my-chart
 ```
 
+For the charts of a family, call `ship-family-staged` with the name of the family and the folder of each chart, one to a line, in any order. `version` is optional here too:
+
+```yaml
+      - uses: rancher/charts/.github/actions/ship-family-staged@chart-owners
+        with:
+          family: fleet
+          chart-dirs: |
+            ${{ runner.temp }}/charts/fleet
+            ${{ runner.temp }}/charts/fleet-agent
+            ${{ runner.temp }}/charts/fleet-crd
+```
+
+Its outputs are `family`, `references`, one reference for each chart in the order of the family, and `version`.
+
 The action checks the job and the credentials first, then reads the token for `rancher/charts` from Vault, installs the latest cargueiro, works out the version when you give none, and stamps, checks, packages and pushes the chart. Only then does it start the `chart-staged` workflow, with the name and the version. All that can fail on credentials fails before the push, because a version that is pushed stays in the registry. It has the outputs `chart`, `reference` and `version`, the one it used.
 
 ## What rancher/charts does

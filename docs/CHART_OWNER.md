@@ -123,7 +123,9 @@ The action stamps it with the version `112.0.0+up0.13.0-rc.7`, which is the `ver
 
 ### The rules of the chart
 
-`check chart` applies the rules of `rules.yaml` to `Chart.yaml` and `values.yaml`, and `package` runs it before it builds the archive. The rules are written in [Chart annotation rules](DEVELOPING.md#chart-annotation-rules), for the version and the annotations of each kind of chart, and in [helm.sh/images](DEVELOPING.md#helmshimages), for the images in `values.yaml` and the annotation that lists them. One rule is not checked by `check chart` but when the chart is shipped in `rancher/charts`: a main chart needs an `icon` that is an `http` or `https` address of a logo, unless `rules.yaml` marks it `icon: skip`.
+`check chart` applies the rules of `rules.yaml` to `Chart.yaml` and `values.yaml`, and `package` runs it before it builds the archive. The rules are written in [Chart annotation rules](DEVELOPING.md#chart-annotation-rules), for the version and the annotations of each kind of chart, and in [helm.sh/images](DEVELOPING.md#helmshimages), for the images in `values.yaml` and the annotation that lists them.
+
+**Heads-up.** A main chart needs an `icon` that is an `http` or `https` address of a logo, unless `rules.yaml` marks it `icon: skip`. `check chart` does not check it: it fails later, when the chart is shipped in `rancher/charts`, after the chart is already in the registry.
 
 ## The whole path
 

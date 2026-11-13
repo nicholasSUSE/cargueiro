@@ -53,7 +53,7 @@ The `rancher/webhook` repository is the example: [`stage-chart.yaml`](https://gi
 |------|----------------|------------------|
 | A Vault role for the repository | The job logs in with its OIDC token, and the role is named after the repository. A repository that already reads secrets from Vault has it. | The role, if the repository has none. |
 | The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. |
-| The `chart-staged` token | A short-lived token from Vault, scoped to `rancher/charts` with only `actions: write`, which the action uses to start the `chart-staged` workflow. There is no GitHub App to create, and no `appId` or `privateKey` to store. | Access to the `chart-staged` token for `rancher/<repository>`. The action reads the token from Vault. |
+| The `chart-staged` token | A short-lived token from Vault, scoped to `rancher/charts` with only `actions: write`, which the action uses to start the `chart-staged` workflow. There is no GitHub App to create, and no `appId` or `privateKey` to store. | Access to the `chart-staged` token for `rancher/<repository>`. |
 
 To ask, open an issue in [`rancherlabs/eio`](https://github.com/rancherlabs/eio) with the repository and what it needs. EIO decides whether to create something new, reuse what exists, or expand its permissions. This should be enough:
 
@@ -224,7 +224,6 @@ For the charts of a family, call `ship-family-staged` with the name of the famil
             ${{ runner.temp }}/charts/fleet-crd
 ```
 
-Its outputs are `family`, `references`, one reference for each chart in the order of the family, and `version`.
 
 The workflow that calls the action must have a concurrency group, because two runs of the same release can push at the same time, and the check that the version is not in the registry yet and the push are two calls. A composite action cannot set it, so your workflow does. The key is the chart, or the family, and the version, and `cancel-in-progress` is `false`, so a second run waits in line instead of being cancelled:
 
@@ -236,7 +235,7 @@ concurrency:
 
 The key can only use what exists when the workflow starts, such as the tag or an input, and not the version that the job works out.
 
-The action checks the job, reads the registry credentials and the `chart-staged` token from Vault, and checks them, all before it pushes, because a version that is pushed stays in the registry. It starts the `chart-staged` workflow only after the push. The commands it runs are in [The commands behind the action](#the-commands-behind-the-action).
+The action checks the job, reads the registry credentials and the `chart-staged` token from Vault, and checks them, all before it pushes, because a version that is pushed stays in the registry. It starts the `chart-staged` workflow only after the push. The commands it runs are in [The commands behind the action](#the-commands-behind-the-action). The outputs are `chart`, `reference` and `version` for one chart, and `family`, `references` and `version` for a family, where `references` has one reference for each chart in the order of the family and `version` is the one the action used.
 
 ## What rancher/charts does
 

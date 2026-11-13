@@ -10,6 +10,10 @@
 # A crd or extra chart keeps its icon as it is, and so does a main chart marked
 # icon: skip. Any other chart must have an icon that can be made local.
 #
+# A main chart may say upstream, the address of the repository that releases it,
+# as https://github.com/<organization>/<repository>. It is optional, and a crd or
+# extra chart is released from the repository of its main chart.
+#
 # Data source: latest Chart.yaml of every chart in rancher/charts release-v2.15
 # (be246f515, 2026-10-29). The prime-charts entries are the charts of
 # prime-charts release-v2.13, v2.14 and v2.15.
@@ -32,7 +36,7 @@ families:
       - { name: elemental-crd, kind: crd, release-name: elemental-operator-crds, edition: rancher-charts }
   - family: fleet
     charts:
-      - { name: fleet, kind: main, edition: rancher-charts, icon: skip }
+      - { name: fleet, kind: main, edition: rancher-charts, icon: skip, upstream: https://github.com/rancher/fleet }
       - { name: fleet-agent, kind: extra, edition: rancher-charts }
       - { name: fleet-crd, kind: crd, edition: rancher-charts }
   - family: harvester-rbac
@@ -90,7 +94,7 @@ families:
       - { name: rancher-turtles, kind: main, edition: rancher-charts }
   - family: rancher-webhook
     charts:
-      - { name: rancher-webhook, kind: main, edition: rancher-charts, icon: skip }
+      - { name: rancher-webhook, kind: main, edition: rancher-charts, icon: skip, upstream: https://github.com/rancher/webhook }
   - family: remotedialer-proxy
     charts:
       - { name: remotedialer-proxy, kind: main, edition: rancher-charts, icon: skip }  # known violation: no kube-version, fix upstream

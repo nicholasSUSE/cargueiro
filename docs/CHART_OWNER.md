@@ -52,8 +52,8 @@ The `rancher/webhook` repository is the example: [`stage-chart.yaml`](https://gi
 | What | What it is for | What you ask for |
 |------|----------------|------------------|
 | A Vault role for the repository | The job logs in with its OIDC token, and the role is named after the repository. A repository that already reads secrets from Vault has it. | The role, if the repository has none. |
-| The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. |
-| The `chart-staged` token | A short-lived token from Vault, scoped to `rancher/charts` with only `actions: write`, which the action uses to start the `chart-staged` workflow. There is no GitHub App to create, and no `appId` or `privateKey` to store. | Access to the `chart-staged` token for `rancher/<repository>`. |
+| The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. The staging user can push to `rancher/**`, which covers it. |
+| The `rancher-gh-workflow-dispatcher` App credentials | The credentials of a GitHub App that can start workflows in the organization. The action reads them from Vault and makes from them a short-lived token limited to `rancher/charts` and `actions: write`, which it uses to start the `chart-staged` workflow. | Access to `github/rancher-gh-workflow-dispatcher/app-credentials` under `github/repo/rancher/<repository>/`, with `appId` and `privateKey`. You do not create an App: EIO adds your repository to the existing one. |
 
 To ask, open an issue in [`rancherlabs/eio`](https://github.com/rancherlabs/eio) with the repository and what it needs. EIO decides whether to create something new, reuse what exists, or expand its permissions. This should be enough:
 
@@ -63,7 +63,7 @@ Repository: rancher/<repository>
 1. A Vault role for the repository, if it has none.
 2. rancher-prime-stg-registry/credentials under github/repo/rancher/<repository>/ with username,
    password and registry, able to push to stgregistry.suse.com/rancher/catalog.
-3. Access to the chart-staged token for rancher/<repository>.
+3. Access to the rancher-gh-workflow-dispatcher app credentials for rancher/<repository>.
 ```
 
 ### The chart folder

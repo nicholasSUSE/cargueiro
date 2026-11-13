@@ -1,7 +1,6 @@
 package audit
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -76,7 +75,7 @@ func TestCheckURLs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := writeIndex(t, fleetLine(tt.version, tt.url))
 
-			report := Run(context.Background(), loadRules(t), Options{Dir: dir, Registry: tt.registry})
+			report := run(t, Options{Dir: dir, Registry: tt.registry})
 
 			result := report[0]
 			if len(tt.wantErr) == 0 {
@@ -99,7 +98,7 @@ func TestCheckURLsNamesEveryVersionAtFault(t *testing.T) {
 		"  - apiVersion: v2\n    name: fleet\n    version: 111.0.4+up0.17.4\n    urls:\n    - oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.4_up0.17.4@" + digest + "\n" +
 		"  - apiVersion: v2\n    name: fleet\n    version: 111.0.5+up0.17.5\n    urls:\n    - oci://evil.example.com/fleet:111.0.5_up0.17.5@" + digest + "\n"
 
-	report := Run(context.Background(), loadRules(t), Options{Dir: writeIndex(t, text)})
+	report := run(t, Options{Dir: writeIndex(t, text)})
 
 	require.False(t, report[0].Valid)
 	require.Contains(t, report[0].Error, "fleet 111.0.3+up0.17.3")
@@ -112,7 +111,7 @@ func TestCheckURLsNamesEveryVersionAtFault(t *testing.T) {
 func TestCheckURLsAChartThatIsNotInTheRules(t *testing.T) {
 	text := "apiVersion: v1\nentries:\n  unknown-chart:\n  - apiVersion: v2\n    name: unknown-chart\n    version: 1.0.0\n    urls:\n    - oci://stgregistry.suse.com/rancher/catalog/unknown-chart:1.0.0@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"
 
-	report := Run(context.Background(), loadRules(t), Options{Dir: writeIndex(t, text)})
+	report := run(t, Options{Dir: writeIndex(t, text)})
 
 	require.False(t, report[0].Valid)
 	require.Contains(t, report[0].Error, `unknown-chart 1.0.0: chart "unknown-chart" is not listed in the rules file`)

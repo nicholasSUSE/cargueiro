@@ -2,12 +2,14 @@ package audit
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/rancher/cargueiro/internal/oci"
 	"github.com/rancher/cargueiro/internal/rules"
 )
 
@@ -36,19 +38,38 @@ func fleetLine(version, url string) string {
 	return "apiVersion: v1\nentries:\n  fleet:\n  - apiVersion: v2\n    name: fleet\n    version: " + version + "\n    urls:\n    - " + url + "\n"
 }
 
+// nothingInRegistry is a registry that has no tag: tests that do not look at it
+// use it, so none of them reaches a real one.
+func nothingInRegistry(context.Context, oci.ChartRef, oci.FetchOptions) (oci.ManifestInfo, error) {
+	return oci.ManifestInfo{}, fmt.Errorf("%w", oci.ErrNotFound)
+}
+
+// run audits dir with the rules of the repository, and a registry with nothing
+// in it unless the options give one.
+func run(t *testing.T, opts Options) Report {
+	t.Helper()
+
+	if opts.Fetch == nil {
+		opts.Fetch = nothingInRegistry
+	}
+	return Run(context.Background(), loadRules(t), opts)
+}
+
 const goodURL = "oci://stgregistry.suse.com/rancher/catalog/fleet:111.0.3_up0.17.3@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func TestRunReportsEveryCheck(t *testing.T) {
 	dir := writeIndex(t, fleetLine("111.0.3+up0.17.3", goodURL))
 
-	report := Run(context.Background(), loadRules(t), Options{Dir: dir})
+	report := run(t, Options{Dir: dir})
 
-	require.Len(t, report, 1)
+	require.Len(t, report, 2)
 	require.Equal(t, "urls", report[0].Check)
+	require.Equal(t, "manifest", report[1].Check)
 	require.True(t, report[0].Valid)
 	require.Equal(t, NoError, report[0].Error)
-	require.NotEmpty(t, report[0].Description)
-	require.True(t, report.Valid())
+	for _, result := range report {
+		require.NotEmpty(t, result.Description)
+	}
 }
 
 func TestRunWithoutAnIndexHasNothingToCheck(t *testing.T) {
@@ -58,9 +79,9 @@ func TestRunWithoutAnIndexHasNothingToCheck(t *testing.T) {
 		"an index of none": writeIndex(t, "apiVersion: v1\nentries: {}\n"),
 	} {
 		t.Run(name, func(t *testing.T) {
-			report := Run(context.Background(), loadRules(t), Options{Dir: dir})
+			report := run(t, Options{Dir: dir})
 
-			require.True(t, report.Valid())
+			require.True(t, report.Valid(), report)
 			require.Contains(t, report[0].Description, "0 versions")
 		})
 	}
@@ -69,12 +90,14 @@ func TestRunWithoutAnIndexHasNothingToCheck(t *testing.T) {
 func TestRunSaysWhyACheckDidNotRun(t *testing.T) {
 	dir := writeIndex(t, "this: is: not: yaml: [")
 
-	report := Run(context.Background(), loadRules(t), Options{Dir: dir})
+	report := run(t, Options{Dir: dir})
 
-	require.Len(t, report, 1)
-	require.False(t, report[0].Valid)
-	require.Contains(t, report[0].Error, "read index.yaml")
-	require.Contains(t, report[0].Description, "did not run")
+	require.Len(t, report, 2)
+	for _, result := range report {
+		require.False(t, result.Valid)
+		require.Contains(t, result.Error, "read index.yaml")
+		require.Contains(t, result.Description, "did not run")
+	}
 	require.False(t, report.Valid())
 }
 

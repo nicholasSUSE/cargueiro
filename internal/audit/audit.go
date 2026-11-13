@@ -14,6 +14,7 @@ import (
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 
 	"github.com/rancher/cargueiro/internal/index"
+	"github.com/rancher/cargueiro/internal/oci"
 	"github.com/rancher/cargueiro/internal/rules"
 )
 
@@ -52,6 +53,14 @@ type Options struct {
 	// Registry replaces the staging registry of the edition of each chart, as
 	// host[:port]/path. The name of the chart is added to it.
 	Registry string
+	// PlainHTTP talks HTTP to the registry instead of HTTPS.
+	PlainHTTP bool
+	// Credentials gives the credentials to read each registry. Nil reads
+	// anonymously.
+	Credentials oci.CredentialFunc
+	// Fetch reads a manifest from the registry. It defaults to
+	// oci.FetchManifestInfo, and tests replace it.
+	Fetch FetchFunc
 }
 
 // published is a version in the index.yaml of the repository.
@@ -67,6 +76,9 @@ type snapshot struct {
 	registry string
 	// versions are the versions of the index, sorted by chart and version.
 	versions []published
+	// remote is what the registry answered for each version, by versionName. It
+	// is empty until the registry is read.
+	remote map[string]remoteVersion
 }
 
 // check is one check of the report.
@@ -77,22 +89,37 @@ type check struct {
 	run func(*snapshot) (string, error)
 }
 
-// checks are the checks that need nothing but the repository, in the order they run.
+// localChecks are the checks that need nothing but the repository, in the order they run.
 func localChecks() []check {
 	return []check{
 		{name: "urls", run: checkURLs},
 	}
 }
 
-// Run audits the repository. It reads the repository once, and then runs every
-// check on what it read. A check that cannot run because the repository could
-// not be read is in the report as not valid, with the reason, and the others
-// still run.
-func Run(_ context.Context, cfg *rules.Config, opts Options) Report {
+// remoteChecks are the checks that compare the repository with what the
+// registry holds, in the order they run.
+func remoteChecks() []check {
+	return []check{
+		{name: "manifest", run: checkManifests},
+	}
+}
+
+// Run audits the repository. It reads the repository once, runs the checks that
+// need nothing else, reads the registry once for each version, and runs the
+// checks that compare the two. A check that cannot run because the repository
+// could not be read is in the report as not valid, with the reason, and the
+// others still run.
+func Run(ctx context.Context, cfg *rules.Config, opts Options) Report {
 	snap, readErr := read(cfg, opts)
 
 	var report Report
 	for _, c := range localChecks() {
+		report = append(report, runCheck(c, snap, readErr))
+	}
+	if readErr == nil {
+		gather(ctx, snap, opts)
+	}
+	for _, c := range remoteChecks() {
 		report = append(report, runCheck(c, snap, readErr))
 	}
 	return report

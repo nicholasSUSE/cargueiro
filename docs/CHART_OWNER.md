@@ -239,7 +239,12 @@ The action checks the job, reads the registry credentials and the `chart-staged`
 
 ## What rancher/charts does
 
-The dispatch starts the `chart-staged` workflow in `rancher/charts`, which runs `cargueiro ship` and `cargueiro index` for that version, and opens a pull request against `staging` with the entry, the logo, the archive and `index.yaml`. For a family it ships every chart in one pull request. The `staging` branch takes no direct pushes: a person with write access to `rancher/charts` approves and merges the pull request. Every pull request changes `index.yaml`, so when several charts are sent together, merge them one at a time. A version that was shipped already fails there, on purpose.
+The dispatch starts the `chart-staged` workflow in `rancher/charts`, which runs `cargueiro ship` and `cargueiro index` for that version.
+
+- It opens a pull request against `staging` with the entry, the logo, the archive and `index.yaml`. For a family it ships every chart in one pull request.
+- The `staging` branch takes no direct pushes: a person with write access to `rancher/charts` approves and merges the pull request.
+- Every pull request changes `index.yaml`, so the pull requests of different releases can conflict: merge them one at a time.
+- A version that was shipped already fails there, on purpose. Release it under a new version.
 
 ## When something fails
 

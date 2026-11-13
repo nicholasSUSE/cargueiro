@@ -19,7 +19,7 @@ To release a chart, you do these steps, and each one is described below:
 2. Ask EIO for the access the job needs ([From EIO](#from-eio)).
 3. Prepare the chart folder in your workflow ([The chart folder](#the-chart-folder)).
 4. Call the action from a job, with a concurrency group ([Call the action](#call-the-action)).
-5. Review and merge the pull request that `rancher/charts` opens ([What rancher/charts does](#what-ranchercharts-does)).
+5. Check the result: the pull request that `rancher/charts` opens merges itself when its checks pass ([What rancher/charts does](#what-ranchercharts-does)).
 
 The actions are in [`.github/actions`](https://github.com/rancher/charts/tree/chart-owners/.github/actions) on the `chart-owners` branch of `rancher/charts`.
 
@@ -43,7 +43,7 @@ A repository that releases a chart needs things from three places: cargueiro, `r
 |------|----------------|-------------|
 | The `ship-staged` or `ship-family-staged` action | The steps your workflow calls: it checks and pushes the chart, and starts the `chart-staged` workflow. | Add a job to your workflow that calls it after the checkout and the preparation of the chart folder, as shown in [Call the action](#call-the-action). It lives on the [`chart-owners`](https://github.com/rancher/charts/tree/chart-owners) branch of `rancher/charts`, which holds only the actions and the templates, so it moves only when they change. The repository is public, so there is nothing to request, and the organization allows any `rancher/*` action with any ref. A repository that pins its actions to a commit SHA uses the SHA of a commit of that branch instead of `chart-owners`, and updates it when the branch changes. |
 | The [`chart-staged`](https://github.com/rancher/charts/tree/staging/.github/workflows/chart-staged.yaml) workflow | It ships and indexes the chart when it is dispatched, and opens the pull request against `staging`. | Nothing to write: the action starts it for you with a `workflow_dispatch`, giving the chart, or the family, and the version that was pushed. It handles families too. You run your workflow when you release, as `rancher/webhook` does in the step [`Trigger Stage chart workflow`](https://github.com/rancher/webhook/blob/main/.github/workflows/cut-release.yaml#L120). |
-| An approval of the pull request | The `staging` branch takes no direct pushes. | A person with write access to `rancher/charts` reviews and merges the pull request. Example: [rancher/charts#9390](https://github.com/rancher/charts/pull/9390), the pull request for `rancher-webhook` `112.0.0+up0.13.0-rc.4`. |
+| The pull request | The `staging` branch takes no direct pushes, so the result is a pull request. | Nothing: the pull request is approved and merged by the automation when its checks pass. Example: [rancher/charts#9426](https://github.com/rancher/charts/pull/9426), the pull request for `rancher-webhook` `112.0.0+up0.13.0-rc.10`, which merged itself. When the checks fail, it stays open: contact the release team. |
 
 The `rancher/webhook` repository is the example: [`stage-chart.yaml`](https://github.com/rancher/webhook/blob/main/.github/workflows/stage-chart.yaml) and [`prepare-chart.sh`](https://github.com/rancher/webhook/blob/main/.github/workflows/scripts/prepare-chart.sh). The `chart-owners` branch also has generic templates for the chart preparation, to copy and adapt: [`prepare-charts.sh`](https://github.com/rancher/charts/blob/chart-owners/.github/templates/prepare-charts.sh) for one chart and [`prepare-charts-family.sh`](https://github.com/rancher/charts/blob/chart-owners/.github/templates/prepare-charts-family.sh) for a family.
 
@@ -52,8 +52,8 @@ The `rancher/webhook` repository is the example: [`stage-chart.yaml`](https://gi
 | What | What it is for | What you ask for |
 |------|----------------|------------------|
 | A Vault role for the repository | The job logs in with its OIDC token, and the role is named after the repository. A repository that already reads secrets from Vault has it. | The role, if the repository has none. |
-| The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. |
-| The `chart-staged` token | A short-lived token from Vault, scoped to `rancher/charts` with only `actions: write`, which the action uses to start the `chart-staged` workflow. There is no GitHub App to create, and no `appId` or `privateKey` to store. | Access to the `chart-staged` token for `rancher/<repository>`. |
+| The staging registry credentials | The push to the staging registry. | `rancher-prime-stg-registry/credentials` at `github/repo/rancher/<repository>/`, with `username`, `password` and `registry` (`stgregistry.suse.com`), able to push to `stgregistry.suse.com/rancher/catalog`. The staging user can push to `rancher/**`, which covers it. |
+| The `rancher-gh-workflow-dispatcher` App credentials | The credentials of a GitHub App that can start workflows in the organization. The action reads them from Vault and makes from them a short-lived token limited to `rancher/charts` and `actions: write`, which it uses to start the `chart-staged` workflow. | Access to `github/rancher-gh-workflow-dispatcher/app-credentials` under `github/repo/rancher/<repository>/`, with `appId` and `privateKey`. You do not create an App: EIO adds your repository to the existing one. |
 
 To ask, open an issue in [`rancherlabs/eio`](https://github.com/rancherlabs/eio) with the repository and what it needs. EIO decides whether to create something new, reuse what exists, or expand its permissions. This should be enough:
 
@@ -63,7 +63,7 @@ Repository: rancher/<repository>
 1. A Vault role for the repository, if it has none.
 2. rancher-prime-stg-registry/credentials under github/repo/rancher/<repository>/ with username,
    password and registry, able to push to stgregistry.suse.com/rancher/catalog.
-3. Access to the chart-staged token for rancher/<repository>.
+3. Access to the rancher-gh-workflow-dispatcher app credentials for rancher/<repository>.
 ```
 
 ### The chart folder
@@ -160,7 +160,7 @@ flowchart TD
         ship --> index --> pr
     end
 
-    staging(["<b>staging branch of rancher/charts</b><br/>entries · assets · index.yaml<br/>after a person merges the pull request"])
+    staging(["<b>staging branch of rancher/charts</b><br/>entries · assets · index.yaml<br/>after the pull request merges itself"])
 
     start --> prep
     owner -. "a step fails" .-> failed
@@ -235,25 +235,27 @@ concurrency:
 
 The key can only use what exists when the workflow starts, such as the tag or an input, and not the version that the job works out.
 
-The action checks the job, reads the registry credentials and the `chart-staged` token from Vault, and checks them, all before it pushes, because a version that is pushed stays in the registry. It starts the `chart-staged` workflow only after the push. The commands it runs are in [The commands behind the action](#the-commands-behind-the-action). The outputs are `chart`, `reference` and `version` for one chart, and `family`, `references` and `version` for a family, where `references` has one reference for each chart in the order of the family and `version` is the one the action used.
+The action checks the job, reads the registry credentials and the App credentials from Vault, checks them, and makes the token for `rancher/charts` from the App credentials, all before it pushes, because a version that is pushed stays in the registry. It starts the `chart-staged` workflow only after the push. The commands it runs are in [The commands behind the action](#the-commands-behind-the-action). The outputs are `chart`, `reference` and `version` for one chart, and `family`, `references` and `version` for a family, where `references` has one reference for each chart in the order of the family and `version` is the one the action used.
 
 ## What rancher/charts does
 
 The dispatch starts the `chart-staged` workflow in `rancher/charts`, which runs `cargueiro ship` and `cargueiro index` for that version.
 
-- It opens a pull request against `staging` with the entry, the logo, the archive and `index.yaml`. For a family it ships every chart in one pull request.
-- The `staging` branch takes no direct pushes: a person with write access to `rancher/charts` approves and merges the pull request.
-- Every pull request changes `index.yaml`, so the pull requests of different releases can conflict: merge them one at a time.
+- It opens a pull request against `staging` with the entry, the logo, the archive and `index.yaml`. For a family it ships every chart in one pull request. A GitHub App opens it from a branch in `rancher/charts`, never from a fork: the checks need credentials that the run of a fork does not get.
+- The checks compare the repository with the staging registry: the URL of every version, the manifest that its tag names, and the digest of its archive. They are the ones of [`cargueiro audit`](../cmd/docs/audit.md).
+- When the checks pass, the pull request is approved and squash-merged, with no one touching it. When they fail, it stays open and the run fails: contact the release team.
+- The releases are merged one at a time, in order, because every pull request changes `index.yaml`.
 - A version that was shipped already fails there, on purpose. Release it under a new version.
 
 ## When something fails
 
 The log of the action starts with the repository, the ref, the folder and the version, then says for each credential only whether it was loaded, never its value, and it names the command that failed. What to do depends on where it stopped:
 
-- **Before the push.** Nothing is left behind: fix it and run the workflow again. This includes a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read.
+- **Before the push.** Nothing is left behind: fix it and run the workflow again. This includes credentials that are missing in Vault, an App that cannot make the token, and a version that cannot be worked out, such as a chart with no `appVersion` or a registry that cannot be read.
 - **After the push, for one chart.** A version is pushed once, so after the push the same version cannot be run again.
 - **A family that stops halfway.** The charts of a family are pushed one after the other, and a push that stops halfway can be run again: the charts that are in the registry with the same content are skipped, and the rest are pushed. If a chart is there with other content, the job stops before it pushes anything and names the chart with both digests, and the family needs a new version. When the network or the registry fails, each chart is tried up to 5 times, waiting longer each time, so a job can take several minutes to fail.
 - **A family that is not at the same released version.** When the version of a family is worked out, the job can stop with `the charts of the family "<family>" are not at the same released version`, followed by the latest version of each chart. It means that a chart of the family was released alone, with `ship-staged`, and the other charts are behind it. Give the `version` input to set the version of the family yourself: one that none of its charts has released yet, above the highest one in the list.
+- **The pull request opens but is not merged.** A check of the repository against the staging registry failed, or did not finish. The run fails and the pull request stays open, with the reason on the log of the checks: contact the release team.
 - **Only the dispatch failed.** Start the `chart-staged` workflow of `rancher/charts` by hand with the same values. It needs write access to that repository. Use Run workflow in its Actions tab, or this command:
 
 ```
